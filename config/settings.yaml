@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------------
+# Settings for the event-driven stock research workflow.
+#
+# Change values here instead of editing the Python code.
+# Some values can also be overridden for a single run from the command line,
+# e.g.  python analyze.py AVAV --period 10y --sigma 3 --benchmark QQQ
+# ---------------------------------------------------------------------------
+
+data:
+  # How much daily price history to download.
+  # Valid yfinance periods: 1y, 2y, 5y, 10y, ytd, max
+  period: "5y"
+  # Benchmark used for relative performance and abnormal returns.
+  # Set to null (or use --no-benchmark) to skip the comparison.
+  benchmark: "SPY"
+  # Network reliability: number of download attempts and the wait before
+  # the first retry (the wait doubles after every failed attempt).
+  download_attempts: 3
+  retry_wait_seconds: 2
+
+statistics:
+  # Trading days used as the "normal" baseline for the return Z-score.
+  # The window always ends the day BEFORE the day being scored, so a large
+  # move cannot inflate its own baseline.
+  zscore_window: 60
+  # Trading days used for average volume, volume ratio and volume Z-score
+  # (also measured over the days BEFORE the day being scored).
+  volume_window: 20
+  # Trading days used for rolling (annualised) volatility.
+  volatility_window: 20
+  # Used to annualise volatility: sigma_annual = sigma_daily * sqrt(252)
+  trading_days_per_year: 252
+
+events:
+  # A day is flagged as an abnormal event when ANY enabled rule is true.
+  # Set a rule to null to switch it off.
+  return_zscore_threshold: 2.5   # |Return Z-score| >= 2.5
+  volume_ratio_threshold: 2.0    # Volume >= 2.0 x average volume of the previous 20 days
+  volume_zscore_threshold: null  # Volume Z-score >= value   (off by default)
+  abs_return_threshold: null     # |Daily return| >= value, e.g. 0.10 = 10%  (off by default)
+  # Evidence matching: an event is linked to an earnings release when it falls
+  # on the first trading day on/after the release date, or up to this many
+  # trading days later. This is a DATE MATCH only, not proof of cause.
+  earnings_match_window_days: 1
+
+paths:
+  # SQLite database that accumulates prices, events and fundamentals over time.
+  database: "data/stock_research.db"
+  # Root folder for reports: reports/<TICKER>/<YYYY-MM-DD>/
+  reports_dir: "reports"
+
+report:
+  # Number of most recent events listed in summary.md.
+  # (events.csv always contains every event detected in the run.)
+  max_events_in_summary: 30
