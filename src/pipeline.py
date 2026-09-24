@@ -39,6 +39,9 @@ from src.events.detector import detect_events
 from src.events.evidence import match_earnings_to_events, normalize_earnings_dates
 from src.fundamentals.fundamentals import collect_fundamentals, fundamentals_frame, metric_labels
 from src.reporting import report
+from src.technical.analysis import run_technical_analysis
+from src.technical.chart import technical_chart
+from src.technical.reporting import build_summary_snapshot, build_technical_markdown, technical_json
 from src.visualization import charts
 
 logger = logging.getLogger(__name__)
@@ -160,17 +163,29 @@ def _merge_stored_research(events: pd.DataFrame, stored: pd.DataFrame) -> pd.Dat
     return merged
 
 
-def _collect_evidence(events: pd.DataFrame, trading_days: pd.DatetimeIndex, provider: Any, ticker: str,
-                      window_days: int, warnings: list[str]) -> pd.DataFrame:
+def _load_earnings(provider: Any, ticker: str, warnings: list[str]) -> pd.DataFrame | None:
+    """Download and normalise the earnings calendar (used for event evidence and event risk).
+
+    Returns None when no usable calendar is available - upcoming earnings are then
+    "unknown", never guessed.
+    """
     try:
         raw = provider.get_earnings_dates(ticker)
-    except Exception as exc:  # noqa: BLE001 - evidence is optional
-        warnings.append(f"Earnings calendar unavailable, so no events were linked to earnings dates ({exc}).")
-        return events
+    except Exception as exc:  # noqa: BLE001 - the calendar is optional
+        warnings.append(f"Earnings calendar unavailable ({exc}): events were not linked to earnings dates and "
+                        "upcoming earnings are unknown.")
+        return None
     earnings = normalize_earnings_dates(raw)
     if earnings.empty:
-        warnings.append("The earnings calendar returned no dates; no events were linked to earnings releases.")
-        return events
+        warnings.append("The earnings calendar returned no dates: events were not linked to earnings releases and "
+                        "upcoming earnings are unknown.")
+        return None
+    return earnings
+
+
+def _collect_evidence(events: pd.DataFrame, trading_days: pd.DatetimeIndex, provider: Any,
+                      earnings: pd.DataFrame, window_days: int, warnings: list[str]) -> pd.DataFrame:
+    """Link events to earnings releases (a date match, never a claimed cause)."""
     covered_from = earnings["release_time"].min()
     if covered_from > trading_days[0]:
         warnings.append(
@@ -227,7 +242,8 @@ def _fundamentals_with_fallback(conn, provider: Any, ticker: str, run_date: date
 
 
 def _make_charts(stats: pd.DataFrame, events: pd.DataFrame, ticker: str, benchmark: str | None,
-                 report_dir: Path, settings: dict[str, Any], warnings: list[str]) -> dict[str, str]:
+                 report_dir: Path, settings: dict[str, Any], warnings: list[str],
+                 technical: dict[str, Any] | None = None) -> dict[str, str]:
     e = settings["events"]
     jobs = {
         "price_chart": lambda p: charts.price_chart(stats, events, ticker, p),
@@ -239,6 +255,8 @@ def _make_charts(stats: pd.DataFrame, events: pd.DataFrame, ticker: str, benchma
     }
     if benchmark and "relative_performance" in stats and stats["relative_performance"].notna().any():
         jobs["benchmark_chart"] = lambda p: charts.benchmark_chart(stats, ticker, benchmark, p)
+    if technical is not None:
+        jobs["technical_chart"] = lambda p: technical_chart(technical, p, settings["technical"]["chart_days"])
     files: dict[str, str] = {}
     for name, job in jobs.items():
         filename = f"{name}.png"
@@ -252,11 +270,12 @@ def _make_charts(stats: pd.DataFrame, events: pd.DataFrame, ticker: str, benchma
 
 
 def _remove_stale_charts(report_dir: Path, files: dict[str, str]) -> None:
-    """Delete charts left by an earlier run on the same day that this run did not produce
-    (e.g. benchmark_chart.png after re-running with --no-benchmark), so the folder never
-    contains a chart that contradicts its summary.md."""
-    for path in report_dir.glob("*.png"):
-        if path.name not in files.values():
+    """Delete optional outputs left by an earlier run on the same day that this run did not
+    produce (e.g. benchmark_chart.png after re-running with --no-benchmark), so the folder
+    never contains a chart or report that contradicts its summary.md."""
+    optional = [*report_dir.glob("*.png"), report_dir / "technical_analysis.md"]
+    for path in optional:
+        if path.exists() and path.name not in files.values():
             path.unlink()
 
 
@@ -385,10 +404,13 @@ def run_analysis(
         logger.info("Detected %d event(s)", len(events))
 
         # ---- 5. Collect evidence (earnings dates) --------------------------
-        if not events.empty and provider is not None and not offline:
-            events = _collect_evidence(events, stats.index, provider, ticker,
+        earnings: pd.DataFrame | None = None  # None = calendar not available (never guessed)
+        if provider is not None and not offline:
+            earnings = _load_earnings(provider, ticker, warnings)
+        if not events.empty and earnings is not None:
+            events = _collect_evidence(events, stats.index, provider, earnings,
                                        settings["events"]["earnings_match_window_days"], warnings)
-        elif not events.empty:
+        elif not events.empty and (offline or provider is None):
             reason = "Offline mode" if offline else "No data provider available"
             warnings.append(f"{reason}: events were not checked against the earnings calendar.")
 
@@ -416,8 +438,30 @@ def run_analysis(
         benchmark_summary = (summarize_benchmark(stats, benchmark_used, stat_settings["trading_days_per_year"])
                              if benchmark_used else None)
 
-        # ---- 9. Charts and report -----------------------------------------
-        files = _make_charts(stats, events, ticker, benchmark_used, report_dir, settings, warnings)
+        # ---- 9. Swing technical analysis (2-7 trading-day horizon) -----------
+        technical: dict[str, Any] | None = None
+        currency = (fundamentals["profile"] or {}).get("currency")
+        try:
+            technical = run_technical_analysis(prices, price_column, stats, earnings, settings["technical"],
+                                               benchmark_used, ticker)
+            technical["currency"] = currency
+        except Exception as exc:  # noqa: BLE001 - the technical layer must never stop the main report
+            logger.exception("Swing technical analysis failed")
+            warnings.append(f"Swing technical analysis could not be completed: {exc}")
+
+        # ---- 10. Charts and report ----------------------------------------
+        files = _make_charts(stats, events, ticker, benchmark_used, report_dir, settings, warnings, technical)
+        technical_snapshot = technical_data = None
+        if technical is not None:
+            try:
+                (report_dir / "technical_analysis.md").write_text(build_technical_markdown(technical, currency),
+                                                                  encoding="utf-8")
+                files["technical_analysis"] = "technical_analysis.md"
+                technical_snapshot = build_summary_snapshot(technical, currency)
+                technical_data = technical_json(technical)
+            except Exception as exc:  # noqa: BLE001 - never stop the main report
+                logger.exception("Swing technical report failed")
+                warnings.append(f"The swing technical report could not be written: {exc}")
         price_column_description = (
             "Adjusted close (includes dividends and splits)" if price_column == "adj_close"
             else "Close price (not adjusted for dividends)"
@@ -450,6 +494,8 @@ def run_analysis(
             "files": files,
             "database": {"path": str(db_path), "events_inserted": counts["inserted"],
                          "events_updated": counts["updated"]},
+            "technical_snapshot_md": technical_snapshot,
+            "technical": technical_data,
         }
         report.write_events_csv(events, report_dir / "events.csv")
         report.write_fundamentals_csv(fundamentals_frame(fundamentals["records"]), report_dir / "fundamentals.csv")

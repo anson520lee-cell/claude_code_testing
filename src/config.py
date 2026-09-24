@@ -46,6 +46,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "report": {
         "max_events_in_summary": 30,
     },
+    "technical": {
+        "chart_days": 126,
+        "structure_lookback_days": 60,
+        "pivot_bars": 3,
+        "event_risk_days": 7,
+        "min_history_samples": 20,
+    },
 }
 
 VALID_PERIODS = {"1y", "2y", "5y", "10y", "ytd", "max"}
@@ -138,6 +145,14 @@ def validate_settings(settings: dict[str, Any]) -> None:
     max_events = settings["report"].get("max_events_in_summary")
     if not isinstance(max_events, int) or max_events < 1:
         raise ConfigError("report.max_events_in_summary must be a whole number >= 1.")
+
+    technical = settings["technical"]
+    minimums = {"chart_days": 20, "structure_lookback_days": 20, "pivot_bars": 1, "event_risk_days": 1,
+                "min_history_samples": 1}
+    for key, minimum in minimums.items():
+        value = technical.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+            raise ConfigError(f"technical.{key} must be a whole number >= {minimum} (got {value!r}).")
 
 
 def apply_overrides(settings: dict[str, Any], **overrides: Any) -> dict[str, Any]:

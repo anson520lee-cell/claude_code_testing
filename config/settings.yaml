@@ -53,3 +53,18 @@ report:
   # Number of most recent events listed in summary.md.
   # (events.csv always contains every event detected in the run.)
   max_events_in_summary: 30
+
+technical:
+  # Swing technical analysis for a typical holding period of 2-7 trading days
+  # (technical_analysis.md, technical_chart.png, "Swing Technical Snapshot").
+  # Sessions shown in technical_chart.png (126 = about 6 months).
+  chart_days: 126
+  # Support / resistance only come from this many recent sessions (old levels are ignored).
+  structure_lookback_days: 60
+  # A swing high / low must be the highest / lowest of this many sessions on each side.
+  pivot_bars: 3
+  # Earnings within this many trading days are flagged as event risk.
+  event_risk_days: 7
+  # Historical setup statistics with fewer comparable days are marked "small sample".
+  min_history_samples: 20
+

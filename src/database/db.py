@@ -24,7 +24,7 @@ from typing import Any, Iterable
 import numpy as np
 import pandas as pd
 
-from src.events.detector import UNKNOWN_CATEGORY, UNVERIFIED
+from src.events.detector import EVENT_COLUMNS, OUTCOME_COLUMNS, UNKNOWN_CATEGORY, UNVERIFIED
 from src.events.evidence import AUTO_MATCH_STATUS, EARNINGS_CATEGORY, EARNINGS_SOURCE
 
 logger = logging.getLogger(__name__)
@@ -39,16 +39,10 @@ AUTOMATIC_STATUSES = (UNVERIFIED, AUTO_MATCH_STATUS)
 AUTOMATIC_CATEGORIES = (UNKNOWN_CATEGORY, EARNINGS_CATEGORY)
 AUTOMATIC_SOURCES = (EARNINGS_SOURCE,)
 
-EVENT_DB_COLUMNS = [
-    "ticker", "event_date", "close", "daily_return", "return_zscore",
-    "volume", "avg_volume", "volume_ratio", "volume_zscore",
-    "benchmark", "benchmark_return", "abnormal_return",
-    "fwd_return_1d", "fwd_return_5d", "fwd_return_20d",
-    "fwd_abnormal_1d", "fwd_abnormal_5d", "fwd_abnormal_20d",
-    "direction", "is_price_event", "is_volume_event", "trigger_rules", "anomaly_type",
-    "trading_days_since_prev_event", "detection_settings",
-    "event_category", "event_description", "source", "verification_status", "notes",
-]
+# The events table stores every column of the detector's events table plus the
+# detection settings used (kept in the database only, for provenance).
+_SETTINGS_POSITION = EVENT_COLUMNS.index("trading_days_since_prev_event") + 1
+EVENT_DB_COLUMNS = [*EVENT_COLUMNS[:_SETTINGS_POSITION], "detection_settings", *EVENT_COLUMNS[_SETTINGS_POSITION:]]
 # Columns recalculated from market data on every run.
 EVENT_QUANT_COLUMNS = [
     c for c in EVENT_DB_COLUMNS
@@ -58,8 +52,10 @@ EVENT_QUANT_COLUMNS = [
 RESEARCH_COLUMNS = ("event_category", "event_description", "source", "verification_status")
 BENCHMARK_COLUMNS = (
     "benchmark", "benchmark_return", "abnormal_return",
-    "fwd_abnormal_1d", "fwd_abnormal_5d", "fwd_abnormal_20d",
+    *(c for c in OUTCOME_COLUMNS if c.startswith("fwd_abnormal")),
 )
+# Outcome columns that only depend on the stock's own prices (fill in as time passes).
+PRICE_OUTCOME_COLUMNS = tuple(c for c in OUTCOME_COLUMNS if not c.startswith("fwd_abnormal"))
 
 
 def utc_now() -> str:
@@ -93,7 +89,24 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    _add_missing_event_columns(conn)
     return conn
+
+
+def _add_missing_event_columns(conn: sqlite3.Connection) -> None:
+    """Safe migration for databases created by an older version of this program.
+
+    New outcome columns (e.g. 2/3/7-day forward returns, MFE/MAE) are added to an
+    existing ``events`` table; existing rows and columns are left untouched (the
+    new columns start empty and are filled by the next run of that ticker).
+    """
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
+    missing = [c for c in OUTCOME_COLUMNS if c not in existing]
+    if missing:
+        with conn:
+            for column in missing:
+                conn.execute(f"ALTER TABLE events ADD COLUMN {column} REAL")
+        logger.info("Database upgraded: added event columns %s", ", ".join(missing))
 
 
 # --------------------------------------------------------------------- stocks
@@ -210,8 +223,8 @@ def upsert_events(
         if column in BENCHMARK_COLUMNS:
             # A run without a benchmark keeps the previously stored benchmark figures.
             return f"{column} = CASE WHEN excluded.benchmark IS NULL THEN events.{column} ELSE excluded.{column} END"
-        if column.startswith("fwd_return"):
-            # A known forward return is never replaced by "unknown".
+        if column in PRICE_OUTCOME_COLUMNS:
+            # A known forward return / excursion is never replaced by "unknown".
             return f"{column} = COALESCE(excluded.{column}, events.{column})"
         return f"{column} = excluded.{column}"
 
@@ -257,10 +270,7 @@ def upsert_events(
     return {"inserted": inserted, "updated": updated}
 
 
-FORWARD_COLUMNS = [
-    "fwd_return_1d", "fwd_return_5d", "fwd_return_20d",
-    "fwd_abnormal_1d", "fwd_abnormal_5d", "fwd_abnormal_20d",
-]
+FORWARD_COLUMNS = list(OUTCOME_COLUMNS)
 
 
 def refresh_forward_returns(
@@ -278,7 +288,7 @@ def refresh_forward_returns(
     Returns:
         Number of event rows updated.
     """
-    raw_columns = [c for c in FORWARD_COLUMNS if c.startswith("fwd_return") and c in stats.columns]
+    raw_columns = [c for c in PRICE_OUTCOME_COLUMNS if c in stats.columns]
     abnormal_columns = [c for c in FORWARD_COLUMNS if c.startswith("fwd_abnormal") and c in stats.columns]
     stored = conn.execute("SELECT event_date, benchmark FROM events WHERE ticker = ?", (ticker,)).fetchall()
     count = 0

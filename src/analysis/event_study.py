@@ -1,8 +1,10 @@
 """Summarise what happened AFTER abnormal events ("historical event outcomes").
 
 For groups of events (e.g. "up moves with abnormal volume") this calculates
-the average / median forward return over 1, 5 and 20 trading days and the
-share of events where the forward return was positive.
+the average / median forward return over 1, 2, 3, 5, 7 and 20 trading days,
+the share of events where the forward return was positive, and the average /
+median maximum favourable and adverse excursion (MFE / MAE) within 3, 5 and 7
+trading days.
 
 A baseline row, "All trading days", shows the same numbers for every day in
 the sample. Comparing a group with the baseline answers "is this better or
@@ -23,7 +25,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.analysis.statistics import FORWARD_HORIZONS
+from src.analysis.statistics import EXCURSION_HORIZONS, FORWARD_HORIZONS
 
 
 def _as_bool(series: pd.Series) -> pd.Series:
@@ -59,6 +61,13 @@ def _describe(frame: pd.DataFrame, label: str, n_events: int) -> dict[str, Any]:
         column = f"fwd_abnormal_{h}d"
         abnormal = frame[column].dropna() if column in frame else pd.Series(dtype=float)
         row[f"mean_abnormal_{h}d"] = float(abnormal.mean()) if abnormal.size else None
+    # Excursions within the holding window (MFE = best high reached, MAE = worst low reached).
+    for h in EXCURSION_HORIZONS:
+        for kind in ("mfe", "mae"):
+            column = f"{kind}_{h}d"
+            values = frame[column].dropna() if column in frame else pd.Series(dtype=float)
+            row[f"mean_{kind}_{h}d"] = float(values.mean()) if values.size else None
+            row[f"median_{kind}_{h}d"] = float(values.median()) if values.size else None
     return row
 
 

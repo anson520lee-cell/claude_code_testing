@@ -1,6 +1,7 @@
 -- Schema for the stock research database (SQLite).
 -- Dates are stored as ISO text 'YYYY-MM-DD'; timestamps as 'YYYY-MM-DDTHH:MM:SS' (UTC).
 -- Every statement uses IF NOT EXISTS, so running this file again is safe.
+-- Columns added in later versions are added to older databases by db._add_missing_event_columns().
 
 -- One row per ticker ever analysed.
 CREATE TABLE IF NOT EXISTS stocks (
@@ -48,12 +49,24 @@ CREATE TABLE IF NOT EXISTS events (
     benchmark                     TEXT,
     benchmark_return              REAL,
     abnormal_return               REAL,
-    fwd_return_1d                 REAL,
+    fwd_return_1d                 REAL,     -- forward returns: price h trading days later / event close - 1
+    fwd_return_2d                 REAL,
+    fwd_return_3d                 REAL,
     fwd_return_5d                 REAL,
+    fwd_return_7d                 REAL,
     fwd_return_20d                REAL,
-    fwd_abnormal_1d               REAL,
+    fwd_abnormal_1d               REAL,     -- forward return minus the benchmark's over the same days
+    fwd_abnormal_2d               REAL,
+    fwd_abnormal_3d               REAL,
     fwd_abnormal_5d               REAL,
+    fwd_abnormal_7d               REAL,
     fwd_abnormal_20d              REAL,
+    mfe_3d                        REAL,     -- max favourable excursion: max High next h days / close - 1
+    mfe_5d                        REAL,
+    mfe_7d                        REAL,
+    mae_3d                        REAL,     -- max adverse excursion: min Low next h days / close - 1
+    mae_5d                        REAL,
+    mae_7d                        REAL,
     direction                     TEXT,     -- 'up', 'down' or 'flat'
     is_price_event                INTEGER,  -- 1 if a price rule fired
     is_volume_event               INTEGER,  -- 1 if a volume rule fired

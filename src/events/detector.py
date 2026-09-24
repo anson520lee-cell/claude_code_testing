@@ -19,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.analysis.statistics import FORWARD_HORIZONS
+from src.analysis.statistics import EXCURSION_HORIZONS, FORWARD_HORIZONS
 
 PRICE_RULES = ("return_zscore", "abs_return")
 VOLUME_RULES = ("volume_ratio", "volume_zscore")
@@ -27,13 +27,21 @@ VOLUME_RULES = ("volume_ratio", "volume_zscore")
 UNKNOWN_CATEGORY = "Unknown"
 UNVERIFIED = "Unverified"
 
+# What happened after the event: forward returns, forward returns relative to the
+# benchmark, and maximum favourable / adverse excursions (MFE / MAE).
+OUTCOME_COLUMNS = (
+    [f"fwd_return_{h}d" for h in FORWARD_HORIZONS]
+    + [f"fwd_abnormal_{h}d" for h in FORWARD_HORIZONS]
+    + [f"mfe_{h}d" for h in EXCURSION_HORIZONS]
+    + [f"mae_{h}d" for h in EXCURSION_HORIZONS]
+)
+
 # Columns of the events table, in the order they are saved to events.csv.
 EVENT_COLUMNS = [
     "ticker", "event_date", "close", "daily_return", "return_zscore",
     "volume", "avg_volume", "volume_ratio", "volume_zscore",
     "benchmark", "benchmark_return", "abnormal_return",
-    "fwd_return_1d", "fwd_return_5d", "fwd_return_20d",
-    "fwd_abnormal_1d", "fwd_abnormal_5d", "fwd_abnormal_20d",
+    *OUTCOME_COLUMNS,
     "direction", "is_price_event", "is_volume_event", "trigger_rules", "anomaly_type",
     "trading_days_since_prev_event",
     "event_category", "event_description", "source", "verification_status", "notes",
@@ -138,9 +146,8 @@ def detect_events(
             "verification_status": UNVERIFIED,
             "notes": None,
         }
-        for h in FORWARD_HORIZONS:
-            record[f"fwd_return_{h}d"] = row.get(f"fwd_return_{h}d")
-            record[f"fwd_abnormal_{h}d"] = row.get(f"fwd_abnormal_{h}d")
+        for column in OUTCOME_COLUMNS:
+            record[column] = row.get(column)
         rows.append(record)
         previous_position = position
 

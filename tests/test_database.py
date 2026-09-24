@@ -214,3 +214,48 @@ def test_import_research_from_edited_csv(conn):
 def test_import_requires_key_columns(conn):
     with pytest.raises(ValueError):
         db.import_research_fields(conn, pd.DataFrame({"notes": ["x"]}))
+
+
+OLD_EVENTS_SCHEMA = """
+CREATE TABLE stocks (ticker TEXT PRIMARY KEY, name TEXT, exchange TEXT, sector TEXT, industry TEXT,
+    currency TEXT, country TEXT, quote_type TEXT, first_analyzed TEXT, last_analyzed TEXT);
+CREATE TABLE events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT, ticker TEXT NOT NULL, event_date TEXT NOT NULL,
+    close REAL, daily_return REAL, return_zscore REAL, volume REAL, avg_volume REAL, volume_ratio REAL,
+    volume_zscore REAL, benchmark TEXT, benchmark_return REAL, abnormal_return REAL,
+    fwd_return_1d REAL, fwd_return_5d REAL, fwd_return_20d REAL,
+    fwd_abnormal_1d REAL, fwd_abnormal_5d REAL, fwd_abnormal_20d REAL,
+    direction TEXT, is_price_event INTEGER, is_volume_event INTEGER, trigger_rules TEXT, anomaly_type TEXT,
+    trading_days_since_prev_event INTEGER, detection_settings TEXT,
+    event_category TEXT NOT NULL DEFAULT 'Unknown', event_description TEXT, source TEXT,
+    verification_status TEXT NOT NULL DEFAULT 'Unverified', notes TEXT,
+    first_run_id INTEGER, last_run_id INTEGER, created_at TEXT, updated_at TEXT, UNIQUE (ticker, event_date));
+INSERT INTO stocks (ticker) VALUES ('OLD');
+INSERT INTO events (ticker, event_date, close, fwd_return_5d, notes) VALUES ('OLD', '2023-05-01', 12.5, 0.04, 'my note');
+"""
+
+
+def test_old_database_is_upgraded_without_losing_data(tmp_path):
+    path = tmp_path / "old.db"
+    old = __import__("sqlite3").connect(path)
+    old.executescript(OLD_EVENTS_SCHEMA)
+    old.close()
+    conn = db.connect(path)  # adds the new columns
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
+    assert {"fwd_return_2d", "fwd_return_3d", "fwd_return_7d", "fwd_abnormal_7d", "mfe_3d", "mae_7d"} <= columns
+    row = db.load_events(conn, "OLD").iloc[0]
+    assert row["close"] == 12.5 and row["fwd_return_5d"] == 0.04 and row["notes"] == "my note"
+    assert pd.isna(row["fwd_return_7d"])
+    # The upgraded table accepts new events with all columns.
+    db.upsert_events(conn, make_events(["2024-01-05"], ticker="OLD", fwd_return_7d=0.03, mfe_5d=0.06))
+    stored = db.load_events(conn, "OLD").set_index("event_date")
+    assert stored.loc["2024-01-05", "fwd_return_7d"] == 0.03 and stored.loc["2024-01-05", "mfe_5d"] == 0.06
+    conn.close()
+
+
+def test_known_excursions_are_not_replaced_by_unknown(conn):
+    db.upsert_events(conn, make_events(["2024-01-05"], mfe_3d=0.05, mae_3d=-0.02, fwd_return_7d=0.04))
+    db.upsert_events(conn, make_events(["2024-01-05"], mfe_3d=None, mae_3d=None, fwd_return_7d=None))
+    row = db.load_events(conn, "TEST").iloc[0]
+    assert row["mfe_3d"] == 0.05 and row["mae_3d"] == -0.02 and row["fwd_return_7d"] == 0.04
+

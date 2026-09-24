@@ -172,3 +172,59 @@ def test_summary_statistics_values():
     zs = df["return_zscore"].dropna()
     assert tail["days_scored"] == len(zs)
     assert tail["days_beyond_threshold"] == int((zs.abs() >= 2.5).sum())
+
+
+def test_swing_forward_returns_2_3_7_days():
+    closes = [100, 101, 103, 102, 104, 108, 107, 110, 111]
+    df = add_statistics(price_frame(closes), zscore_window=5, volume_window=5, volatility_window=5)
+    assert df["fwd_return_2d"].iloc[0] == pytest.approx(103 / 100 - 1)
+    assert df["fwd_return_3d"].iloc[0] == pytest.approx(102 / 100 - 1)
+    assert df["fwd_return_7d"].iloc[0] == pytest.approx(110 / 100 - 1)
+    assert df["fwd_return_7d"].iloc[1] == pytest.approx(111 / 101 - 1)
+    assert df["fwd_return_7d"].iloc[2:].isna().all()  # future not known yet
+
+
+def test_mfe_and_mae_use_future_highs_and_lows():
+    dates = pd.bdate_range("2024-01-02", periods=8)
+    df = pd.DataFrame({
+        "open": 100.0, "close": [100, 102, 99, 104, 101, 97, 103, 105],
+        "high": [101, 106, 100, 107, 102, 99, 104, 106],
+        "low": [99, 100, 95, 101, 98, 94, 100, 103],
+        "volume": 1000.0,
+    }, index=dates, dtype=float)
+    df["adj_close"] = df["close"]
+    out = add_statistics(df, zscore_window=5, volume_window=5, volatility_window=5)
+    # From day 0 (close 100): next 3 highs 106, 100, 107 -> MFE 7%; next 3 lows 100, 95, 101 -> MAE -5%
+    assert out["mfe_3d"].iloc[0] == pytest.approx(0.07)
+    assert out["mae_3d"].iloc[0] == pytest.approx(-0.05)
+    # Next 5 days from day 0: highs up to 107, lows down to 94
+    assert out["mfe_5d"].iloc[0] == pytest.approx(0.07)
+    assert out["mae_5d"].iloc[0] == pytest.approx(-0.06)
+    assert out["mfe_7d"].iloc[0] == pytest.approx(0.07)
+    assert pd.isna(out["mfe_7d"].iloc[1])  # only 6 future days exist
+    # From day 3 (close 104) the next highs are 102, 99, 104: never above the close -> MFE 0
+    assert out["mfe_3d"].iloc[3] == pytest.approx(0.0)
+
+
+def test_mfe_can_be_negative_and_mae_positive():
+    dates = pd.bdate_range("2024-01-02", periods=4)
+    falling = pd.DataFrame({"open": 100.0, "close": [100.0, 95.0, 94.0, 93.0], "high": [101.0, 96.0, 95.0, 94.0],
+                            "low": [99.0, 94.0, 93.0, 92.0], "volume": 1000.0}, index=dates)
+    falling["adj_close"] = falling["close"]
+    out = add_statistics(falling, zscore_window=5, volume_window=5, volatility_window=5)
+    assert out["mfe_3d"].iloc[0] == pytest.approx(96 / 100 - 1)  # price never got back above 100
+    rising = falling.assign(close=[100.0, 105.0, 106.0, 107.0], high=[101.0, 106.0, 107.0, 108.0],
+                            low=[99.0, 104.0, 105.0, 106.0], adj_close=[100.0, 105.0, 106.0, 107.0])
+    out = add_statistics(rising, zscore_window=5, volume_window=5, volatility_window=5)
+    assert out["mae_3d"].iloc[0] == pytest.approx(104 / 100 - 1)  # never traded below 100
+
+
+def test_mfe_mae_are_dividend_adjusted_with_the_price_series():
+    dates = pd.bdate_range("2024-01-02", periods=4)
+    df = pd.DataFrame({"open": 100.0, "close": [100.0, 100.0, 100.0, 100.0], "high": [100.0, 110.0, 100.0, 100.0],
+                       "low": [100.0, 90.0, 100.0, 100.0], "volume": 1000.0}, index=dates)
+    df["adj_close"] = [99.0, 99.0, 100.0, 100.0]  # a 1% dividend went ex on day 2
+    out = add_statistics(df, zscore_window=5, volume_window=5, volatility_window=5)
+    # Day 0 on the adjusted basis: close 99, next high 110 * 0.99 = 108.9
+    assert out["mfe_3d"].iloc[0] == pytest.approx(108.9 / 99 - 1)
+

@@ -166,6 +166,7 @@ def write_analysis_json(results: dict[str, Any], path: Path) -> Path:
         "warnings": results["warnings"],
         "database": results.get("database"),
         "files": results.get("files"),
+        "technical": results.get("technical"),
     }
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(to_jsonable(payload), handle, indent=2)
@@ -413,20 +414,28 @@ def _section_benchmark(r: dict[str, Any], files: dict[str, str]) -> str:
 def _section_outcomes(r: dict[str, Any]) -> str:
     outcomes: pd.DataFrame = r["event_outcomes_frame"]
     text = ("## 8. Historical Event Outcomes\n\n*[Calculated]* What happened **after** the events detected "
-            f"in this run for {r['ticker']}. Forward return = price h trading days later / event-day close - 1.\n\n")
+            f"in this run for {r['ticker']}. Forward return = price h trading days later / event-day close - 1. "
+            "The 2-7 day horizons match a short-term swing holding period; 20 days is secondary context.\n\n")
     if outcomes.empty or (outcomes["group"] != "All trading days (baseline)").sum() == 0:
         return text + "No events were detected, so there are no event outcomes to summarise."
-    rows = [[o["group"], o["n_events"], fmt_pct(o["mean_1d"]), fmt_pct(o["mean_5d"]), fmt_pct(o["mean_20d"]),
-             fmt_pct(o["median_20d"]), fmt_pct(o["pct_positive_5d"], 0, signed=False),
-             fmt_pct(o["pct_positive_20d"], 0, signed=False), o["n_20d"]]
+    rows = [[o["group"], o["n_events"], fmt_pct(o["mean_2d"]), fmt_pct(o["mean_3d"]), fmt_pct(o["mean_5d"]),
+             fmt_pct(o["mean_7d"]), fmt_pct(o["median_5d"]), fmt_pct(o["pct_positive_5d"], 0, signed=False),
+             fmt_pct(o["pct_positive_7d"], 0, signed=False), fmt_pct(o["mean_20d"]), o["n_7d"]]
             for _, o in outcomes.iterrows()]
-    text += md_table(["Group", "Events", "Avg 1D", "Avg 5D", "Avg 20D", "Median 20D", "% positive 5D",
-                      "% positive 20D", "N with 20D data"], rows)
-    if outcomes["mean_abnormal_20d"].notna().any():
-        rows = [[o["group"], fmt_pct(o["mean_abnormal_1d"]), fmt_pct(o["mean_abnormal_5d"]),
-                 fmt_pct(o["mean_abnormal_20d"])] for _, o in outcomes.iterrows()]
+    text += md_table(["Group", "Events", "Avg 2D", "Avg 3D", "Avg 5D", "Avg 7D", "Median 5D", "% positive 5D",
+                      "% positive 7D", "Avg 20D", "N with 7D data"], rows)
+    if outcomes["mean_abnormal_5d"].notna().any():
+        rows = [[o["group"], fmt_pct(o["mean_abnormal_2d"]), fmt_pct(o["mean_abnormal_3d"]),
+                 fmt_pct(o["mean_abnormal_5d"]), fmt_pct(o["mean_abnormal_7d"]), fmt_pct(o["mean_abnormal_20d"])]
+                for _, o in outcomes.iterrows()]
         text += "\n\n**Average forward abnormal return (stock minus benchmark over the same days):**\n\n"
-        text += md_table(["Group", "1D", "5D", "20D"], rows)
+        text += md_table(["Group", "2D", "3D", "5D", "7D", "20D"], rows)
+    if outcomes["median_mfe_5d"].notna().any():
+        rows = [[o["group"]] + [fmt_pct(o[f"median_{kind}_{h}d"]) for kind in ("mfe", "mae") for h in (3, 5, 7)]
+                for _, o in outcomes.iterrows()]
+        text += ("\n\n**Median excursions within the holding window** (MFE = highest High in the next h days / "
+                 "event close - 1; MAE = lowest Low / event close - 1):\n\n")
+        text += md_table(["Group", "MFE 3D", "MFE 5D", "MFE 7D", "MAE 3D", "MAE 5D", "MAE 7D"], rows)
     text += (
         "\n\n**How to read this:** for *up-move* groups, \"% positive\" is how often the move continued; for "
         "*down-move* groups it is how often the move reversed. Compare every group with the "
@@ -485,6 +494,7 @@ def build_summary_markdown(r: dict[str, Any]) -> str:
     )
     sections = [
         header,
+        *([r["technical_snapshot_md"]] if r.get("technical_snapshot_md") else []),
         _section_company(r),
         _section_market_overview(r),
         _section_performance(r),

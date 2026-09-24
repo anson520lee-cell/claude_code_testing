@@ -22,7 +22,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-FORWARD_HORIZONS = (1, 5, 20)
+# Forward horizons in trading days. 2-7 days match a short-term swing holding
+# period; 20 days is kept as secondary context.
+FORWARD_HORIZONS = (1, 2, 3, 5, 7, 20)
+# Horizons for maximum favourable / adverse excursion (MFE / MAE).
+EXCURSION_HORIZONS = (3, 5, 7)
 
 # A standard deviation this small is floating-point rounding noise, not real
 # variation (real stocks have daily-return std of ~0.0001 or more). Dividing by
@@ -125,6 +129,19 @@ def add_statistics(
     # These are NaN for the last h days of data (the future is not known yet).
     for h in FORWARD_HORIZONS:
         df[f"fwd_return_{h}d"] = price.shift(-h) / price - 1
+
+    # Maximum favourable / adverse excursion over the next h days (long direction):
+    #   MFE_h = max(High_(t+1) ... High_(t+h)) / P_t - 1
+    #   MAE_h = min(Low_(t+1)  ... Low_(t+h))  / P_t - 1
+    # High and Low are put on the same basis as the price series (multiplied by
+    # P_t / Close_t, i.e. dividend-adjusted when P is the adjusted close).
+    # MFE can be negative (price never traded above P_t) and MAE positive.
+    factor = price / df["close"]
+    high = df["high"].astype(float) * factor
+    low = df["low"].astype(float) * factor
+    for h in EXCURSION_HORIZONS:
+        df[f"mfe_{h}d"] = high.rolling(h, min_periods=h).max().shift(-h) / price - 1
+        df[f"mae_{h}d"] = low.rolling(h, min_periods=h).min().shift(-h) / price - 1
 
     return df
 

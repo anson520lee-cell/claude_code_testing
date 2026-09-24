@@ -15,6 +15,7 @@ RUN_DATE = date(2024, 7, 31)
 EXPECTED_FILES = {
     "summary.md", "events.csv", "fundamentals.csv", "price_chart.png", "returns_distribution.png",
     "volume_chart.png", "event_chart.png", "benchmark_chart.png", "analysis.json", "run.log",
+    "technical_analysis.md", "technical_chart.png",
 }
 SECTIONS = ["Company / Ticker", "Market Overview", "Recent Performance", "Volatility", "Abnormal Events",
             "Fundamental Snapshot", "Benchmark Comparison", "Historical Event Outcomes", "Data Limitations"]
@@ -329,3 +330,79 @@ def test_rerun_same_day_leaves_no_stale_charts_and_keeps_logs(settings, tmp_path
     log = (first.report_dir / "run.log").read_text()
     assert log.count("analysing TEST") == 3
 
+
+
+def test_swing_technical_report_is_part_of_every_run(settings):
+    provider, stock = make_provider()
+    result = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    folder = result.report_dir
+    assert (folder / "technical_chart.png").stat().st_size > 10_000
+    technical = (folder / "technical_analysis.md").read_text()
+    assert technical.startswith("# Swing Technical Analysis — TEST")
+    assert "## 8. Swing Summary" in technical and "**Swing Technical Condition: " in technical
+
+    for indicator in ("| EMA9 |", "| EMA21 |", "| EMA50 |", "| EMA200 |", "| EMA250 |", "| RSI6 |", "| RSI14 |",
+                      "| MACD 12/26/9 |", "× MAVOL20", "| BOLL (20, 1.8) |"):
+        assert indicator in technical, indicator
+
+    summary = (folder / "summary.md").read_text()
+    snapshot = summary.index("## Swing Technical Snapshot")
+    assert snapshot < summary.index("## 1. Company / Ticker")  # compact section near the top
+    assert "Full report: [technical_analysis.md](technical_analysis.md)" in summary
+    for indicator in ("| EMA9 |", "| RSI6 |", "| MACD 12/26/9 |", "× MAVOL20", "| BOLL (20, 1.8) |"):
+        assert indicator in summary[snapshot:], indicator
+    assert "No upcoming earnings date is listed." in technical
+
+    analysis = json.loads((folder / "analysis.json").read_text())
+    block = analysis["technical"]
+    assert block["swing_condition"] in {"Strong", "Improving", "Mixed", "Weakening", "Weak"}
+    assert block["values"]["close"] == pytest.approx(stock["Adj Close"].iloc[-1])
+    assert block["parameters"] == {"ema": [9, 21, 50, 200, 250], "rsi": [6, 14], "macd": [12, 26, 9], "mavol": 20,
+                                   "boll": {"period": 20, "std": 1.8}, "atr": 14}
+    assert block["event_risk"]["status"] == "none"
+    assert f"**{block['swing_condition']}**" in summary[snapshot:]
+
+
+def test_upcoming_earnings_inside_the_holding_window_are_flagged(settings):
+    stock = make_yf_prices(n=400, seed=21)
+    last = stock.index[-1].tz_convert("America/New_York").normalize()
+    release = last + pd.offsets.BDay(2) + pd.Timedelta(hours=16, minutes=5)  # after the close, 2 sessions out
+    earnings = pd.DataFrame({"EPS Estimate": [0.40], "Reported EPS": [None], "Surprise(%)": [None]},
+                            index=pd.DatetimeIndex([release], name="Earnings Date"))
+    provider, _ = make_provider(prices={"TEST": stock, "SPY": make_yf_prices(n=400, seed=99, base_price=400)},
+                                earnings=earnings)
+    result = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    technical = (result.report_dir / "technical_analysis.md").read_text()
+    summary = (result.report_dir / "summary.md").read_text()
+    assert "EVENT RISK WITHIN TYPICAL HOLDING WINDOW" in technical
+    assert "EVENT RISK WITHIN TYPICAL HOLDING WINDOW" in summary
+    assert "3 trading days ahead" in technical  # released after the close -> the next session reacts
+
+
+def test_offline_run_marks_upcoming_earnings_as_unknown(settings):
+    provider, _ = make_provider()
+    run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    result = run_analysis("TEST", settings, provider=None, offline=True, run_date=RUN_DATE)
+    technical = (result.report_dir / "technical_analysis.md").read_text()
+    assert "Earnings date unknown" in technical
+    assert "EVENT RISK WITHIN TYPICAL HOLDING WINDOW" not in technical
+
+
+def test_technical_failure_does_not_stop_the_main_report(settings, monkeypatch):
+    import src.pipeline as pipeline
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("simulated failure")
+
+    provider, _ = make_provider()
+    first = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    assert (first.report_dir / "technical_analysis.md").exists()
+    # a failed technical step on a same-day re-run must not leave the earlier technical files behind
+    monkeypatch.setattr(pipeline, "run_technical_analysis", broken)
+    result = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    assert any("Swing technical analysis could not be completed" in w for w in result.warnings)
+    assert not (result.report_dir / "technical_analysis.md").exists()
+    assert not (result.report_dir / "technical_chart.png").exists()
+    summary = (result.report_dir / "summary.md").read_text()
+    assert "## Swing Technical Snapshot" not in summary and "## 5. Abnormal Events" in summary
+    assert json.loads((result.report_dir / "analysis.json").read_text())["technical"] is None

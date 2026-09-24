@@ -49,14 +49,50 @@
       histories, "nan" text, volume axis not labelled up to a high threshold; in-plot legends moved
       outside the data area.
 
+* Swing technical analysis module for a 2-7 trading-day holding period (2026-09-24):
+  - Built on the trader's own chart settings (changed mid-task at the user's request, replacing a first
+    version based on EMA5/10/20, RSI7 and MACD 6/13/5): EMA 9 / 21 / 50 / 200 / 250, RSI 6 (primary) / 14,
+    MACD 12 / 26 / 9 (DIF, DEA, histogram), MAVOL20, BOLL (20, 1.8), plus ATR(14), ATR% percentile,
+    realised volatility, 2-20D returns, relative returns vs SPY, OBV / VWAP20 / ADX as secondary context.
+  - Deterministic, documented rules (README section 8) with the requested priority: price structure,
+    EMA9 / EMA21, volume vs MAVOL20 (always with the day's direction), RSI6 / RSI14, MACD momentum change,
+    BOLL position / squeeze / band walk vs unconfirmed extension, ATR, support / resistance, relative
+    strength, EMA50 / EMA200 / EMA250 context. 21 structure states (breakouts by volume, EMA9 / EMA21
+    reclaim / loss / cross / pullback / compression, squeeze, range ...). The Swing Technical Condition is a
+    priority-weighted points score (-12 ... +12; EMA200 / EMA250 add nothing) shown with its breakdown.
+  - Kept: 2/3/5/7-day returns, forward 2/3/5/7-day returns (+1D / 20D), 3/5/7-day MFE / MAE, ATR ranges,
+    support / resistance (merged within 0.5 ATR, polarity-aware), relative strength vs SPY, earnings event
+    risk (banner within 7 trading days), historical 2-7 day context with N, episodes and small-sample flags.
+  - Outputs: `technical_analysis.md` (fixed 8-section layout, sentence limits, <= 150-word summary answering
+    the 11 swing questions), `technical_chart.png` (candles, EMA9/21/50 distinct, EMA200/250 subtle, BOLL
+    20/1.8, S/R; RSI6/14; MACD DIF/DEA/histogram; volume by up/down day + MAVOL20), a compact "Swing Technical
+    Snapshot" in `summary.md`, and a `technical` block (incl. the parameters) in `analysis.json`.
+    A failure in this layer never stops the main report.
+  - Event system extended: forward returns for 1/2/3/5/7/20 days (raw and vs benchmark) and 3/5/7-day
+    MFE / MAE stored for every event; older databases are upgraded automatically (new columns added,
+    no data lost); summary section 8 and `event_stats.py` show the 2-7 day horizons.
+  - 217 automated tests pass (0 failed) on pandas 3.0 / numpy 2.4 and on pandas 2.2 / numpy 1.26, with no
+    warnings in the technical module and a clean ruff / pyflakes run; the technical tests check the exact
+    parameters, every rule at its thresholds and the report rules across 31 different market states.
+  - Verified end to end through the real CLI against the simulated Yahoo server: all 13 outputs written;
+    27 values (EMA9/21/50/200/250, RSI6/14, DIF/DEA/histogram, MAVOL20, BOLL 20/1.8, ATR, relative returns)
+    re-computed independently from the stored prices - 0 mismatches; chart inspected (alignment, labels,
+    legends, axes, S/R, BOLL, RSI, MACD, volume) and report wording reviewed; event-risk banner checked.
+  - Issues found and fixed during review: MACD legend showed one histogram colour; BOLL middle line looked
+    like EMA200; band walk rule too loose (tightened to %B >= 0.9); "-0.00", "1 session(s)", doubled phrases
+    and nested parentheses in the text; ATR distances rounded so 0.47 and 0.51 ATR both read "0.5".
+  - `python analyze.py AVAV` with live data: still blocked by the cloud network policy (exit code 3, see
+    Known Issues).
+
 ## Currently Working On
 
 * Nothing - waiting for a live run on a computer with internet access (see Remaining).
 
 ## Remaining
 
-* Run `python analyze.py AVAV` locally with live Yahoo Finance data and check the report
-  (the live code path is verified against simulated Yahoo responses, not yet against Yahoo itself).
+* Run `python analyze.py AVAV` locally with live Yahoo Finance data and check the report, including
+  `technical_analysis.md` and `technical_chart.png` (the live code path is verified against simulated
+  Yahoo responses, not yet against Yahoo itself).
 
 ## Known Issues
 
@@ -69,3 +105,11 @@
   the page; the analysis continues without it (noted in the report).
 * When the internet is down, every download is retried 3 times before falling back to cached data,
   so such a run takes about 40 seconds; `--offline` skips the downloads immediately.
+* Swing event-risk day counts use Monday-Friday and do not remove exchange holidays (can be one day high
+  around a holiday). In `--offline` mode the earnings calendar is not downloaded, so upcoming earnings
+  are shown as unknown.
+* The swing classification thresholds are fixed rules of thumb documented in README section 8; they
+  have not been tuned on real data, and the historical 2-7 day statistics are descriptive only.
+* Indicator values can differ slightly from a charting platform: EMAs start at the first downloaded price
+  (EMA200 / EMA250 need a few hundred sessions to settle; a note is shown below 500 sessions), BOLL uses the
+  population standard deviation (a sample-std platform draws ~2.6% wider bands) and MAVOL20 includes today.

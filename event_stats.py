@@ -25,6 +25,7 @@ from src.analysis.statistics import add_statistics
 from src.config import load_settings, resolve_path
 from src.data.prices import choose_price_column
 from src.database import db
+from src.events.detector import OUTCOME_COLUMNS
 
 
 def baseline_days(conn, tickers: list[str]) -> pd.DataFrame:
@@ -35,8 +36,8 @@ def baseline_days(conn, tickers: list[str]) -> pd.DataFrame:
         if len(prices) < 2:
             continue
         column, _ = choose_price_column(prices)
-        frames.append(add_statistics(prices, column)[["daily_return", "fwd_return_1d", "fwd_return_5d",
-                                                      "fwd_return_20d"]])
+        stats = add_statistics(prices, column)
+        frames.append(stats[["daily_return"] + [c for c in OUTCOME_COLUMNS if c in stats.columns]])
     return pd.concat(frames) if frames else pd.DataFrame()
 
 
@@ -67,8 +68,9 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Events: {len(events)} from {len(used_tickers)} ticker(s): {', '.join(used_tickers)}")
     print(f"Date range: {events['event_date'].min():%Y-%m-%d} to {events['event_date'].max():%Y-%m-%d}\n")
-    table = summary[["group", "n_events", "mean_1d", "mean_5d", "mean_20d", "median_20d",
-                     "pct_positive_5d", "pct_positive_20d", "n_20d", "mean_abnormal_20d"]].copy()
+    table = summary[["group", "n_events", "mean_2d", "mean_3d", "mean_5d", "mean_7d", "median_5d",
+                     "pct_positive_5d", "pct_positive_7d", "median_mfe_5d", "median_mae_5d", "mean_20d",
+                     "n_7d"]].copy()
     for column in table.columns:
         if column.startswith(("mean", "median")):
             table[column] = table[column].map(lambda v: "n/a" if pd.isna(v) else f"{v * 100:+.2f}%")
