@@ -59,6 +59,12 @@ def _style_axes(ax: plt.Axes) -> None:
 
 
 def _date_axis(ax: plt.Axes) -> None:
+    """Readable date ticks. Call after plotting (uses the x-range of the data)."""
+    start, end = ax.get_xlim()
+    if end - start < 10:  # only a few days: one tick per day (never clock times for daily data)
+        ax.xaxis.set_major_locator(mdates.DayLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        return
     locator = mdates.AutoDateLocator(minticks=5, maxticks=10)
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
@@ -175,25 +181,33 @@ def returns_distribution_chart(df: pd.DataFrame, ticker: str, path: Path) -> Pat
     bins = min(100, max(20, int(np.sqrt(len(returns)) * 2)))
     counts, edges, _ = ax.hist(returns, bins=bins, color=UP, edgecolor=SURFACE, linewidth=0.6,
                                label="Daily returns")
-    width = edges[1] - edges[0]
-    x = np.linspace(edges[0], edges[-1], 400)
-    normal = len(returns) * width * np.exp(-0.5 * ((x - mean) / std) ** 2) / (std * np.sqrt(2 * np.pi))
-    ax.plot(x, normal, color=REFERENCE, linewidth=2, label="Normal curve with same mean & std")
-    ax.axvline(mean, color=INK, linewidth=1.3, label=f"Mean {mean:+.2f}%")
-    ax.axvline(median, color=INK, linewidth=1.3, linestyle=":", label=f"Median {median:+.2f}%")
-    for sign in (-1, 1):
-        ax.axvline(mean + sign * std, color=MUTED, linewidth=1.1, linestyle="--",
-                   label=f"Mean ± 1 std ({std:.2f}%)" if sign == 1 else None)
-    ax.xaxis.set_major_formatter(PercentFormatter(decimals=0))
+    def show(value: float, spec: str, suffix: str = "%") -> str:
+        return "n/a" if pd.isna(value) else f"{value:{spec}}{suffix}"
+
+    has_spread = pd.notna(std) and std > 0  # needs at least 2 different returns
+    if has_spread:
+        width = edges[1] - edges[0]
+        x = np.linspace(edges[0], edges[-1], 400)
+        normal = len(returns) * width * np.exp(-0.5 * ((x - mean) / std) ** 2) / (std * np.sqrt(2 * np.pi))
+        ax.plot(x, normal, color=REFERENCE, linewidth=2, label="Normal curve with same mean & std")
+    ax.axvline(mean, color=INK, linewidth=1.3, label=f"Mean {show(mean, '+.2f')}")
+    ax.axvline(median, color=INK, linewidth=1.3, linestyle=":", label=f"Median {show(median, '+.2f')}")
+    if has_spread:
+        for sign in (-1, 1):
+            ax.axvline(mean + sign * std, color=MUTED, linewidth=1.1, linestyle="--",
+                       label=f"Mean ± 1 std ({std:.2f}%)" if sign == 1 else None)
+    ax.xaxis.set_major_formatter(PercentFormatter(decimals=None))
     ax.set_xlabel("Daily return", color=INK_SECONDARY, fontsize=9)
     ax.set_ylabel("Number of days", color=INK_SECONDARY, fontsize=9)
-    _legend(ax, loc="upper right")
+    _legend_above(ax, ncol=3)
     stats_text = (
-        f"Days: {len(returns):,}\nMean: {mean:+.3f}%\nMedian: {median:+.3f}%\nStd: {std:.3f}%\n"
-        f"Skewness: {returns.skew():.2f}\nExcess kurtosis: {returns.kurt():.2f}\n"
-        f"Min: {returns.min():+.2f}%  Max: {returns.max():+.2f}%"
+        f"Days: {len(returns):,}\nMean: {show(mean, '+.3f')}\nMedian: {show(median, '+.3f')}\n"
+        f"Std: {show(std, '.3f')}\nSkewness: {show(returns.skew(), '.2f', '')}\n"
+        f"Excess kurtosis: {show(returns.kurt(), '.2f', '')}\n"
+        f"Min: {show(returns.min(), '+.2f')}  Max: {show(returns.max(), '+.2f')}"
     )
-    ax.text(0.015, 0.97, stats_text, transform=ax.transAxes, va="top", ha="left", fontsize=9,
+    # Outside the plot area (right-hand side), so it can never cover bars of a skewed distribution.
+    ax.text(1.015, 1.0, stats_text, transform=ax.transAxes, va="top", ha="left", fontsize=9,
             color=INK_SECONDARY, family="monospace")
     _titles(
         fig, f"{ticker} - distribution of daily returns",
@@ -275,8 +289,9 @@ def event_chart(df: pd.DataFrame, events: pd.DataFrame, ticker: str, path: Path,
         positive = events[events["volume_ratio"] > 0]
         _plot_event_markers(bottom, positive, "return_zscore", "volume_ratio", size=8)
     bottom.set_yscale("log")
-    ticks = [t for t in (0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64)
-             if both.empty or both["volume_ratio"].min() / 2 <= t <= both["volume_ratio"].max() * 2]
+    low = both["volume_ratio"].min() if not both.empty else 1.0
+    high = max(both["volume_ratio"].max() if not both.empty else 1.0, volume_ratio_threshold or 0)
+    ticks = [2.0 ** k for k in range(-4, 11) if low / 2 <= 2.0 ** k <= high * 2]
     bottom.yaxis.set_major_locator(FixedLocator(ticks))
     bottom.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}×"))
     bottom.yaxis.set_minor_formatter(NullFormatter())
@@ -305,9 +320,9 @@ def benchmark_chart(df: pd.DataFrame, ticker: str, benchmark: str, path: Path) -
     top.plot(data.index, data["cum_return"] * 100, color=PRICE_LINE, linewidth=1.8, label=ticker)
     top.plot(data.index, data["benchmark_cum_return"] * 100, color=BENCHMARK_LINE, linewidth=1.8, label=benchmark)
     top.axhline(0, color=AXIS, linewidth=0.8)
-    top.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    top.yaxis.set_major_formatter(PercentFormatter(decimals=None))
     top.set_ylabel("Cumulative return", color=INK_SECONDARY, fontsize=9)
-    _legend(top, loc="upper left")
+    _legend_above(top, ncol=2)
     top.set_title(f"Cumulative return since {data.index[0]:%Y-%m-%d}", loc="left", fontsize=10.5, color=INK)
 
     relative = data["relative_performance"] * 100
@@ -315,7 +330,7 @@ def benchmark_chart(df: pd.DataFrame, ticker: str, benchmark: str, path: Path) -
     bottom.fill_between(data.index, 0, relative, where=relative >= 0, color=UP, alpha=0.12, linewidth=0)
     bottom.fill_between(data.index, 0, relative, where=relative < 0, color=DOWN, alpha=0.12, linewidth=0)
     bottom.axhline(0, color=AXIS, linewidth=0.8)
-    bottom.yaxis.set_major_formatter(PercentFormatter(decimals=0))
+    bottom.yaxis.set_major_formatter(PercentFormatter(decimals=None))
     bottom.set_ylabel(f"{ticker} vs {benchmark}", color=INK_SECONDARY, fontsize=9)
     bottom.set_title(f"Relative performance = (1 + {ticker} return) / (1 + {benchmark} return) - 1",
                      loc="left", fontsize=10.5, color=INK)

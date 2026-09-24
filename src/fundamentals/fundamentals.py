@@ -121,7 +121,8 @@ def _unit(unit_type: str, profile: dict[str, Any]) -> str:
     }[unit_type]
 
 
-def snapshot_records(ticker: str, info: dict[str, Any], retrieved: date) -> list[dict[str, Any]]:
+def snapshot_records(ticker: str, info: dict[str, Any], retrieved: date,
+                     source_name: str = YAHOO_SOURCE) -> list[dict[str, Any]]:
     """Normalise Yahoo's snapshot metrics. Missing values produce no record."""
     profile = extract_profile(info)
     records = []
@@ -132,7 +133,7 @@ def snapshot_records(ticker: str, info: dict[str, Any], retrieved: date) -> list
         records.append({
             "ticker": ticker, "period_type": "snapshot", "period_end": retrieved.isoformat(),
             "metric": metric, "label": label, "value": value, "unit": _unit(unit_type, profile),
-            "source": f"{YAHOO_SOURCE}, info['{key}']", "retrieved_at": retrieved.isoformat(),
+            "source": f"{source_name}, info['{key}']", "retrieved_at": retrieved.isoformat(),
         })
     return records
 
@@ -147,7 +148,7 @@ def _statement_value(table: pd.DataFrame, rows: list[str], column: Any) -> tuple
 
 
 def annual_records(ticker: str, statements: dict[str, pd.DataFrame], info: dict[str, Any],
-                   retrieved: date) -> list[dict[str, Any]]:
+                   retrieved: date, source_name: str = YAHOO_SOURCE) -> list[dict[str, Any]]:
     """Normalise annual statement values and calculate growth and margins."""
     profile = extract_profile(info)
     records: list[dict[str, Any]] = []
@@ -166,7 +167,7 @@ def annual_records(ticker: str, statements: dict[str, pd.DataFrame], info: dict[
             records.append({
                 "ticker": ticker, "period_type": "annual", "period_end": period_end,
                 "metric": metric, "label": label, "value": value, "unit": _unit(unit_type, profile),
-                "source": f"{YAHOO_SOURCE}, annual {statement} statement ({used_row})",
+                "source": f"{source_name}, annual {statement} statement ({used_row})",
                 "retrieved_at": retrieved.isoformat(),
             })
 
@@ -192,7 +193,7 @@ def annual_records(ticker: str, statements: dict[str, pd.DataFrame], info: dict[
             records.append({
                 "ticker": ticker, "period_type": "annual", "period_end": period_end,
                 "metric": metric, "label": label, "value": value, "unit": unit_type,
-                "source": "Calculated from Yahoo Finance annual statements",
+                "source": f"Calculated from {source_name} annual statements",
                 "retrieved_at": retrieved.isoformat(),
             })
     return records
@@ -223,11 +224,13 @@ def collect_fundamentals(provider: Any, ticker: str, retrieved: date | None = No
         warnings.append(f"Annual financial statements unavailable: {exc}")
         logger.warning("Financial statements for %s unavailable: %s", ticker, exc)
 
-    records = snapshot_records(ticker, info, retrieved) + annual_records(ticker, statements, info, retrieved)
+    source_name = getattr(provider, "name", YAHOO_SOURCE)
+    records = (snapshot_records(ticker, info, retrieved, source_name)
+               + annual_records(ticker, statements, info, retrieved, source_name))
     if info and not any(r["period_type"] == "snapshot" for r in records):
         warnings.append("The data provider returned no snapshot fundamentals for this ticker.")
     if not any(r["period_type"] == "annual" for r in records):
-        warnings.append("No annual financial-statement data was available for this ticker.")
+        warnings.append("No annual financial-statement data could be downloaded for this ticker.")
     return {"profile": extract_profile(info), "records": records, "warnings": warnings}
 
 

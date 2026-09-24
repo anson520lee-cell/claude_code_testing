@@ -30,25 +30,42 @@
   - fundamentals fallback only worked when *all* fundamentals were missing;
   - re-importing the same research CSV downgraded a manual verification status.
 * README written.
+* Final acceptance test (2026-09-24):
+  - 100/100 automated tests pass (0 failed, 0 skipped) on pandas 3.0 / numpy 2.4 and on pandas 2.2 / numpy 1.26.
+  - `python analyze.py AVAV`: blocked by the cloud network policy (proxy answers 403 for Yahoo hosts);
+    the program reports it correctly as a network failure (exit code 3).
+  - Full pipeline verified on the existing synthetic demo dataset and, through the real CLI, real
+    YahooFinanceProvider and real yfinance 1.7 parsing code, against a simulated Yahoo server
+    (prices, company info, statements, earnings calendar, 404 answers, network failures).
+    Every event statistic, forward return and headline number re-computed independently: 0 mismatches.
+  - Bugs found and fixed during acceptance (each with a regression test):
+    - an unknown ticker could be reported as a network failure (Yahoo's HTTP 404 was retried);
+    - `--period` was silently ignored for `--prices-csv` input;
+    - report / database attributed fundamentals and earnings evidence to "Yahoo Finance" even when
+      another source supplied them, and Data Limitations claimed Yahoo data for CSV input;
+    - annual statement metrics with no data disappeared from the table instead of "Not available";
+    - re-running on the same day left a stale benchmark chart; a failed re-run overwrote run.log;
+    - chart labels: duplicate percent ticks for low-volatility stocks, clock times on very short
+      histories, "nan" text, volume axis not labelled up to a high threshold; in-plot legends moved
+      outside the data area.
 
 ## Currently Working On
 
-* Nothing - MVP complete; waiting for network access to Yahoo Finance to run the real AVAV analysis.
+* Nothing - waiting for a live run on a computer with internet access (see Remaining).
 
 ## Remaining
 
-* Run `python analyze.py AVAV` with real data once Yahoo Finance is reachable, and inspect the output
-  (the code paths for live yfinance responses - price history, company info, statements, earnings
-  calendar - are written against yfinance 1.7's documented formats and tested with stand-ins, but
-  have not yet seen a live response).
+* Run `python analyze.py AVAV` locally with live Yahoo Finance data and check the report
+  (the live code path is verified against simulated Yahoo responses, not yet against Yahoo itself).
 
 ## Known Issues
 
 * The cloud environment used for development blocks Yahoo Finance
   (`query1/query2.finance.yahoo.com`, `fc.yahoo.com`, `guce.yahoo.com`) at the network proxy.
-  Every other market-data host tried (Stooq, SEC EDGAR, Nasdaq, Alpha Vantage, ...) is blocked too.
   To enable it: open the cloud environment settings (environment menu in the session title bar ->
   Edit -> Network access) and choose a broader access level or allow `*.yahoo.com`.
   On a normal computer with internet access this does not apply.
 * The earnings calendar in yfinance is scraped from a Yahoo web page and may break if Yahoo changes
   the page; the analysis continues without it (noted in the report).
+* When the internet is down, every download is retried 3 times before falling back to cached data,
+  so such a run takes about 40 seconds; `--offline` skips the downloads immediately.

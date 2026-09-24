@@ -344,21 +344,29 @@ def _section_events(r: dict[str, Any], files: dict[str, str]) -> str:
 def _section_fundamentals(r: dict[str, Any]) -> str:
     fundamentals = r["fundamentals"]
     records = fundamentals["records"]
-    text = ("## 6. Fundamental Snapshot\n\n*[Reported] by Yahoo Finance unless marked (calculated). "
-            f"Values the provider does not supply are shown as \"{NOT_AVAILABLE}\" - nothing is estimated.*\n\n")
+    fundamentals_source = r["data_sources"]["fundamentals"]
+    if fundamentals_source == NOT_AVAILABLE:
+        intro = f"*No fundamental data was available for this run, so every value is \"{NOT_AVAILABLE}\".*"
+    else:
+        intro = (f"*[Reported] by {fundamentals_source} unless marked (calculated). Values the provider does "
+                 f"not supply are shown as \"{NOT_AVAILABLE}\" - nothing is estimated.*")
+    text = f"## 6. Fundamental Snapshot\n\n{intro}\n\n"
     snapshot = {rec["metric"]: rec for rec in records if rec["period_type"] == "snapshot"}
     rows = []
     for metric, key, _unit_type, label in SNAPSHOT_METRICS:
         rec = snapshot.get(metric)
         rows.append([label, fmt_metric(metric, rec["value"], rec["unit"]) if rec else NOT_AVAILABLE,
-                     f"Yahoo `{key}`" if rec else "-"])
+                     f"`{key}`" if rec else "-"])
     retrieved = next(iter(snapshot.values()))["retrieved_at"] if snapshot else None
-    text += md_table(["Metric", "Value", "Source field"], rows)
+    text += md_table(["Metric", "Value", "Provider field"], rows)
     if retrieved:
         text += f"\n\nSnapshot retrieved on {retrieved}."
 
     table = annual_table(records)
     if not table.empty:
+        # List every expected metric, so a metric the provider lacks shows as "Not available"
+        # instead of silently disappearing from the table.
+        table = table.reindex([m[0] for m in STATEMENT_METRICS] + list(CALCULATED_METRICS))
         labels = {m[0]: m[4] for m in STATEMENT_METRICS}
         labels.update({k: v[1] for k, v in CALCULATED_METRICS.items()})
         units = {rec["metric"]: rec["unit"] for rec in records if rec["period_type"] == "annual"}
@@ -432,14 +440,23 @@ def _section_outcomes(r: dict[str, Any]) -> str:
 
 
 def _section_limitations(r: dict[str, Any]) -> str:
+    price_source = r["data_sources"]["prices"]
+    if "Yahoo" in price_source or price_source.startswith("Local database cache"):
+        source_note = ("Market data comes from Yahoo Finance through the unofficial `yfinance` library. It can "
+                       "contain errors, gaps or later revisions and is not an official exchange record.")
+    elif price_source.startswith("Local CSV"):
+        source_note = (f"Prices were read from a {price_source[0].lower() + price_source[1:]}; their accuracy "
+                       "depends on where that file came from.")
+    else:
+        source_note = f"Prices came from: {price_source}."
     items = [
-        "Market data comes from Yahoo Finance through the unofficial `yfinance` library. It can contain "
-        "errors, gaps or later revisions and is not an official exchange record.",
+        source_note,
         f"Returns use the {r['data_sources']['price_column_description'].lower()}. The price chart and moving "
         "averages use the unadjusted close as displayed by the provider.",
         "Event detection is purely statistical. An event means the move or volume was unusual relative to "
         "the stock's own recent history - not that anything fundamental happened.",
-        "Event causes are only linked to earnings-release DATES from Yahoo's earnings calendar. News, SEC "
+        "Event causes are only linked to earnings-release DATES from the data provider's earnings calendar. "
+        "News, SEC "
         "filings, analyst actions, index changes and sector/market moves are not checked automatically.",
         "Z-scores assume the recent past is a fair baseline; after a quiet period, ordinary moves can score "
         "high, and during volatile periods large moves can score low.",

@@ -80,3 +80,35 @@ def test_company_info_failure_raises_provider_error():
     provider = provider_with([TimeoutError("slow")] * 2, attempts=2)
     with pytest.raises(ProviderError):
         provider.get_company_info("AVAV")
+
+
+class FakeHTTPError(Exception):
+    """Mimics requests/curl_cffi HTTPError: carries the HTTP response."""
+
+    def __init__(self, status_code):
+        super().__init__(f"HTTP Error {status_code}")
+        self.response = type("Response", (), {"status_code": status_code})()
+
+
+def test_http_404_means_unknown_ticker_and_is_not_retried():
+    # yfinance raises HTTPError 404 when Yahoo does not know the symbol (e.g. during its
+    # time-zone lookup). That must be reported as "no such ticker", not as a network problem.
+    provider = provider_with([FakeHTTPError(404)])
+    with pytest.raises(DataUnavailableError, match="invalid or delisted"):
+        provider.get_price_history("ZZZZ", "5y")
+    assert provider._yf.calls == 1
+
+
+def test_http_503_is_a_service_problem_and_is_retried():
+    provider = provider_with([FakeHTTPError(503)] * 3)
+    with pytest.raises(ProviderError, match="check the internet connection"):
+        provider.get_price_history("AVAV", "5y")
+    assert provider._yf.calls == 3
+
+
+def test_earnings_source_label_matches_provider_name():
+    # The database recognises automatic evidence by this exact text.
+    from src.events.evidence import EARNINGS_SOURCE
+
+    assert f"{YahooFinanceProvider.name} earnings calendar" == EARNINGS_SOURCE
+

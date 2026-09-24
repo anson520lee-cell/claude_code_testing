@@ -96,3 +96,14 @@ def test_collect_fundamentals_with_statement_exception():
     result = collect_fundamentals(BrokenStatements(prices={}, info=sample_info()), "TEST", RETRIEVED)
     assert any(r["period_type"] == "snapshot" for r in result["records"])
     assert any("statements unavailable" in w for w in result["warnings"])
+
+
+def test_values_are_attributed_to_the_provider_that_supplied_them():
+    provider = FakeProvider(prices={}, info=sample_info(), statements=sample_statements())
+    result = collect_fundamentals(provider, "TEST", RETRIEVED)
+    reported = [r for r in result["records"] if not r["source"].startswith("Calculated")]
+    calculated = [r for r in result["records"] if r["source"].startswith("Calculated")]
+    assert reported and all(r["source"].startswith("Fake test provider") for r in reported)
+    assert calculated and all("Fake test provider" in r["source"] for r in calculated)
+    assert not any("Yahoo" in r["source"] for r in result["records"])
+

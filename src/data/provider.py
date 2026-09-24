@@ -13,7 +13,10 @@ Error handling:
   backoff"). If every attempt fails, a ``ProviderError`` is raised that
   includes the original error message.
 * An unknown or delisted ticker is reported as ``DataUnavailableError`` right
-  away (retrying would not help).
+  away (retrying would not help). Yahoo signals this either with an explicit
+  "no data" answer or with HTTP 404 "Not Found" (for example when yfinance
+  looks up the ticker's time zone). A network failure is never reported as an
+  unknown ticker.
 """
 
 from __future__ import annotations
@@ -65,15 +68,27 @@ class YahooFinanceProvider:
         # cached internal state half-initialised.
         return self._yf.Ticker(symbol)
 
+    def _is_not_found(self, exc: BaseException) -> bool:
+        """True when Yahoo answered that the symbol does not exist (retrying cannot help)."""
+        if self._ticker_missing_errors and isinstance(exc, self._ticker_missing_errors):
+            return True
+        response = getattr(exc, "response", None)
+        return getattr(response, "status_code", None) == 404
+
     def _with_retries(self, description: str, func: Callable[[], Any]) -> Any:
-        """Call ``func``; retry on errors (except "ticker missing"), waiting longer each time."""
+        """Call ``func``; retry on errors, waiting longer each time.
+
+        Raises:
+            DataUnavailableError: Yahoo answered that the symbol does not exist (not retried).
+            ProviderError: every attempt failed for another reason (network, rate limit, outage).
+        """
         last_error: Exception | None = None
         for attempt in range(1, self.attempts + 1):
             try:
                 return func()
-            except self._ticker_missing_errors:
-                raise  # an unknown ticker will not appear by retrying
             except Exception as exc:  # noqa: BLE001 - yfinance/curl raise many different types
+                if self._is_not_found(exc):
+                    raise DataUnavailableError(f"{type(exc).__name__}: {exc}") from exc
                 last_error = exc
                 logger.warning(
                     "%s failed (attempt %d/%d): %s: %s",
@@ -102,7 +117,7 @@ class YahooFinanceProvider:
                     period=period, interval="1d", auto_adjust=False, actions=False
                 ),
             )
-        except self._ticker_missing_errors as exc:
+        except DataUnavailableError as exc:
             raise DataUnavailableError(
                 f"Yahoo Finance has no price data for '{symbol}' ({exc}). "
                 "Check the ticker symbol - it may be invalid or delisted."
@@ -117,7 +132,7 @@ class YahooFinanceProvider:
         """Return Yahoo's company profile / key statistics dictionary (may be incomplete)."""
         try:
             info = self._with_retries(f"Company info download for {symbol}", lambda: self._ticker(symbol).get_info())
-        except self._ticker_missing_errors as exc:
+        except DataUnavailableError as exc:
             raise ProviderError(f"No company information for {symbol}: {exc}") from exc
         return dict(info or {})
 
@@ -138,8 +153,8 @@ class YahooFinanceProvider:
             try:
                 table = self._with_retries(f"{name} statement download for {symbol}", request)
                 statements[name] = table if isinstance(table, pd.DataFrame) else pd.DataFrame()
-            except (ProviderError, *self._ticker_missing_errors) as exc:
-                logger.warning("%s", exc)
+            except (ProviderError, DataUnavailableError) as exc:
+                logger.warning("%s statement for %s unavailable: %s", name, symbol, exc)
                 statements[name] = pd.DataFrame()
         return statements
 
@@ -150,7 +165,7 @@ class YahooFinanceProvider:
                 f"Earnings calendar download for {symbol}",
                 lambda: self._ticker(symbol).get_earnings_dates(limit=limit),
             )
-        except self._ticker_missing_errors as exc:
+        except DataUnavailableError as exc:
             raise ProviderError(f"No earnings calendar for {symbol}: {exc}") from exc
 
 

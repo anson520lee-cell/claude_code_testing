@@ -267,3 +267,65 @@ def test_analysis_json_is_strict_json(settings):
     # NaN / Infinity are not valid JSON; missing values must be written as null.
     json.loads(text, parse_constant=lambda name: pytest.fail(f"invalid JSON constant {name}"))
     assert "NaN" not in text
+
+
+def test_period_applies_to_csv_prices_and_sources_are_named(settings, tmp_path):
+    stock = make_yf_prices(n=600, seed=4)
+    csv_path = tmp_path / "prices.csv"
+    stock.tz_localize(None).iloc[::-1].to_csv(csv_path)  # newest first, like nasdaq.com downloads
+    settings["data"]["period"] = "1y"
+    result = run_analysis("TEST", settings, prices_csv=csv_path, offline=True, run_date=RUN_DATE,
+                          skip_fundamentals=True)
+    analysis = json.loads((result.report_dir / "analysis.json").read_text())
+    last = pd.Timestamp(analysis["statistics"]["end_date"])
+    first = pd.Timestamp(analysis["statistics"]["start_date"])
+    assert last == stock.index[-1].tz_localize(None).normalize()
+    assert (last - first).days <= 366 and analysis["statistics"]["trading_days"] < 600
+    assert any("use --period max" in w for w in result.warnings)
+    summary = (result.report_dir / "summary.md").read_text()
+    assert "Prices were read from a local CSV file (prices.csv)" in summary
+    assert "Market data comes from Yahoo" not in summary
+
+    settings["data"]["period"] = "max"
+    result = run_analysis("TEST", settings, prices_csv=csv_path, offline=True, run_date=RUN_DATE,
+                          skip_fundamentals=True)
+    assert json.loads((result.report_dir / "analysis.json").read_text())["statistics"]["trading_days"] == 600
+
+
+def test_evidence_and_fundamentals_name_the_real_source(settings):
+    provider, _ = make_provider()
+    result = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    summary = (result.report_dir / "summary.md").read_text()
+    assert "[Reported] by Fake test provider" in summary
+    assert "Fake test provider earnings calendar" in summary
+    events = pd.read_csv(result.report_dir / "events.csv")
+    matched = events[events["event_category"] == "Earnings release (date match)"]
+    assert (matched["source"] == "Fake test provider earnings calendar").all()
+
+
+def test_annual_table_lists_metrics_the_provider_lacks(settings):
+    statements = sample_statements()
+    statements["cashflow"] = pd.DataFrame()  # provider has no cash-flow statement
+    provider, _ = make_provider(statements=statements)
+    result = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    summary = (result.report_dir / "summary.md").read_text()
+    row = next(line for line in summary.splitlines() if line.startswith("| Free cash flow |"))
+    assert row.count("Not available") == 3  # shown for all three fiscal years, not dropped
+
+
+def test_rerun_same_day_leaves_no_stale_charts_and_keeps_logs(settings, tmp_path):
+    provider, _ = make_provider()
+    first = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    assert (first.report_dir / "benchmark_chart.png").exists()
+    settings["data"]["benchmark"] = None
+    second = run_analysis("TEST", settings, provider=provider, run_date=RUN_DATE)
+    assert second.report_dir == first.report_dir
+    assert not (second.report_dir / "benchmark_chart.png").exists()  # would contradict summary.md
+    # A failed run the same day keeps the last good report and does not erase its log.
+    settings["paths"]["database"] = str(tmp_path / "empty.db")
+    with pytest.raises(AnalysisError):
+        run_analysis("TEST", settings, provider=None, offline=True, run_date=RUN_DATE)
+    assert (first.report_dir / "summary.md").exists()
+    log = (first.report_dir / "run.log").read_text()
+    assert log.count("analysing TEST") == 3
+

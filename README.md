@@ -108,8 +108,10 @@ reports/
         └── run.log                  <- detailed log of this run
 ```
 
-Running the same ticker again on the same day overwrites that day's folder;
-different days get their own folder, so you keep a history of reports.
+Running the same ticker again on the same day overwrites that day's folder (charts
+the new run does not produce, e.g. the benchmark chart after `--no-benchmark`, are
+removed; `run.log` keeps the log of every run that day). Different days get their
+own folder, so you keep a history of reports.
 
 `summary.md` has these sections:
 
@@ -162,6 +164,8 @@ python analyze.py AVAV --offline                # re-analyse stored data without
 A CSV passed with `--prices-csv` needs a `Date` column and a `Close` column;
 `Open`, `High`, `Low`, `Adj Close` and `Volume` are used when present. Formats
 such as Yahoo's download and Nasdaq.com's (`Close/Last`, `$` signs) are understood.
+`--period` still applies (by default the most recent 5 years of the file are
+analysed); use `--period max` to analyse the whole file.
 
 Exit codes: `0` success, `2` invalid input or settings, `3` no price data could
 be obtained, `1` unexpected error (full traceback shown).
@@ -555,7 +559,7 @@ estimated. If the download fails, the last stored copy is shown with a warning.
 | Situation | What happens |
 |---|---|
 | Invalid ticker format (e.g. `AV AV`) | Rejected before any download (exit code 2) |
-| Unknown / delisted ticker | Clear message, not retried; no empty report folder left behind (exit code 3) |
+| Unknown / delisted ticker | Clear message ("may be invalid or delisted"), not retried - Yahoo's "no data" answer and its HTTP 404 "Not Found" are both recognised, so a mistyped ticker is never reported as a network problem (and a network problem never as a bad ticker); no empty report folder left behind (exit code 3) |
 | Network or API failure | Tried up to 3 times with increasing waits; then the **cached prices in the database** are used with a warning, or the run stops with a clear message if nothing is cached |
 | Benchmark / fundamentals / earnings calendar unavailable | Run continues; noted under *Data Limitations* (stored fundamentals are used if available) |
 | Missing or bad price rows | Removed and reported (missing/negative close, duplicate dates); suspicious values (high < low, long gaps, zero volume) are reported but not altered |
@@ -586,7 +590,8 @@ The tests need no internet. They cover:
 | `test_database.py` | table creation, insertion, duplicate handling, protection of manual research, forward-return refresh, research CSV import |
 | `test_prices.py` | yfinance and CSV formats, cleaning and validation warnings |
 | `test_fundamentals.py` | no invented values, calculated margins and growth, failures handled |
-| `test_provider.py` | retries on network errors, invalid tickers not retried |
+| `test_provider.py` | retries on network errors, invalid tickers (incl. HTTP 404) not retried |
+| `test_charts.py` | readable axis labels on edge cases: low-volatility stocks, very short histories, undefined statistics, extreme thresholds |
 | `test_pipeline.py` | the complete workflow with a fake provider: every output file, database contents, re-runs, invalid tickers, network failure + cache fallback, offline mode, the CLI |
 
 ---

@@ -32,7 +32,8 @@ logger = logging.getLogger(__name__)
 
 EARNINGS_CATEGORY = "Earnings release (date match)"
 AUTO_MATCH_STATUS = "Unverified (automatic date match)"
-EARNINGS_SOURCE = "Yahoo Finance earnings calendar (via yfinance)"
+# Must equal f"{YahooFinanceProvider.name} earnings calendar" (checked by a test).
+EARNINGS_SOURCE = "Yahoo Finance (via yfinance) earnings calendar"
 MARKET_CLOSE_HOUR = 16
 
 
@@ -84,6 +85,7 @@ def match_earnings_to_events(
     trading_days: pd.DatetimeIndex,
     earnings: pd.DataFrame,
     window_days: int = 1,
+    source: str = EARNINGS_SOURCE,
 ) -> pd.DataFrame:
     """Fill the research fields of events that fall in an earnings reaction window.
 
@@ -94,6 +96,7 @@ def match_earnings_to_events(
         trading_days: all trading days in the price data (sorted).
         earnings: output of ``normalize_earnings_dates``.
         window_days: extra trading days after the reaction day that still count.
+        source: where the earnings dates came from (stored in the event's "source").
 
     Returns:
         A copy of ``events`` with matched rows updated.
@@ -134,7 +137,7 @@ def match_earnings_to_events(
             f"surprise {_format_number(release['surprise_pct'], '%')}. "
             "Date match only - the cause of the move has not been verified."
         )
-        events.at[index, "source"] = EARNINGS_SOURCE
+        events.at[index, "source"] = source
         events.at[index, "verification_status"] = AUTO_MATCH_STATUS
         matched += 1
 

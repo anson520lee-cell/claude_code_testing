@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from src.database import db
+from src.events.evidence import EARNINGS_SOURCE
 
 
 @pytest.fixture
@@ -88,7 +89,7 @@ def test_changed_category_is_protected_even_if_status_unchanged(conn):
     with conn:
         conn.execute("UPDATE events SET event_category='Contract award' WHERE event_date='2024-01-05'")
     db.upsert_events(conn, make_events(["2024-01-05"], event_category="Earnings release (date match)",
-                                       event_description="auto", source="Yahoo Finance earnings calendar (via yfinance)",
+                                       event_description="auto", source=EARNINGS_SOURCE,
                                        verification_status="Unverified (automatic date match)"))
     row = db.load_events(conn, "TEST").iloc[0]
     assert row["event_category"] == "Contract award"
@@ -205,7 +206,7 @@ def test_import_research_from_edited_csv(conn):
     assert db.import_research_fields(conn, edited)["updated_events"] == 0
     # A later automatic run does not overwrite the imported research.
     db.upsert_events(conn, make_events(["2024-01-05"], event_category="Earnings release (date match)",
-                                       event_description="auto", source="Yahoo Finance earnings calendar (via yfinance)",
+                                       event_description="auto", source=EARNINGS_SOURCE,
                                        verification_status="Unverified (automatic date match)"))
     assert db.load_events(conn, "TEST").iloc[0]["event_description"] == "Army contract"
 

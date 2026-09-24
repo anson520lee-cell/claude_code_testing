@@ -118,7 +118,6 @@ def load_price_history(
         cached = db.load_prices(conn, symbol)
         if cached.empty:
             raise AnalysisError(f"{prefix}{reason} No cached prices for {symbol} exist in the database either.")
-        cached = _trim_to_period(cached, period)
         updated = db.latest_price_update(conn, symbol)
         warnings.append(
             f"{prefix}{reason} Using {len(cached):,} days of prices for {symbol} cached in the local "
@@ -178,7 +177,8 @@ def _collect_evidence(events: pd.DataFrame, trading_days: pd.DatetimeIndex, prov
             f"The earnings calendar only covers releases from {covered_from:%Y-%m-%d}; earlier events cannot "
             "be linked to earnings dates."
         )
-    return match_earnings_to_events(events, trading_days, earnings, window_days)
+    source = f"{getattr(provider, 'name', 'data provider')} earnings calendar"
+    return match_earnings_to_events(events, trading_days, earnings, window_days, source=source)
 
 
 def _fundamentals_with_fallback(conn, provider: Any, ticker: str, run_date: date, offline: bool,
@@ -251,6 +251,15 @@ def _make_charts(stats: pd.DataFrame, events: pd.DataFrame, ticker: str, benchma
     return files
 
 
+def _remove_stale_charts(report_dir: Path, files: dict[str, str]) -> None:
+    """Delete charts left by an earlier run on the same day that this run did not produce
+    (e.g. benchmark_chart.png after re-running with --no-benchmark), so the folder never
+    contains a chart that contradicts its summary.md."""
+    for path in report_dir.glob("*.png"):
+        if path.name not in files.values():
+            path.unlink()
+
+
 def _remove_empty_report_dir(report_dir: Path) -> None:
     """Delete a report folder that contains nothing but run.log (and its empty ticker folder)."""
     contents = [p.name for p in report_dir.iterdir()] if report_dir.exists() else []
@@ -296,7 +305,8 @@ def run_analysis(
 
     report_dir = resolve_path(settings["paths"]["reports_dir"]) / ticker / run_date.isoformat()
     report_dir.mkdir(parents=True, exist_ok=True)
-    log_handler = logging.FileHandler(report_dir / "run.log", mode="w", encoding="utf-8")
+    # Append: a later run on the same day (even a failed one) never erases an earlier run's log.
+    log_handler = logging.FileHandler(report_dir / "run.log", mode="a", encoding="utf-8")
     log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s"))
     log_handler.setLevel(logging.DEBUG)
     logging.getLogger().addHandler(log_handler)
@@ -311,6 +321,16 @@ def run_analysis(
     try:
         # ---- 1. Market data -------------------------------------------------
         raw_prices, price_source = load_price_history(conn, ticker, period, provider, prices_csv, offline, warnings)
+        if price_source.startswith(("Local CSV", "Local database cache")):
+            # A live download already covers exactly the requested period; a CSV file or the
+            # cache may hold more history, so keep only the requested period (--period max keeps all).
+            trimmed = _trim_to_period(raw_prices.sort_index(), period)
+            if len(trimmed) < len(raw_prices):
+                warnings.append(
+                    f"Analysed the last {period} of the available prices ({len(trimmed):,} of {len(raw_prices):,} "
+                    "rows); use --period max to analyse all of them."
+                )
+            raw_prices = trimmed
         prices, cleaning_notes = clean_price_frame(raw_prices)
         have_prices = True
         db.upsert_stock(conn, ticker)
@@ -413,7 +433,8 @@ def run_analysis(
                 "benchmark": benchmark_source if benchmark_used else "Not used",
                 "fundamentals": (
                     getattr(provider, "name", "data provider") if fundamentals["fresh_records"]
-                    else "Local database cache" if fundamentals["records"] else "Not available"
+                    else "the local database (copy of an earlier download)" if fundamentals["records"]
+                    else "Not available"
                 ),
                 "price_column": price_column,
                 "price_column_description": price_column_description,
@@ -434,6 +455,7 @@ def run_analysis(
         report.write_fundamentals_csv(fundamentals_frame(fundamentals["records"]), report_dir / "fundamentals.csv")
         report.write_analysis_json(results, report_dir / "analysis.json")
         report.write_summary_markdown(results, report_dir / "summary.md")
+        _remove_stale_charts(report_dir, files)
 
         status = "success_with_warnings" if warnings else "success"
         db.finish_run(
