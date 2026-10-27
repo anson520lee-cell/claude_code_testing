@@ -226,10 +226,9 @@ h2 { font-size: clamp(38px, 5.6vw, 76px); line-height: 0.96; font-weight: 800; f
 /* the text cards are panes of thick glass */
 .svc .body, .contact .body { position: relative; overflow: hidden; border-radius: 34px; padding: 34px; }
 .svc .body > *, .contact .body > * { position: relative; z-index: 1; }
-/* the points are small drops of glass sitting on the card */
-.points { display: flex; flex-wrap: wrap; gap: 8px; }
-.points li { display: inline-flex; align-items: center; gap: 9px; height: 36px; padding: 0 15px 0 13px; border-radius: 999px; color: rgba(242, 242, 242, 0.82); font-size: 14px; line-height: 1; white-space: nowrap; }
-.points li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--fg); box-shadow: 0 0 8px rgba(255, 255, 255, 0.7); }
+/* the points read as plain lines, in the same type as the lead line above them */
+.points { display: flex; flex-direction: column; gap: 4px; }
+.points li { color: var(--fg); font-size: clamp(17px, 1.35vw, 20px); line-height: 1.5; }
 
 /* split headings: each word rises out of its own mask */
 .w { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.1em; margin-bottom: -0.1em; padding-right: 0.04em; margin-right: -0.04em; }
@@ -357,9 +356,9 @@ html.on-model, html.on-model body { cursor: pointer; }
       <h2 class="split">Marks that <em>move.</em></h2>
       <p class="lead gen">DSE Maths. DSE Physics. Fundamentals first, marks follow.</p>
       <ul class="points reveal">
-        <li class="glass" data-glass="clear">Crystal-clear concepts</li>
-        <li class="glass" data-glass="clear">Exam-ready technique</li>
-        <li class="glass" data-glass="clear">Progress you can see</li>
+        <li>Crystal-clear concepts</li>
+        <li>Exam-ready technique</li>
+        <li>Progress you can see</li>
       </ul>
       <div class="cta reveal"><a class="btn main glass" data-glass="button" href="https://1percent-tutorial.pages.dev" target="_blank" rel="noopener" data-fx="wave" data-stage="launch" data-magnetic><span class="lbl">Learn more <span class="arr">&nearr;</span></span></a></div>
     </div>
@@ -372,9 +371,9 @@ html.on-model, html.on-model body { cursor: pointer; }
       <h2 class="split">Aim for <em>zero percent.</em></h2>
       <p class="lead gen">Know your AI score. Before anyone else does.</p>
       <ul class="points reveal">
-        <li class="glass" data-glass="clear">Paste. Scan. Done.</li>
-        <li class="glass" data-glass="clear">Made for students and writers</li>
-        <li class="glass" data-glass="clear">Submit with confidence</li>
+        <li>Paste. Scan. Done.</li>
+        <li>Made for students and writers</li>
+        <li>Submit with confidence</li>
       </ul>
       <div class="cta reveal"><a class="btn main glass" data-glass="button" href="https://getzeropercent.com" target="_blank" rel="noopener" data-fx="scan" data-stage="humanize" data-magnetic><span class="lbl"><span class="txt">Check now</span> <span class="arr">&nearr;</span></span></a></div>
     </div>
@@ -387,9 +386,9 @@ html.on-model, html.on-model body { cursor: pointer; }
       <h2 class="split">Your site, <em>built.</em></h2>
       <p class="lead gen">Designed to impress. Built to perform.</p>
       <ul class="points reveal">
-        <li class="glass" data-glass="clear">Clean by design</li>
-        <li class="glass" data-glass="clear">Fast on every screen</li>
-        <li class="glass" data-glass="clear">One page or a full business</li>
+        <li>Clean by design</li>
+        <li>Fast on every screen</li>
+        <li>One page or a full business</li>
       </ul>
       <div class="cta reveal"><a class="btn main glass" data-glass="button" href="https://wa.me/85293328079" target="_blank" rel="noopener" data-fx="build" data-stage="restyle" data-magnetic><span class="lbl">Start a project <span class="arr">&nearr;</span></span></a></div>
     </div>
