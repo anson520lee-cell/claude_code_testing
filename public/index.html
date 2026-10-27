@@ -228,7 +228,8 @@ h2 { font-size: clamp(38px, 5.6vw, 76px); line-height: 0.96; font-weight: 800; f
 .svc .body > *, .contact .body > * { position: relative; z-index: 1; }
 /* the points read as plain lines, in the same type as the lead line above them */
 .points { display: flex; flex-direction: column; gap: 4px; }
-.points li { color: var(--fg); font-size: clamp(17px, 1.35vw, 20px); line-height: 1.5; }
+.points li { display: flex; align-items: baseline; gap: 12px; color: var(--fg); font-size: clamp(17px, 1.35vw, 20px); line-height: 1.5; }
+.points li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--fg); transform: translateY(-0.2em); box-shadow: 0 0 8px rgba(255, 255, 255, 0.6); }
 
 /* split headings: each word rises out of its own mask */
 .w { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.1em; margin-bottom: -0.1em; padding-right: 0.04em; margin-right: -0.04em; }
