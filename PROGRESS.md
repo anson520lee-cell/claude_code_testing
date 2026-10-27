@@ -84,6 +84,17 @@
   - `python analyze.py AVAV` with live data: still blocked by the cloud network policy (exit code 3, see
     Known Issues).
 
+* Trading strategy and backtest layer (2026-10-27):
+  - `STRATEGY.md`: assessment of the existing plan, backtest findings, a position-sizing / trend strategy for
+    SOXL (volatility target + SMH / SOXL trend gates + equity circuit breaker), a risk-capped rule set for
+    small-cap short-term trades, daily routine and stop criteria.
+  - `backtest/`: no-look-ahead daily engine, reproducible `run_backtest.py` -> `results.md`, `journal.py`
+    (per-position results and discipline metrics from a fills CSV), `fetch_data.py`.
+  - Key findings: 3x buy and hold had -89% max drawdown; vol-targeted + gated version about -20..-30%;
+    short-term RSI2 / pullback / breakout setups have small samples and no stable edge versus random entries.
+  - Not verified: `fetch_data.py` was not run against live Yahoo data (network blocked here); the committed
+    results use broker daily bars. Results come from one 4.8-year window with a semiconductor bull market.
+
 ## Currently Working On
 
 * Nothing - waiting for a live run on a computer with internet access (see Remaining).

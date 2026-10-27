@@ -36,6 +36,8 @@ Market Data -> Detect Anomaly -> Identify Event -> Collect Evidence -> Quantitat
 Anything the program cannot know from its data is shown as **Unknown** or
 **Not available**. It never invents explanations, news, or financial numbers.
 
+**Trading rules and risk plan:** see [STRATEGY.md](STRATEGY.md) (backtests in `backtest/`).
+
 ---
 
 ## Contents
