@@ -13,3 +13,7 @@ data/*.db-journal
 .DS_Store
 .idea/
 .vscode/
+
+# Backtest inputs (market data is downloaded locally) and private trade files
+backtest/data/*.csv
+backtest/private/
