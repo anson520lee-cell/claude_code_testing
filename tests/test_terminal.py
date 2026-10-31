@@ -901,3 +901,13 @@ def test_implied_earnings_move_isolates_event_variance():
     assert imp["method"] == "event_variance" and imp["move_pct"] == pytest.approx(expected) and imp["straddle_pct"] == pytest.approx(0.14)
     near = implied_earnings_move([chain("2026-11-13", 14, 0.6, 5.0)], 100.0, date(2026, 11, 12))
     assert near["method"] == "straddle" and near["move_pct"] == pytest.approx(0.10)
+
+
+def test_implied_earnings_move_without_event_premium():
+    from src.catalysts.earnings_study import implied_earnings_move
+
+    def chain(expiry, days, iv, price):
+        f = pd.DataFrame({"strike": [100.0], "mid": [price], "lastPrice": [price], "impliedVolatility": [iv], "iv_ok": [True]})
+        return {"expiry": expiry, "days": days, "calls": f, "puts": f.copy()}
+    imp = implied_earnings_move([chain("2026-11-06", 7, 0.60, 2.0), chain("2026-12-18", 49, 0.40, 7.0)], 100.0, date(2026, 12, 18))
+    assert imp["method"] == "no_event_premium" and imp["move_pct"] is None

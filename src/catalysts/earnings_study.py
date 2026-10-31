@@ -107,9 +107,11 @@ def implied_earnings_move(chains: list[dict[str, Any]] | None, spot: float, reac
             if iv_after and iv_before:
                 t = max(c["days"], 1) / 365
                 ev = iv_after ** 2 * t - iv_before ** 2 * max(t - 1 / 365, 0)
+                out.update({"iv_after": iv_after, "iv_before": iv_before, "expiry_before": str(before[-1]["expiry"])})
                 if ev > 0:
-                    out.update({"move_pct": float(np.sqrt(2 / np.pi) * np.sqrt(ev)), "method": "event_variance",
-                                "iv_after": iv_after, "iv_before": iv_before, "expiry_before": str(before[-1]["expiry"])})
+                    out.update({"move_pct": float(np.sqrt(2 / np.pi) * np.sqrt(ev)), "method": "event_variance"})
+                else:   # the post-earnings expiry is not priced richer than the pre-earnings one: no event premium
+                    out.update({"move_pct": None, "method": "no_event_premium"})
         out["expiry_gap_sessions"] = gap
         return out
     return None
@@ -141,7 +143,11 @@ def earnings_study(dates: pd.DataFrame | None, prices: pd.DataFrame, session: da
     imp = implied_earnings_move(chains, spot, reaction)
     out["next"] = next_earnings
     out["implied"] = imp
-    if imp:
+    if imp and imp["method"] == "no_event_premium":
+        out["implied_vs_history"] = None
+        out["note"] = (f"財報後到期日 {imp['expiry']} 的引伸波幅（{imp['iv_after'] * 100:.0f}%）不高於財報前到期日 {imp['expiry_before']}"
+                       f"（{imp['iv_before'] * 100:.0f}%），期權暫時沒有為財報定出額外波幅；過去 {len(hist)} 次財報實際波幅中位數 ±{out['median_abs_move'] * 100:.1f}%。")
+    elif imp:
         ratio = imp["move_pct"] / out["median_abs_move"] if out["median_abs_move"] else None
         out["implied_vs_history"] = ratio
         if imp["method"] == "event_variance":

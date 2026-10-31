@@ -942,7 +942,7 @@ function earningsPanel(e) {
   const imp = e.implied;
   return `<div class="card"><h2>財報反應 <small>過去 ${e.n} 次 · 期權隱含 vs 歷史</small></h2>
     <div class="grid g4 kpis">
-      <div class="kpi"><span class="l">期權隱含</span><span class="v">${imp ? "±" + pct(imp.move_pct, 1, false) : "—"}</span><span class="note">${imp ? `${imp.expiry} 跨式 ${num(imp.straddle)}` : "沒有覆蓋財報的到期日"}</span></div>
+      <div class="kpi"><span class="l">期權隱含</span><span class="v">${imp && isNum(imp.move_pct) ? "±" + pct(imp.move_pct, 1, false) : "—"}</span><span class="note">${imp ? `${imp.expiry} 跨式 ${num(imp.straddle)}` : "沒有覆蓋財報的到期日"}</span></div>
       <div class="kpi"><span class="l">歷史波幅中位</span><span class="v">±${pct(e.median_abs_move, 1, false)}</span><span class="note">平均 ±${pct(e.mean_abs_move, 1, false)}</span></div>
       <div class="kpi"><span class="l">隱含 ÷ 歷史</span><span class="v ${isNum(e.implied_vs_history) ? (e.implied_vs_history > 1.15 ? "warn" : e.implied_vs_history < 0.85 ? "up" : "") : "muted"}">${isNum(e.implied_vs_history) ? num(e.implied_vs_history, 2) + "×" : "—"}</span><span class="note">&gt; 1 期權較貴</span></div>
       <div class="kpi"><span class="l">上升比例</span><span class="v">${pct(e.up_share, 0, false)}</span><span class="note">最大 ${pct(e.max_up, 0)} ／ ${pct(e.max_down, 0)}</span></div></div>
