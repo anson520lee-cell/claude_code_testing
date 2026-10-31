@@ -32,22 +32,22 @@ def check_symbol(symbol: str, frame: pd.DataFrame | None, session: date, min_his
     issues: list[str] = []
     status = "ok"
     if frame is None or frame.empty:
-        return {"symbol": symbol, "status": "excluded", "issues": ["No price data stored."], "last_date": None,
+        return {"symbol": symbol, "status": "excluded", "issues": ["沒有已儲存的價格數據。"], "last_date": None,
                 "sessions": 0, "missing_sessions": None}
     last = frame.index[-1].date()
     if last != session:
         lag = calendar.trading_days_between(last, session)
-        issues.append(f"Latest bar is {last} ({lag} session(s) behind {session}).")
+        issues.append(f"最新 K 線是 {last}（落後 {session} {lag} 個交易日）。")
         status = "excluded"
     if len(frame) < min_history:
-        issues.append(f"Only {len(frame)} sessions of history (< {min_history}); long EMAs / percentiles unreliable.")
+        issues.append(f"只有 {len(frame)} 個交易日歷史（少於 {min_history}），長期 EMA 和百分位不可靠。")
         status = "excluded"
 
     expected = calendar.trading_days(max(frame.index[0].date(), _sessions_back(session, 252)), session)
     present = set(frame.index.date)
     missing = [d for d in expected if d not in present]
     if missing:
-        issues.append(f"{len(missing)} expected session(s) missing in the last year (e.g. {missing[0]}).")
+        issues.append(f"過去一年缺少 {len(missing)} 個交易日（例如 {missing[0]}）。")
         if len(missing) > 5:
             status = _worse(status, "warning")
     recent = frame.tail(20)
@@ -55,22 +55,22 @@ def check_symbol(symbol: str, frame: pd.DataFrame | None, session: date, min_his
     bad = has_ohlc & ((recent["high"] < recent[["open", "close"]].max(axis=1) * 0.999)
                       | (recent["low"] > recent[["open", "close"]].min(axis=1) * 1.001))
     if bad.any():
-        issues.append(f"{int(bad.sum())} recent bar(s) with inconsistent OHLC.")
+        issues.append(f"近期有 {int(bad.sum())} 根 K 線的開高低收數據不一致。")
         status = _worse(status, "warning")
     if not symbol.startswith(INDEX_LIKE):
         zero = int(((recent["volume"] <= 0) | recent["volume"].isna()).sum())
         if zero:
-            issues.append(f"{zero} of the last 20 sessions have zero / missing volume.")
+            issues.append(f"最近 20 個交易日中有 {zero} 日成交量為零或缺失。")
             status = _worse(status, "warning" if zero < 3 else "excluded")
     closes = frame["close"].tail(10).to_numpy()
     if len(closes) >= 3 and np.all(closes[-3:] == closes[-1]):
-        issues.append("Close unchanged for 3+ sessions (possible stale quote).")
+        issues.append("收市價連續 3 日以上不變（報價可能過期）。")
         status = _worse(status, "warning")
     returns = frame["close"].pct_change().tail(252)
     jumps = returns[returns.abs() > 0.5]
     if not jumps.empty:
-        issues.append(f"{len(jumps)} daily move(s) > 50% in the last year (e.g. {jumps.index[-1]:%Y-%m-%d}); "
-                      "verify it is a real move and not a bad tick / unadjusted split.")
+        issues.append(f"過去一年有 {len(jumps)} 日單日變動超過 50%（例如 {jumps.index[-1]:%Y-%m-%d}），"
+                      "請核實是真實走勢，而不是錯誤報價或未調整的拆股。")
         status = _worse(status, "warning")
     return {"symbol": symbol, "status": status, "issues": issues, "last_date": last.isoformat(),
             "sessions": int(len(frame)), "missing_sessions": len(missing)}

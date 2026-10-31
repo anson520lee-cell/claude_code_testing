@@ -115,10 +115,10 @@ def max_pain(chain: dict[str, Any]) -> float | None:
 def analyze_chains(chains: list[dict[str, Any]], spot: float, hv20: float | None, horizon_days: int = 7,
                    iv_history: pd.Series | None = None, as_of: date | None = None) -> dict[str, Any]:
     if not chains:
-        return {"available": False, "reason": "No listed options (or the options chain could not be downloaded)."}
+        return {"available": False, "reason": "沒有上市期權（或無法下載期權鏈）。"}
     calls = pd.concat([c["calls"].assign(expiry=c["expiry"], days=c["days"]) for c in chains])
     puts = pd.concat([c["puts"].assign(expiry=c["expiry"], days=c["days"]) for c in chains])
-    out: dict[str, Any] = {"available": True, "source": "Yahoo Finance options chains (delayed, end of day)",
+    out: dict[str, Any] = {"available": True, "source": "Yahoo Finance 期權鏈（延遲，收市數據）",
                            "spot": spot, "expiries": [c["expiry"] for c in chains]}
     cv, pv = float(calls["volume"].sum()), float(puts["volume"].sum())
     coi, poi = float(calls["openInterest"].sum()), float(puts["openInterest"].sum())
@@ -174,9 +174,8 @@ def analyze_chains(chains: list[dict[str, Any]], spot: float, hv20: float | None
             g = bs_gamma(spot, f["strike"].to_numpy(float), f["impliedVolatility"].to_numpy(float), t)
             gex += sign * float(np.sum(g * f["openInterest"].to_numpy(float) * 100 * spot * spot * 0.01))
     out["gex_estimate"] = gex
-    out["gex_note"] = ("Dollar gamma per 1% move, assuming dealers are long calls and short puts. "
-                       "Positive = dealer hedging tends to dampen moves; negative = amplify. An inference, "
-                       "not an observation.")
+    out["gex_note"] = ("每 1% 價格變動的美元 Gamma，假設莊家持有認購期權好倉、認沽期權淡倉。"
+                       "正數表示莊家對沖傾向壓抑波動，負數表示放大波動。這是推算，不是觀察數據。")
     # IV rank
     if iv_history is not None and len(iv_history.dropna()) >= MIN_IV_HISTORY and out["atm_iv"]:
         h = iv_history.dropna()
@@ -187,14 +186,14 @@ def analyze_chains(chains: list[dict[str, Any]], spot: float, hv20: float | None
     else:
         out["iv_rank"] = out["iv_percentile"] = None
         out["iv_history_n"] = int(len(iv_history.dropna())) if iv_history is not None else 0
-        out["iv_rank_note"] = (f"Insufficient stored IV history ({out['iv_history_n']} of {MIN_IV_HISTORY} "
-                               "daily snapshots); IV rank appears automatically once enough runs exist.")
+        out["iv_rank_note"] = (f"已儲存的隱含波動率歷史不足（{out['iv_history_n']}/{MIN_IV_HISTORY} 個交易日），"
+                               "累積足夠運行次數後會自動顯示 IV Rank。")
     out["interpretation"] = interpret(out)
     out["limitations"] = [
-        "Open interest is as of the previous session; today's volume is not yet included in it.",
-        "Volume does not reveal whether trades opened or closed positions, nor who bought or sold.",
-        "High call volume can be covered-call selling or hedging, not necessarily bullish speculation.",
-        "Yahoo implied volatilities for illiquid strikes can be unreliable; only quotes with a bid are used.",
+        "未平倉合約是上一交易日的數字，今日成交量尚未計入。",
+        "成交量無法顯示交易是開倉還是平倉，也看不出是誰買誰賣。",
+        "認購期權成交量高，可能是備兌沽出或對沖，不一定代表看好。",
+        "流動性低的行權價，Yahoo 的隱含波動率可能不可靠；只採用有買入報價的合約。",
     ]
     return out
 
@@ -204,25 +203,22 @@ def interpret(o: dict[str, Any]) -> list[str]:
     pcr = o.get("pcr_volume")
     if pcr is not None:
         if pcr >= 1.2:
-            notes.append(f"Put/call volume {pcr:.2f}: put-heavy session (hedging or bearish speculation - "
-                         "the data cannot tell which).")
+            notes.append(f"認沽／認購成交比 {pcr:.2f}：今日以認沽為主（可能是對沖，也可能是看淡投機，數據無法分辨）。")
         elif pcr <= 0.5:
-            notes.append(f"Put/call volume {pcr:.2f}: call-heavy session (could be speculation, covered-call "
-                         "writing or short hedging).")
+            notes.append(f"認沽／認購成交比 {pcr:.2f}：今日以認購為主（可能是投機、備兌沽出或淡倉對沖）。")
     r = o.get("iv_hv_ratio")
     if r is not None:
         if r >= 1.4:
-            notes.append(f"Implied vol is {r:.1f}x realised: the market prices a larger move than recent "
-                         "history (often an upcoming event).")
+            notes.append(f"隱含波動率是實際波動率的 {r:.1f} 倍：市場預期波幅大於近期（通常有事件將至）。")
         elif r <= 0.8:
-            notes.append(f"Implied vol is {r:.1f}x realised: options are cheap relative to recent movement.")
+            notes.append(f"隱含波動率是實際波動率的 {r:.1f} 倍：相對近期走勢，期權偏便宜。")
     if o.get("iv_term_slope") is not None and o["iv_term_slope"] < -0.03:
-        notes.append("Inverted IV term structure (front > next expiry): near-term event / stress priced.")
+        notes.append("隱含波動率期限結構倒掛（近月高於次月）：市場在為近期事件或壓力定價。")
     if o.get("unusual"):
         u = o["unusual"][0]
-        notes.append(f"Largest volume-over-OI print: {u['side']} {u['strike']:g} {u['expiry']} "
-                     f"({u['volume']:,.0f} vs OI {u['open_interest']:,.0f}, ~${u['premium'] / 1e6:.1f}M premium) - "
-                     "likely includes opening activity; direction unknown.")
+        side = "認購" if u["side"] == "call" else "認沽"
+        notes.append(f"成交量遠超未平倉的最大一筆：{side} {u['strike']:g}（{u['expiry']} 到期），成交 {u['volume']:,.0f}，"
+                     f"未平倉 {u['open_interest']:,.0f}，約 ${u['premium'] / 1e6:.1f}M 權利金。很可能包含開倉，但方向未知。")
     return notes
 
 
@@ -235,7 +231,7 @@ def fetch_and_analyze(symbol: str, spot: float, hv20: float | None, today: date,
         chains = fetch_chains(ticker_factory(symbol), today)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Options for %s unavailable: %s", symbol, exc)
-        return {"available": False, "reason": f"Options data could not be downloaded ({type(exc).__name__})."}
+        return {"available": False, "reason": f"無法下載期權數據（{type(exc).__name__}）。"}
     result = analyze_chains(chains, spot, hv20, horizon_days, iv_history, today)
     result["retrieved_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return result

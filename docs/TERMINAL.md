@@ -80,6 +80,16 @@ Exit codes: 0 success, 2 settings error, 3 no market data, 1 unexpected error.
 
 ---
 
+### Interface language and focus
+
+The dashboard and the daily report are in Traditional Chinese (display labels live in `src/i18n/zh.py`;
+internal keys stay English). The universe is focused on AI / semiconductors / high-growth / high-beta names
+plus leveraged ETFs (SOXL, TQQQ, NVDL, TSLL, LABU). Every run applies a focus filter (`universe_filter` in
+`config/terminal.yaml`): 120-session beta vs SPY ≥ 1.3, 60-session annualised volatility ≥ 35%, market cap
+≥ US$2B (leveraged ETFs exempt; caps cached weekly) and 20-day average dollar volume ≥ US$100M. Stocks that
+fail a rule are hidden from candidates, the universe table and the setup statistics, and listed with the
+reason on the Data page.
+
 ## 2. Daily workflow
 
 ```

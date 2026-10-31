@@ -165,14 +165,13 @@ def _ttm(series: pd.DataFrame) -> float | None:
 
 def analyze_fundamentals(facts: dict | None, as_of: date, price: float | None = None) -> dict[str, Any]:
     if not facts:
-        return {"available": False, "reason": "No SEC XBRL company facts (not an SEC filer, or not found)."}
+        return {"available": False, "reason": "沒有 SEC XBRL 財務數據（並非 SEC 申報公司，或找不到）。"}
     if "us-gaap" not in facts.get("facts", {}):
-        return {"available": False, "reason": "Company reports under IFRS / as a foreign private issuer (20-F); "
-                                              "US-GAAP quarterly data not available."}
+        return {"available": False, "reason": "公司按 IFRS 作為外國私人發行人（20-F）申報，沒有 US-GAAP 季度數據。"}
     q = {m: quarterly_series(facts, m, as_of) for m in DURATION_CONCEPTS}
     if q["revenue"].empty and q["net_income"].empty:
-        return {"available": False, "reason": "No usable quarterly US-GAAP facts filed as of this date."}
-    out: dict[str, Any] = {"available": True, "as_of": as_of.isoformat(), "source": "SEC EDGAR XBRL company facts",
+        return {"available": False, "reason": "截至此日沒有可用的 US-GAAP 季度數據。"}
+    out: dict[str, Any] = {"available": True, "as_of": as_of.isoformat(), "source": "SEC EDGAR XBRL 財務數據",
                            "quarters": [], "metrics": {}, "flags": []}
     m = out["metrics"]
     latest_rev, ago_rev = _year_ago(q["revenue"])
@@ -253,8 +252,7 @@ def analyze_fundamentals(facts: dict | None, as_of: date, price: float | None = 
             row[name] = float(s[r["end"]]) if r["end"] in s.index else None
         out["quarters"].append(row)
     out["flags"] = fundamental_flags(m)
-    out["guidance"] = ("Not machine-readable in XBRL. Guidance is published in earnings press releases "
-                       "(8-K Item 2.02) - see the linked filing in Catalysts.")
+    out["guidance"] = "XBRL 沒有可讀取的業績指引；指引刊登在財報新聞稿（8-K 第 2.02 項），請在「催化劑」查看連結文件。"
     return out
 
 
@@ -267,57 +265,55 @@ def fundamental_flags(m: dict[str, Any]) -> list[dict[str, Any]]:
     g = m.get("revenue_yoy")
     if g is not None:
         if g >= 0.20:
-            add("strength", "info", f"Revenue +{g * 100:.0f}% YoY (quarter ended {m.get('latest_quarter_end')}).")
+            add("strength", "info", f"營收按年 +{g * 100:.0f}%（截至 {m.get('latest_quarter_end')} 的季度）。")
         elif g <= -0.10:
-            add("risk", "medium", f"Revenue {g * 100:.0f}% YoY - shrinking business.")
+            add("risk", "medium", f"營收按年 {g * 100:.0f}%，業務在收縮。")
     e = m.get("eps_yoy")
     if e is not None and m.get("eps_q") is not None:
         if e >= 0.25 and m["eps_q"] > 0:
-            add("strength", "info", f"Diluted EPS +{e * 100:.0f}% YoY.")
+            add("strength", "info", f"攤薄每股盈利按年 +{e * 100:.0f}%。")
         elif e <= -0.25:
-            add("risk", "medium", f"Diluted EPS {e * 100:.0f}% YoY.")
+            add("risk", "medium", f"攤薄每股盈利按年 {e * 100:.0f}%。")
     om, om_ago = m.get("operating_margin_q"), m.get("operating_margin_q_year_ago")
     if om is not None and om_ago is not None and om - om_ago <= -0.05:
-        add("risk", "medium", f"Operating margin fell {(om_ago - om) * 100:.1f}pp YoY ({om * 100:.1f}% vs "
-                              f"{om_ago * 100:.1f}%).")
+        add("risk", "medium", f"經營利潤率按年下跌 {(om_ago - om) * 100:.1f} 個百分點（{om * 100:.1f}%，去年同期 {om_ago * 100:.1f}%）。")
     elif om is not None and om_ago is not None and om - om_ago >= 0.05:
-        add("strength", "info", f"Operating margin up {(om - om_ago) * 100:.1f}pp YoY.")
+        add("strength", "info", f"經營利潤率按年上升 {(om - om_ago) * 100:.1f} 個百分點。")
     fcf, cash = m.get("fcf_ttm"), m.get("cash_and_st_investments")
     if fcf is not None and fcf < 0:
         if cash is not None and cash > 0:
             runway = cash / (-fcf / 4)
             m["cash_runway_quarters"] = runway
             if runway < 4:
-                add("risk", "high", f"Negative free cash flow; cash covers only ~{runway:.1f} quarters of burn - "
-                                    "financing (dilution / debt) likely.")
+                add("risk", "high", f"自由現金流為負，現金只夠約 {runway:.1f} 個季度消耗，很可能需要融資（增發股份或借債）。")
             else:
-                add("risk", "medium", f"Negative TTM free cash flow (runway ~{runway:.0f} quarters).")
+                add("risk", "medium", f"過去四季自由現金流為負（現金約可支撐 {runway:.0f} 個季度）。")
         else:
-            add("risk", "medium", "Negative TTM free cash flow.")
+            add("risk", "medium", "過去四季自由現金流為負。")
     elif fcf is not None and m.get("fcf_margin_ttm") is not None and m["fcf_margin_ttm"] >= 0.15:
-        add("strength", "info", f"Strong cash generation: FCF margin {m['fcf_margin_ttm'] * 100:.0f}% (TTM).")
+        add("strength", "info", f"現金創造能力強：過去四季自由現金流利潤率 {m['fcf_margin_ttm'] * 100:.0f}%。")
     ic = m.get("interest_coverage")
     if ic is not None and ic < 1.5:
-        add("risk", "high", f"Interest coverage {ic:.1f}x (operating income barely covers interest).")
+        add("risk", "high", f"利息覆蓋率 {ic:.1f} 倍（經營利潤僅勉強支付利息）。")
     nd, oi = m.get("net_debt"), m.get("operating_income_ttm")
     if nd is not None and oi is not None and oi > 0 and nd / oi > 4:
-        add("risk", "medium", f"Net debt is {nd / oi:.1f}x TTM operating income - elevated leverage.")
+        add("risk", "medium", f"淨負債是過去四季經營利潤的 {nd / oi:.1f} 倍，槓桿偏高。")
     if m.get("equity") is not None and m["equity"] < 0:
-        add("risk", "high", "Negative stockholders' equity.")
+        add("risk", "high", "股東權益為負。")
     cr = m.get("current_ratio")
     if cr is not None and cr < 1.0:
-        add("risk", "medium", f"Current ratio {cr:.2f} (< 1).")
+        add("risk", "medium", f"流動比率 {cr:.2f}（低於 1）。")
     sy = m.get("shares_yoy")
     if sy is not None:
         if sy >= 0.10:
-            add("risk", "high", f"Share count +{sy * 100:.0f}% YoY - significant dilution.")
+            add("risk", "high", f"股數按年 +{sy * 100:.0f}%，股權明顯稀釋。")
         elif sy >= 0.03:
-            add("risk", "medium", f"Share count +{sy * 100:.1f}% YoY - ongoing dilution.")
+            add("risk", "medium", f"股數按年 +{sy * 100:.1f}%，持續稀釋。")
         elif sy <= -0.02:
-            add("strength", "info", f"Share count {sy * 100:.1f}% YoY (buybacks).")
+            add("strength", "info", f"股數按年 {sy * 100:.1f}%（回購）。")
     ni = m.get("net_income_ttm")
     if ni is not None and ni < 0:
-        add("risk", "medium", "Net loss over the last four quarters.")
+        add("risk", "medium", "過去四季錄得淨虧損。")
     return flags
 
 

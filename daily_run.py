@@ -57,24 +57,25 @@ def main(argv: list[str] | None = None) -> int:
                 except sqlite3.OperationalError:
                     done = None
             if done:
-                print(f"Session {target} already processed - nothing to do.")
+                print(f"交易日 {target} 已經處理過，不需再運行。")
                 return 0
     try:
         result = run_daily(settings, session=session, offline=args.offline, skip_deep=args.skip_deep, progress=print)
     except DailyRunError as exc:
-        print(f"Run failed: {exc}", file=sys.stderr)
+        print(f"運行失敗：{exc}", file=sys.stderr)
         return 3
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         return 1
     reg = result["regime"]
-    print(f"\nSession {result['session']['date']}: regime {reg['label']} ({reg['composite']:+.0f})")
+    from src.i18n.zh import tr
+    print(f"\n交易日 {result['session']['date']}：市場狀態 {tr(reg['label'])}（{reg['composite']:+.0f}）")
     for side in ("long", "short"):
         top = result["candidates"][side][:5]
-        print(f"Top {side}: " + (", ".join(f"{c['symbol']}({c['score']:.0f}{c['tier']})" for c in top) or "none"))
+        print(f"{'做多' if side == 'long' else '做空'}前列：" + ("、".join(f"{c['symbol']}（{c['score']:.0f} 分 {tr(c['tier'])}）" for c in top) or "沒有"))
     for w in result["warnings"]:
-        print(f"warning: {w}")
-    print(f"Report: {result['output_dir']}/report.html  ·  Dashboard: python serve.py")
+        print(f"提示：{w}")
+    print(f"報告：{result['output_dir']}/report.html  ·  網頁介面：python serve.py")
     return 0
 
 

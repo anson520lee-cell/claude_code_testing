@@ -6,7 +6,9 @@ import html
 import re
 from typing import Any
 
-SIDE_NAMES = {"long": "Long", "short": "Short"}
+from src.i18n.zh import tr
+
+SIDE_NAMES = {"long": "做多", "short": "做空"}
 
 
 def _pct(v: Any, d: int = 1, sign: bool = True) -> str:
@@ -41,191 +43,179 @@ def _table(headers: list[str], rows: list[list[Any]]) -> str:
 def _earn(c: dict[str, Any], deep: dict[str, Any]) -> str:
     n = (deep.get(c["symbol"], {}).get("catalysts") or {}).get("next_earnings")
     if not n:
-        return "n/a" if not c.get("deep_dive") else "none listed"
-    return f"{n['date']} ({n['sessions_until']}s)"
+        return "n/a" if not c.get("deep_dive") else "未有公布"
+    return f"{n['date']}（{n['sessions_until']} 日）"
 
 
 def build_markdown(d: dict[str, Any]) -> str:
     s, reg, deep = d["session"], d["regime"], d.get("deep_dive", {})
     out: list[str] = []
-    out.append(f"# Daily Swing Research Report — {s['date']} ({s['weekday']})\n")
+    out.append(f"# 每日波段研究報告 — {s['date']}（{tr(s['weekday'])}）\n")
     out.append(f"> {d['disclaimer']}\n")
-    out.append(f"Generated {d['generated_at']} · next session {s['next_session']}"
-               + (" · **early close session**" if s.get("early_close") else "") + "\n")
+    out.append(f"生成時間 {d['generated_at']} · 下一個交易日 {s['next_session']}"
+               + (" · **提早收市日**" if s.get("early_close") else "") + "\n")
 
-    # executive summary
-    out.append("## 1. Executive summary\n")
-    out.append(f"**Market regime: {reg['label']}** (composite {_num(reg['composite'], 0)} on a -100…+100 scale"
-               + (f", {round(reg['composite_5d_change']) + 0:+d} vs 5 sessions ago" if reg.get("composite_5d_change") is not None else "")
-               + ").\n")
-    out.append(f"{reg['guidance']} Suggested risk budget vs normal: longs ×{reg['long_risk_budget']}, "
-               f"shorts ×{reg['short_risk_budget']}.\n")
+    out.append("## 1. 摘要\n")
+    change = reg.get("composite_5d_change")
+    out.append(f"**市場狀態：{tr(reg['label'])}**（綜合分數 {_num(reg['composite'], 0)}，範圍 −100 至 +100"
+               + (f"，較 5 個交易日前 {round(change) + 0:+d}" if change is not None else "") + "）。\n")
+    out.append(f"{reg['guidance']} 建議倉位比例（相對正常）：做多 ×{reg['long_risk_budget']}，做空 ×{reg['short_risk_budget']}。\n")
     for side in ("long", "short"):
         top = d["candidates"][side][:5]
         if top:
-            out.append(f"**Top {SIDE_NAMES[side].lower()} research candidates:** "
-                       + ", ".join(f"{c['symbol']} ({c['setup_name']}, {c['score']:.0f}, tier {c['tier']})" for c in top)
-                       + "\n")
+            out.append(f"**{SIDE_NAMES[side]}研究候選前列：** "
+                       + "、".join(f"{c['symbol']}（{c['setup_name']}，{c['score']:.0f} 分，{tr(c['tier'])} 級）" for c in top) + "\n")
     lead = [x for x in d["sectors"] if x["quadrant"] == "Leading"][:4]
     lag = [x for x in d["sectors"] if x["quadrant"] == "Lagging"][:4]
-    out.append("**Sector rotation:** leading " + (", ".join(f"{x['symbol']} ({x['name']})" for x in lead) or "none")
-               + "; lagging " + (", ".join(f"{x['symbol']} ({x['name']})" for x in lag) or "none") + ".\n")
+    out.append("**板塊輪動：** 領先 " + ("、".join(f"{x['symbol']}（{tr(x['name'])}）" for x in lead) or "無")
+               + "；落後 " + ("、".join(f"{x['symbol']}（{tr(x['name'])}）" for x in lag) or "無") + "。\n")
     if d.get("macro_events"):
-        nxt = d["macro_events"][:4]
-        out.append("**Upcoming macro events:** " + "; ".join(f"{e['event_date']} {e['event_type']} ({e['status']})"
-                                                             for e in nxt) + ".\n")
+        out.append("**即將發生的宏觀事件：** " + "；".join(f"{e['event_date']} {e['event_type']}（{tr(e['status'])}）"
+                                                     for e in d["macro_events"][:4]) + "。\n")
     if d.get("warnings"):
-        out.append("**Run warnings:**\n" + "\n".join(f"- {w}" for w in d["warnings"]) + "\n")
+        out.append("**運行提示：**\n" + "\n".join(f"- {w}" for w in d["warnings"]) + "\n")
 
-    # regime
-    out.append("## 2. Market regime\n")
-    out.append(_table(["Component", "Weight", "Score (−2…+2)", "Contribution", "Evidence"],
-                      [[c["name"], c["weight"], _num(c["score"], 2), _num(c["contribution"], 1),
-                        " ".join(c["evidence"])] for c in reg["components"]]))
-    out.append("\nClassification: ≥ +45 Strong Bullish · ≥ +15 Bullish · > −15 Neutral · > −45 Bearish · "
-               "else Strong Bearish (Strong labels require SPY on the matching side of its EMA50).\n")
-    out.append("### Indices, volatility and credit\n")
-    out.append(_table(["Symbol", "Close", "1D", "5D", "20D", "YTD", "vs EMA21", "vs EMA50", "vs EMA200",
-                       "From 52w high", "EMA stack"],
+    out.append("## 2. 市場狀態\n")
+    out.append(_table(["項目", "權重", "分數（−2 至 +2）", "貢獻", "依據"],
+                      [[tr(c["name"]), c["weight"], _num(c["score"], 2), _num(c["contribution"], 1), " ".join(c["evidence"])]
+                       for c in reg["components"]]))
+    out.append("\n分級：≥ +45 強勢看多 · ≥ +15 看多 · > −15 中性 · > −45 看空 · 其餘為強勢看空（「強勢」級別要求 SPY 位於 EMA50 相應一方）。\n")
+    out.append("### 指數、波動率與信貸\n")
+    out.append(_table(["代號", "收市", "1 日", "5 日", "20 日", "年初至今", "相對 EMA21", "相對 EMA50", "相對 EMA200",
+                       "距 52 週高位", "均線排列"],
                       [[i["symbol"], _num(i["close"]), _pct(i["ret_1d"]), _pct(i["ret_5d"]), _pct(i["ret_20d"]),
                         _pct(i["ret_ytd"]), _pct(i["vs_ema21"]), _pct(i["vs_ema50"]), _pct(i["vs_ema200"]),
-                        _pct(i["from_52w_high"]), i["ema_stack"]] for i in d["indices"]]))
-    out.append("### Sector rotation (vs SPY)\n")
-    out.append(_table(["Rank", "ETF", "Sector", "5D", "20D", "Rel 20D", "Rel 60D", "RS trend", "RS mom.", "Quadrant",
-                       ">EMA50"],
-                      [[x["rank_20d"], x["symbol"], x["name"], _pct(x["ret_5d"]), _pct(x["ret_20d"]),
+                        _pct(i["from_52w_high"]), tr(i["ema_stack"])] for i in d["indices"]]))
+    out.append("### 板塊輪動（相對 SPY）\n")
+    out.append(_table(["排名", "ETF", "板塊", "5 日", "20 日", "相對 20 日", "相對 60 日", "RS 趨勢", "RS 動量", "象限", "高於 EMA50"],
+                      [[x["rank_20d"], x["symbol"], tr(x["name"]), _pct(x["ret_5d"]), _pct(x["ret_20d"]),
                         _pct(x["rel_20d"]), _pct(x["rel_60d"]), _pct(x["rs_trend"]), _pct(x["rs_momentum"]),
-                        x["quadrant"], "yes" if x["above_ema50"] else "no"] for x in d["sectors"]]))
+                        tr(x["quadrant"]), "是" if x["above_ema50"] else "否"] for x in d["sectors"]]))
 
-    # candidates
     for n, side in ((3, "long"), (4, "short")):
         cands = d["candidates"][side]
-        out.append(f"## {n}. {SIDE_NAMES[side]} candidates\n")
-        out.append(_table(["#", "Symbol", "Setup", "Score", "Tier", "Ref. entry", "Stop", "T1", "T2", "R/R",
-                           "Risk %", "Earnings", "Setup history"],
-                          [[c["rank"], c["symbol"], c["setup_name"], f"{c['score']:.0f}", c["tier"],
-                            _num(c["plan"]["entry"]) + (" (cond.)" if c["plan"].get("conditional_entry") else ""),
+        out.append(f"## {n}. {SIDE_NAMES[side]}候選\n")
+        out.append(_table(["#", "代號", "形態", "分數", "級別", "參考進場", "止損", "目標一", "目標二", "風險報酬", "風險 %",
+                           "財報", "形態歷史"],
+                          [[c["rank"], c["symbol"], c["setup_name"], f"{c['score']:.0f}", tr(c["tier"]),
+                            _num(c["plan"]["entry"]) + ("（條件）" if c["plan"].get("conditional_entry") else ""),
                             _num(c["plan"]["stop"]), _num(c["plan"]["target1"]), _num(c["plan"]["target2"]),
                             _num(c["plan"]["reward_risk"], 1), _pct(c["plan"]["risk_pct"], 1, False),
                             _earn(c, deep), c["history"]["note"]] for c in cands]))
         for c in cands[:8]:
             out.append(candidate_detail(c, deep.get(c["symbol"], {})))
 
-    # catalysts
-    out.append("## 5. Catalyst calendar\n")
-    out.append("### Upcoming earnings (shortlisted names)\n")
-    out.append(_table(["Symbol", "Date", "Timing", "Reaction session", "Sessions away", "EPS est.", "Status"],
-                      [[e["symbol"], e["date"], e.get("timing") or "n/a", e["reaction_session"], e["sessions_until"],
-                        _num(e.get("eps_estimate")), e["status"]] for e in d.get("upcoming_earnings", [])]))
-    out.append("### Macro and market-structure events (next 30 days)\n")
-    out.append(_table(["Date", "Event", "Status", "Source"],
-                      [[e["event_date"], e["event_type"], e["status"], e["source"]] for e in d.get("macro_events", [])]))
+    out.append("## 5. 催化劑日曆\n")
+    out.append("### 即將公布財報（入選股票）\n")
+    out.append(_table(["代號", "日期", "時間", "反應交易日", "相距交易日", "預估 EPS", "狀態"],
+                      [[e["symbol"], e["date"], tr(e.get("timing")) or "未確認", e["reaction_session"], e["sessions_until"],
+                        _num(e.get("eps_estimate")), tr(e["status"])] for e in d.get("upcoming_earnings", [])]))
+    out.append("### 宏觀及市場結構事件（未來 30 日）\n")
+    out.append(_table(["日期", "事件", "狀態", "來源"],
+                      [[e["event_date"], e["event_type"], tr(e["status"]), e["source"]] for e in d.get("macro_events", [])]))
     if d.get("holidays"):
-        out.append("Market holidays ahead: " + ", ".join(f"{h['date']} {h['name']}" for h in d["holidays"]) + "\n")
+        out.append("即將休市：" + "、".join(f"{h['date']} {tr(h['name'])}" for h in d["holidays"]) + "\n")
     notable = []
     for sym, dd in deep.items():
         for f in (dd.get("catalysts") or {}).get("filings", []):
             if f["sentiment"] == "Negative" or f.get("dilution_risk") or f.get("item") in ("1.01", "2.01", "8.01"):
-                notable.append([sym, f["event_date"], f["form"], f["event_type"], f["sentiment"],
-                                f"[link]({f['url']})" if f.get("url") else ""])
-    out.append("### Notable recent SEC filings (shortlisted names, 60 days)\n")
-    out.append(_table(["Symbol", "Filed", "Form", "Type", "Typical implication", "Filing"], notable[:40]))
+                notable.append([sym, f["event_date"], f["form"], f["event_type"], tr(f["sentiment"]),
+                                f"[連結]({f['url']})" if f.get("url") else ""])
+    out.append("### 值得留意的近期 SEC 文件（入選股票，60 日內）\n")
+    out.append(_table(["代號", "提交日", "表格", "類型", "通常影響", "文件"], notable[:40]))
 
-    # history
     bt = d["backtest"]
-    out.append("## 6. Historical setup statistics (universe-wide simulation)\n")
-    out.append(f"Each setup's plan simulated on {bt.get('first_signal', 'n/a')} … {bt.get('last_signal', 'n/a')}: "
-               f"next-open entry, stop / T1 / {bt['horizon_days']}-session time stop, {bt['slippage_bps']:.0f} bps "
-               "slippage per side. Biases: survivorship (today's universe), in-sample, overlapping correlated "
-               "signals, no commissions / borrow costs, daily bars only.\n")
+    out.append("## 6. 形態歷史回測（全股票池）\n")
+    out.append(f"在 {bt.get('first_signal', 'n/a')} 至 {bt.get('last_signal', 'n/a')} 期間模擬每個形態的計劃："
+               f"翌日開市進場，按止損／目標一／{bt['horizon_days']} 日時間止損出場，每邊滑點 {bt['slippage_bps']:.0f} 基點。"
+               "偏差：倖存者偏差（使用現時股票池）、樣本內、信號重疊且彼此相關、未計佣金及借券成本、只用日線。\n")
     rows = []
     for key, st in bt.get("by_setup", {}).items():
         if not st.get("n"):
             continue
-        name = d["setup_names"].get(key, key)
-        rows.append([name, st["n"], _pct(st["win_rate"], 0, False), _num(st["avg_r"]), _num(st["median_r"]),
-                     _num(st.get("profit_factor")), _pct(st["hit_target_rate"], 0, False),
+        rows.append([d["setup_names"].get(key, tr(key)), st["n"], _pct(st["win_rate"], 0, False), _num(st["avg_r"]),
+                     _num(st["median_r"]), _num(st.get("profit_factor")), _pct(st["hit_target_rate"], 0, False),
                      _pct(st["stop_rate"], 0, False), _num(st["avg_days"], 1), _pct(st.get("fwd_5d_mean"), 2)])
-    out.append(_table(["Setup", "N", "Win", "Avg R", "Median R", "PF", "T1 hit", "Stopped", "Avg days",
-                       "Fwd 5D (dir.)"], rows))
+    out.append(_table(["形態", "樣本", "勝率", "平均 R", "中位 R", "盈虧比", "達目標一", "止損", "平均日數", "5 日後（按方向）"], rows))
     base = bt.get("baseline") or {}
     if base:
-        out.append(f"Baseline (all stock-days, long): mean 5D return {_pct(base.get('fwd_5d_mean'), 2)}, "
-                   f"positive {_pct(base.get('fwd_5d_positive'), 0, False)} of the time (N={base.get('n')}).\n")
+        out.append(f"基準（所有股票日，做多）：5 日平均回報 {_pct(base.get('fwd_5d_mean'), 2)}，"
+                   f"上升機率 {_pct(base.get('fwd_5d_positive'), 0, False)}（樣本 {base.get('n')}）。\n")
 
-    # quality
     q = d["quality"]
-    out.append("## 7. Data quality and limitations\n")
-    out.append(f"Symbols: {q['counts']} · coverage {q['coverage'] * 100:.0f}% · usable stocks {q['n_usable_stocks']}. "
-               f"Update: {len(q['update'].get('incremental', []))} incremental, {len(q['update'].get('full', []))} full, "
-               f"{len(q['update'].get('readjusted', []))} re-adjusted, {len(q['update'].get('failed', []))} failed.\n")
-    issues = [[r["symbol"], r["status"], " ".join(r["issues"])] for r in q["symbols"] if r["status"] != "ok"]
-    out.append(_table(["Symbol", "Status", "Issues"], issues))
-    out.append("- Prices: Yahoo Finance daily bars (unofficial API), split/dividend-adjusted.\n"
-               "- Fundamentals: SEC XBRL, point-in-time (filed on/before the session).\n"
-               "- Options: Yahoo end-of-day chains; OI is prior-day; flow direction is not observable.\n"
-               "- Positioning: short interest, 13F and FINRA data are delayed disclosures (dates shown).\n"
-               "- Breadth is measured on the screened universe, not the whole exchange.\n")
-    out.append("## 8. Methodology\n")
-    out.append("Regime, setups, plans and scores follow fixed, documented rules (see README section "
-               "'Research terminal'). Composite = Σ weight × sub-score / 100 − penalties; weights: "
-               + ", ".join(f"{k} {v}" for k, v in d["settings"]["weights"].items()) + ".\n")
+    out.append("## 7. 數據品質與限制\n")
+    out.append(f"代號：正常 {q['counts']['ok']}、警告 {q['counts']['warning']}、排除 {q['counts']['excluded']} · "
+               f"覆蓋率 {q['coverage'] * 100:.0f}% · 可用股票 {q['n_usable_stocks']}。"
+               f"更新：增量 {len(q['update'].get('incremental', []))}、完整 {len(q['update'].get('full', []))}、"
+               f"重新調整 {len(q['update'].get('readjusted', []))}、失敗 {len(q['update'].get('failed', []))}。\n")
+    issues = [[r["symbol"], tr(r["status"]), " ".join(r["issues"])] for r in q["symbols"] if r["status"] != "ok"]
+    out.append(_table(["代號", "狀態", "問題"], issues))
+    uf = d.get("universe_filter") or {}
+    if uf.get("excluded"):
+        out.append("### 被高 Beta／高波動篩選排除的股票\n")
+        out.append(_table(["代號", "Beta", "60 日波動率", "市值", "日均成交額", "原因"],
+                          [[x["symbol"], _num(x.get("beta"), 2), _pct(x.get("hv60"), 0, False), _money(x.get("market_cap")),
+                            _money(x.get("dollar_volume20")), x["reason"]] for x in uf["excluded"]]))
+    out.append("- 價格：Yahoo Finance 日線（非官方接口），已按拆股和派息調整。\n"
+               "- 基本面：SEC XBRL，只用分析日或之前已公布的數據。\n"
+               "- 期權：Yahoo 收市期權鏈；未平倉合約為上一交易日數字，無法得知資金流方向。\n"
+               "- 持倉：做空數據、13F 和 FINRA 都是延遲披露（已標示日期）。\n"
+               "- 市場寬度以股票池計算，並非全市場。\n")
+    out.append("## 8. 方法\n")
+    out.append("市場狀態、形態、交易計劃和評分都按固定並有文件記錄的規則計算（見網頁「研究」頁）。"
+               "綜合分數 = Σ 權重 × 分項分數 / 100 − 扣分；權重："
+               + "、".join(f"{tr(k)} {v}" for k, v in d["settings"]["weights"].items()) + "。\n")
     return "\n".join(out)
 
 
 def candidate_detail(c: dict[str, Any], deep: dict[str, Any]) -> str:
     p = c["plan"]
     lines = [f"### {c['rank']}. {c['symbol']} — {SIDE_NAMES[c['direction']]} · {c['setup_name']} · "
-             f"score {c['score']:.0f} (tier {c['tier']})\n"]
+             f"{c['score']:.0f} 分（{tr(c['tier'])} 級）\n"]
     prof = deep.get("profile") or {}
     if prof.get("longName"):
         lines.append(f"{prof['longName']} · {prof.get('sector') or ''} / {prof.get('industry') or ''} · "
-                     f"market cap {_money(prof.get('marketCap'))} · sector ETF {c['sector_etf']} "
-                     f"({c.get('sector_quadrant') or 'n/a'})\n")
+                     f"市值 {_money(prof.get('marketCap'))} · 板塊 ETF {c['sector_etf']}（{tr(c.get('sector_quadrant')) or 'n/a'}）\n")
     lines.append(c["thesis"] + "\n")
-    comp = ", ".join(f"{k} {v:.0f}" for k, v in c["components"].items())
-    pen = ", ".join(f"{k} −{v:g}" for k, v in c["penalties"].items()) or "none"
-    lines.append(f"- **Sub-scores (0-100):** {comp}\n- **Penalties:** {pen} (raw {c['raw_score']:.1f})")
+    comp = "、".join(f"{tr(k)} {v:.0f}" for k, v in c["components"].items())
+    pen = "、".join(f"{tr(k)} −{v:g}" for k, v in c["penalties"].items()) or "無"
+    lines.append(f"- **分項分數（0-100）：** {comp}\n- **扣分：** {pen}（原始分數 {c['raw_score']:.1f}）")
     if p.get("expected_move_hv"):
-        lines.append(f"- **Typical {p['horizon_days']}-session move (HV20, 1σ):** ±{_num(p['expected_move_hv'])} "
-                     f"(±{p['expected_move_hv'] / p['entry'] * 100:.1f}%)")
+        lines.append(f"- **{p['horizon_days']} 日典型波幅（HV20，1 個標準差）：** ±{_num(p['expected_move_hv'])} "
+                     f"（±{p['expected_move_hv'] / p['entry'] * 100:.1f}%）")
     h = c.get("history") or {}
-    lines.append(f"- **Setup history:** {h.get('note')} · in a {h.get('regime')} regime: {h.get('note_regime')}")
+    lines.append(f"- **形態歷史：** {h.get('note')} · 在{tr(h.get('regime'))}市況下：{h.get('note_regime')}")
     if c["supporting"]:
-        lines.append("- **Supporting evidence:** " + " · ".join(c["supporting"]))
+        lines.append("- **支持證據：** " + " · ".join(c["supporting"]))
     if c["contradicting"]:
-        lines.append("- **Contradicting evidence / risks:** " + " · ".join(c["contradicting"]))
+        lines.append("- **反對證據／風險：** " + " · ".join(c["contradicting"]))
     f = deep.get("fundamentals") or {}
     if f.get("available"):
         m = f["metrics"]
         est = "Yahoo" in (f.get("source") or "")
-        lines.append(f"- **Fundamentals ({'Yahoo fallback' if est else 'SEC XBRL'}, quarter ended "
-                     f"{m.get('latest_quarter_end')}, {'est. published' if est else 'filed'} {m.get('latest_filed')}):** "
-                     f"revenue YoY {_pct(m.get('revenue_yoy'), 0)}, EPS YoY {_pct(m.get('eps_yoy'), 0)}, "
-                     f"gross margin {_pct(m.get('gross_margin_ttm'), 0, False)}, op. margin "
-                     f"{_pct(m.get('operating_margin_ttm'), 0, False)}, FCF TTM {_money(m.get('fcf_ttm'))}, "
-                     f"net debt {_money(m.get('net_debt'))}, shares YoY {_pct(m.get('shares_yoy'), 1)}, "
-                     f"P/E {_num(m.get('pe_ttm'), 1)}, P/S {_num(m.get('ps_ttm'), 1)}")
+        lines.append(f"- **基本面（{'Yahoo 後備' if est else 'SEC XBRL'}，季度截至 {m.get('latest_quarter_end')}，"
+                     f"{'估計公布' if est else '提交'} {m.get('latest_filed')}）：** "
+                     f"營收按年 {_pct(m.get('revenue_yoy'), 0)}，EPS 按年 {_pct(m.get('eps_yoy'), 0)}，"
+                     f"毛利率 {_pct(m.get('gross_margin_ttm'), 0, False)}，經營利潤率 {_pct(m.get('operating_margin_ttm'), 0, False)}，"
+                     f"自由現金流 {_money(m.get('fcf_ttm'))}，淨負債 {_money(m.get('net_debt'))}，股數按年 {_pct(m.get('shares_yoy'), 1)}，"
+                     f"市盈率 {_num(m.get('pe_ttm'), 1)}，市銷率 {_num(m.get('ps_ttm'), 1)}")
     elif f:
-        lines.append(f"- **Fundamentals:** not available — {f.get('reason')}")
+        lines.append(f"- **基本面：** 不可用 — {f.get('reason')}")
     o = deep.get("options") or {}
     if o.get("available"):
-        lines.append(f"- **Options ({o.get('atm_iv_expiry')}):** ATM IV {_pct(o.get('atm_iv'), 0, False)}, "
-                     f"IV/HV20 {_num(o.get('iv_hv_ratio'))}, P/C vol {_num(o.get('pcr_volume'))}, P/C OI "
-                     f"{_num(o.get('pcr_oi'))}, expected move to {o.get('expected_move_expiry')} "
-                     f"±{_pct(o.get('expected_move_pct'), 1, False)}, IV rank "
-                     f"{_num(o.get('iv_rank'), 0) if o.get('iv_rank') is not None else 'insufficient history'}"
-                     + ("; " + " ".join(o.get("interpretation", [])) if o.get("interpretation") else ""))
+        lines.append(f"- **期權（{o.get('atm_iv_expiry')}）：** 平價隱含波動率 {_pct(o.get('atm_iv'), 0, False)}，"
+                     f"IV/HV20 {_num(o.get('iv_hv_ratio'))}，認沽認購成交比 {_num(o.get('pcr_volume'))}，未平倉比 {_num(o.get('pcr_oi'))}，"
+                     f"到 {o.get('expected_move_expiry')} 預期波幅 ±{_pct(o.get('expected_move_pct'), 1, False)}，IV Rank "
+                     f"{_num(o.get('iv_rank'), 0) if o.get('iv_rank') is not None else '歷史不足'}"
+                     + ("；" + " ".join(o.get("interpretation", [])) if o.get("interpretation") else ""))
     elif o:
-        lines.append(f"- **Options:** not available — {o.get('reason')}")
+        lines.append(f"- **期權：** 不可用 — {o.get('reason')}")
     pos = deep.get("positioning") or {}
     if pos.get("notes"):
-        lines.append("- **Positioning:** " + " ".join(pos["notes"]))
-    cat = deep.get("catalysts") or {}
-    ne = cat.get("next_earnings")
+        lines.append("- **持倉：** " + " ".join(pos["notes"]))
+    ne = (deep.get("catalysts") or {}).get("next_earnings")
     if ne:
-        lines.append(f"- **Next earnings:** {ne['date']} {ne.get('timing') or '(time n/a)'} — {ne['sessions_until']} "
-                     f"session(s) away ({ne['status']})")
+        lines.append(f"- **下次財報：** {ne['date']} {tr(ne.get('timing')) or '（時間未確認）'} — {ne['sessions_until']} 個交易日後（{tr(ne['status'])}）")
     return "\n".join(lines) + "\n"
 
 
@@ -287,7 +277,7 @@ th{background:var(--head)}li{margin:2px 0}@media print{body{max-width:none}a{col
 
 def build_html(d: dict[str, Any]) -> str:
     body = markdown_to_html(build_markdown(d))
-    title = f"Swing Research {d['session']['date']}"
-    return (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport "
+    title = f"波段研究報告 {d['session']['date']}"
+    return (f"<!doctype html><html lang=zh-Hant><head><meta charset=utf-8><meta name=viewport "
             f"content='width=device-width,initial-scale=1'><title>{title}</title><style>{CSS}</style></head>"
             f"<body>{body}</body></html>")

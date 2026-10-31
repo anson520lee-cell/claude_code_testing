@@ -143,7 +143,7 @@ def update_prices(conn, symbols: list[str], session: date, settings: dict[str, A
     if incremental:
         start = session - timedelta(days=int(cfg.get("refresh_days", 15)))
         if progress:
-            progress(f"Refreshing {len(incremental)} symbols from {start}")
+            progress(f"更新 {len(incremental)} 個代號（由 {start} 起）")
         fresh = downloader.download(incremental, start=start)
         for symbol in incremental:
             frame = fresh.get(symbol)
@@ -160,7 +160,7 @@ def update_prices(conn, symbols: list[str], session: date, settings: dict[str, A
 
     if full:
         if progress:
-            progress(f"Downloading full history ({cfg.get('history_period', '2y')}) for {len(full)} symbols")
+            progress(f"下載 {len(full)} 個代號的完整歷史（{cfg.get('history_period', '2y')}）")
         fresh = downloader.download(full, period=cfg.get("history_period", "2y"))
         for symbol in full:
             frame = fresh.get(symbol)

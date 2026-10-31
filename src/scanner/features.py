@@ -5,6 +5,7 @@ RSI 6/14, BOLL(20, 1.8), ATR(14), MAVOL20, OBV, ROC, ADX, structure states.
 Adds what a universe scanner needs:
 
 * hv10 / hv20 / hv60 / hv120: annualised close-to-close historical volatility
+* beta120: beta vs SPY over 120 sessions = cov(stock, SPY) / var(SPY) of daily returns
 * ret_60d / ret_120d, relative returns vs the stock's sector / industry ETF
 * gap: open / previous close - 1, also in ATRs
 * 52-week high / low (252 sessions) and distance from them
@@ -56,8 +57,12 @@ def build_features(prices: pd.DataFrame, spy_close: pd.Series | None, sector_clo
         df[f"return_{n}d"] = close / close.shift(n) - 1
     if bench is not None:
         df["rel_60d"] = df["return_60d"] - (bench / bench.shift(60) - 1)
+        # beta vs SPY over the last 120 sessions: cov(stock, SPY) / var(SPY) of daily returns
+        bench_ret = bench / bench.shift(1) - 1
+        df["beta120"] = daily.rolling(120, min_periods=100).cov(bench_ret) / bench_ret.rolling(120, min_periods=100).var()
     else:
         df["rel_60d"] = np.nan
+        df["beta120"] = np.nan
     if sector_close is not None:
         sector = sector_close.reindex(df.index).ffill()
         for n in (5, 20, 60):

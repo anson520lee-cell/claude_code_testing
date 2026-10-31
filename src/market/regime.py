@@ -40,6 +40,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.i18n.zh import tr
 from src.technical.indicators import ema
 
 COMPONENT_WEIGHTS = {"trend": 25, "momentum": 15, "breadth": 20, "volatility": 20, "risk_appetite": 15, "rates": 5}
@@ -49,15 +50,11 @@ LABELS = ["Strong Bearish", "Bearish", "Neutral", "Bullish", "Strong Bullish"]
 INDEX_WEIGHTS = {"SPY": 0.40, "QQQ": 0.30, "IWM": 0.15, "DIA": 0.15}
 
 GUIDANCE = {
-    "Strong Bullish": ("Environment supports long setups; breakouts have the best odds of follow-through. "
-                       "Short setups fight the tape - only on clear individual breakdowns.", 1.0, 0.25),
-    "Bullish": ("Favours long setups, especially pullbacks in leading groups. Be selective with shorts.", 0.8, 0.4),
-    "Neutral": ("Mixed tape: reduce size, demand higher-quality setups, prefer relative-strength leaders "
-                "for longs and relative-weakness laggards for shorts; take profits faster.", 0.5, 0.5),
-    "Bearish": ("Favours short setups and cash; long breakouts fail more often. Longs only in clear "
-                "relative-strength leaders with tight risk.", 0.3, 0.8),
-    "Strong Bearish": ("Risk-off: capital preservation first. Long setups have poor odds; short setups in "
-                       "weak groups align with the tape, but volatility (and squeeze risk) is high.", 0.1, 1.0),
+    "Strong Bullish": ("環境支持做多形態，突破最有機會延續。做空是逆市操作，只考慮個股明確破位的情況。", 1.0, 0.25),
+    "Bullish": ("偏向做多，尤其是領先板塊中的回調買點。做空要挑選。", 0.8, 0.4),
+    "Neutral": ("市況混雜：縮小倉位，只做質素較高的形態；做多選相對強勢股，做空選相對弱勢股，獲利要更快兌現。", 0.5, 0.5),
+    "Bearish": ("偏向做空和持有現金；做多突破較常失敗。做多只考慮明確的相對強勢股，並嚴格控制風險。", 0.3, 0.8),
+    "Strong Bearish": ("避險市況：先保住本金。做多勝算低；在弱勢板塊做空順應大市，但波動（及軋空風險）很高。", 0.1, 1.0),
 }
 
 
@@ -232,45 +229,45 @@ def _fmt_pct(x: float, d: int = 1) -> str:
 
 
 def evidence(row: pd.Series) -> dict[str, list[str]]:
-    """Plain-language evidence for each component on one date."""
+    """Plain-language evidence (Traditional Chinese) for each component on one date."""
     ev: dict[str, list[str]] = {k: [] for k in COMPONENT_WEIGHTS}
     for symbol in INDEX_WEIGHTS:
         value = row.get(f"trend_{symbol}")
         if pd.notna(value):
-            word = "uptrend" if value >= 1 else "downtrend" if value <= -1 else "mixed trend"
-            ev["trend"].append(f"{symbol} trend score {value:+.1f} of +/-2 ({word}).")
+            word = "上升趨勢" if value >= 1 else "下跌趨勢" if value <= -1 else "趨勢混合"
+            ev["trend"].append(f"{symbol} 趨勢分數 {value:+.1f}（範圍 ±2，{word}）。")
     for symbol in ("SPY", "QQQ"):
         if pd.notna(row.get(f"ret20_{symbol}")):
-            ev["momentum"].append(f"{symbol} 20-day return {_fmt_pct(row[f'ret20_{symbol}'])}.")
+            ev["momentum"].append(f"{symbol} 20 日回報 {_fmt_pct(row[f'ret20_{symbol}'])}。")
     if pd.notna(row.get("pct_above_ema50")):
-        ev["breadth"].append(f"{row['pct_above_ema50']:.0f}% of {int(row.get('breadth_n', 0))} universe stocks above "
-                             f"EMA50, {row['pct_above_ema200']:.0f}% above EMA200.")
-        ev["breadth"].append(f"{row['pct_new_high20']:.0f}% at 20-day highs vs {row['pct_new_low20']:.0f}% at "
-                             "20-day lows. (Universe proxy, not NYSE-wide breadth.)")
+        ev["breadth"].append(f"股票池 {int(row.get('breadth_n', 0))} 檔股票中，{row['pct_above_ema50']:.0f}% 在 EMA50 之上，"
+                             f"{row['pct_above_ema200']:.0f}% 在 EMA200 之上。")
+        ev["breadth"].append(f"{row['pct_new_high20']:.0f}% 創 20 日新高，{row['pct_new_low20']:.0f}% 創 20 日新低"
+                             "（以股票池估算，並非全市場寬度）。")
     if pd.notna(row.get("vix")):
         text = f"VIX {row['vix']:.1f}"
         if pd.notna(row.get("vix_term")):
-            shape = "inverted (stress)" if row["vix_term"] > 1 else "normal contango"
-            text += f"; VIX/VIX3M {row['vix_term']:.2f} - term structure {shape}"
+            shape = "倒掛（市場緊張）" if row["vix_term"] > 1 else "正常升水"
+            text += f"；VIX/VIX3M {row['vix_term']:.2f}，期限結構{shape}"
         if pd.notna(row.get("vix_chg5")):
-            text += f"; 5-day change {round(row['vix_chg5'] * 100) + 0:+d}%"
-        ev["volatility"].append(text + ".")
+            text += f"；5 日變化 {round(row['vix_chg5'] * 100) + 0:+d}%"
+        ev["volatility"].append(text + "。")
     if pd.notna(row.get("credit_20d")):
-        ev["risk_appetite"].append(f"High yield vs Treasuries (HYG-IEF) 20d: {_fmt_pct(row['credit_20d'])}.")
+        ev["risk_appetite"].append(f"高收益債相對國債（HYG−IEF）20 日：{_fmt_pct(row['credit_20d'])}。")
     if pd.notna(row.get("off_def_20d")):
-        ev["risk_appetite"].append(f"Offensive minus defensive sectors 20d: {_fmt_pct(row['off_def_20d'])}.")
+        ev["risk_appetite"].append(f"進攻型減防守型板塊 20 日：{_fmt_pct(row['off_def_20d'])}。")
     if pd.notna(row.get("small_vs_large_20d")):
-        ev["risk_appetite"].append(f"Small caps vs S&P 500 (IWM-SPY) 20d: {_fmt_pct(row['small_vs_large_20d'])}.")
+        ev["risk_appetite"].append(f"小型股相對標普 500（IWM−SPY）20 日：{_fmt_pct(row['small_vs_large_20d'])}。")
     if pd.notna(row.get("us10y")):
-        text = f"10-year yield {row['us10y']:.2f}%"
+        text = f"10 年期國債收益率 {row['us10y']:.2f}%"
         if pd.notna(row.get("us10y_chg20_bp")):
-            text += f" ({row['us10y_chg20_bp']:+.0f}bp over 20 sessions)"
+            text += f"（20 個交易日 {row['us10y_chg20_bp']:+.0f} 基點）"
         if pd.notna(row.get("curve_2s10s")):
-            text += f"; 2s10s curve {row['curve_2s10s'] * 100:+.0f}bp"
-        ev["rates"].append(text + " (FRED H.15, published with ~1 day lag).")
+            text += f"；2 年與 10 年息差 {row['curve_2s10s'] * 100:+.0f} 基點"
+        ev["rates"].append(text + "（FRED H.15 數據，約延遲 1 日公布）。")
     for key in COMPONENT_WEIGHTS:
         if pd.isna(row.get(key)):
-            ev[key] = ["Input data unavailable - component excluded and the composite re-weighted."]
+            ev[key] = ["缺少輸入數據：此項不計入，綜合分數按其餘項目重新加權。"]
     return ev
 
 
@@ -356,7 +353,7 @@ def summarize(history: pd.DataFrame) -> dict[str, Any]:
             "evidence": ev[key],
         })
     label = row["label"]
-    text, long_budget, short_budget = GUIDANCE.get(label, ("Insufficient data.", 0.0, 0.0))
+    text, long_budget, short_budget = GUIDANCE.get(label, ("數據不足。", 0.0, 0.0))
     previous = history["label"].iloc[-6] if len(history) > 6 else None
     recent = history[["composite", "label"]].tail(130)
     return {
@@ -367,6 +364,7 @@ def summarize(history: pd.DataFrame) -> dict[str, Any]:
                                 if len(history) > 6 and pd.notna(history["composite"].iloc[-6]) else None),
         "components": components,
         "guidance": text, "long_risk_budget": long_budget, "short_risk_budget": short_budget,
+        "label_zh": tr(label),
         "breadth": {k: (float(row[k]) if pd.notna(row.get(k)) else None)
                     for k in ("pct_above_ema50", "pct_above_ema200", "pct_new_high20", "pct_new_low20", "breadth_n")},
         "volatility": {k: (float(row[k]) if pd.notna(row.get(k)) else None) for k in ("vix", "vix_term", "vix_chg5")},

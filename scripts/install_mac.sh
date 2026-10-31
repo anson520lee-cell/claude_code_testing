@@ -68,10 +68,26 @@ chmod +x scripts/start_terminal.sh scripts/stop_terminal.sh
 mkdir -p "$HOME/Applications"
 rm -rf "$APP"
 osacompile -o "$APP" -e "do shell script \"/bin/bash \" & quoted form of \"$REPO/scripts/start_terminal.sh\" & \" > /dev/null 2>&1 &\""
+# custom icon (assets/icon_1024.png -> .icns)
+ICONSET="$(mktemp -d)/SwingTerminal.iconset"
+mkdir -p "$ICONSET"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" assets/icon_1024.png --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+  double=$((size * 2))
+  sips -z "$double" "$double" assets/icon_1024.png --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+done
+if iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/applet.icns"; then
+  touch "$APP"
+else
+  echo "(Could not set the custom icon; the app still works.)"
+fi
 echo "Created: $APP"
 
 # 5. Dock
-if ask "Add 'Swing Terminal' to the Dock?" y; then
+if defaults read com.apple.dock persistent-apps 2>/dev/null | grep -q "Swing Terminal.app"; then
+  killall Dock || true   # already in the Dock: refresh it so the new icon shows
+  echo "Already in the Dock (icon refreshed)."
+elif ask "Add 'Swing Terminal' to the Dock?" y; then
   defaults write com.apple.dock persistent-apps -array-add \
     "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>$APP</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
   killall Dock || true

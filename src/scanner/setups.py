@@ -47,10 +47,10 @@ LONG_SETUPS = ("breakout", "pullback", "squeeze", "reclaim", "momentum")
 SHORT_SETUPS = ("breakdown", "rally_fail", "ema21_loss")
 SETUP_DIRECTION = {**{s: "long" for s in LONG_SETUPS}, **{s: "short" for s in SHORT_SETUPS}}
 SETUP_NAMES = {
-    "breakout": "Breakout (20D high, volume)", "pullback": "Pullback to EMA9/21 in uptrend",
-    "squeeze": "Volatility squeeze near highs", "reclaim": "EMA21 reclaim", "momentum": "Momentum leader near highs",
-    "breakdown": "Breakdown (20D low, volume)", "rally_fail": "Failed rally into falling EMA21",
-    "ema21_loss": "EMA21 loss",
+    "breakout": "突破（20 日新高＋放量）", "pullback": "上升趨勢回踩 EMA9/21",
+    "squeeze": "高位波動收窄", "reclaim": "重返 EMA21", "momentum": "強勢股貼近高位",
+    "breakdown": "跌破（20 日新低＋放量）", "rally_fail": "反彈受阻於下行 EMA21",
+    "ema21_loss": "跌穿 EMA21",
 }
 # When several setups are active the primary one is the first in this order.
 PRIORITY = ("breakout", "breakdown", "pullback", "rally_fail", "reclaim", "ema21_loss", "squeeze", "momentum")

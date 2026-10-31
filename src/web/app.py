@@ -36,13 +36,10 @@ from src.daily import store
 from src.daily.settings import load_terminal_settings, path
 from src.database import db
 from src.market import calendar
-from src.market import regime as regime_module
-from src.scanner import backtest as backtest_module
-from src.scanner import plan as plan_module
-from src.scanner import scoring as scoring_module
 from src.scanner import setups as setups_module
 from src.scanner.features import build_features
 from src.scanner.setups import LONG_SETUPS, SHORT_SETUPS, detect_setups
+from src.technical.indicators import adjusted_ohlcv, ema
 from src.technical.structure import support_resistance
 
 STATIC = Path(__file__).with_name("static")
@@ -154,6 +151,35 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
             "as_of": f.index[-1].strftime("%Y-%m-%d"),
         })
 
+    @app.get("/api/minicharts")
+    def api_minicharts(symbols: str, days: int = Query(70, ge=20, le=250), session: str | None = None) -> dict[str, Any]:
+        """Compact OHLC + EMA9/21/50 for many symbols at once (the candidate card wall)."""
+        conn = connect()
+        out: dict[str, Any] = {}
+        try:
+            for symbol in [s.strip().upper() for s in symbols.split(",") if s.strip()][:80]:
+                prices = db.load_prices(conn, symbol)
+                if session:
+                    prices = prices[prices.index <= pd.Timestamp(session)]
+                if len(prices) < 30:
+                    continue
+                column = "adj_close" if prices["adj_close"].notna().all() and (prices["adj_close"] > 0).all() else "close"
+                o = adjusted_ohlcv(prices, column)
+                lines = {span: ema(o["close"], span) for span in (9, 21, 50)}
+                view = o.tail(days)
+                r = lambda s: [round(float(v), 4) if pd.notna(v) else None for v in s]  # noqa: E731
+                out[symbol] = {"t": [d.strftime("%Y-%m-%d") for d in view.index], "o": r(view["open"]),
+                               "h": r(view["high"]), "l": r(view["low"]), "c": r(view["close"]),
+                               **{f"ema{k}": r(v.tail(days)) for k, v in lines.items()}}
+        finally:
+            conn.close()
+        return out
+
+    @app.get("/api/i18n")
+    def api_i18n() -> dict[str, str]:
+        from src.i18n.zh import LABELS
+        return LABELS
+
     @app.get("/api/regime/history")
     def api_regime_history(limit: int = Query(260, ge=10, le=2000)) -> dict[str, Any]:
         conn = connect()
@@ -204,8 +230,8 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
 
     @app.get("/api/methodology")
     def api_methodology() -> dict[str, Any]:
-        return {"regime": regime_module.__doc__, "setups": setups_module.__doc__, "plan": plan_module.__doc__,
-                "scoring": scoring_module.__doc__, "backtest": backtest_module.__doc__,
+        from src.i18n.zh import METHODOLOGY
+        return {**METHODOLOGY,
                 "weights": settings["weights"], "penalties": settings["penalties"], "tiers": settings["tiers"]}
 
     @app.get("/api/run/status")

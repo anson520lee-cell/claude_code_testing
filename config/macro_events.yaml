@@ -5,11 +5,11 @@
 events:
   # FOMC 2026 - decision (2nd) day, 14:00 ET statement, 14:30 press conference.
   # Source: Federal Reserve published 2026 schedule - verify at federalreserve.gov/monetarypolicy/fomccalendars.htm
-  - {date: "2026-01-28", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
-  - {date: "2026-03-18", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
-  - {date: "2026-04-29", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
-  - {date: "2026-06-17", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
-  - {date: "2026-07-29", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
-  - {date: "2026-09-16", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
-  - {date: "2026-10-28", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
-  - {date: "2026-12-09", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-01-28", event: "聯儲局議息決定", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-03-18", event: "聯儲局議息決定（附經濟預測）", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-04-29", event: "聯儲局議息決定", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-06-17", event: "聯儲局議息決定（附經濟預測）", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-07-29", event: "聯儲局議息決定", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-09-16", event: "聯儲局議息決定（附經濟預測）", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-10-28", event: "聯儲局議息決定", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2026-12-09", event: "聯儲局議息決定（附經濟預測）", source: "federalreserve.gov", status: Confirmed, importance: high}

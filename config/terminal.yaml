@@ -51,151 +51,115 @@ market:
   defensive_sectors: ["XLP", "XLU", "XLV"]
 
 # Stocks screened every session, with the ETF used for "relative strength vs sector".
-# Add / remove freely. Survivorship bias: this is TODAY's list, so historical
-# setup statistics are computed only on stocks that are still listed and liquid.
+# Focus: AI / semiconductors / high growth / high beta, plus leveraged ETFs. Low-volatility large caps
+# are deliberately left out, and ``universe_filter`` below removes anything that becomes too calm,
+# too small or too thin each day. Survivorship bias: this is TODAY's list.
 universe:
-  # Technology / software / hardware
-  AAPL: XLK
-  MSFT: XLK
-  ORCL: XLK
-  CRM: XLK
-  ADBE: XLK
-  NOW: XLK
-  INTU: XLK
-  IBM: XLK
-  PLTR: XLK
-  CRWD: XLK
-  PANW: XLK
-  ZS: XLK
-  NET: XLK
-  SNOW: XLK
-  DDOG: XLK
-  MDB: XLK
-  SHOP: XLK
-  APP: XLK
-  ANET: XLK
-  DELL: XLK
-  SMCI: XLK
-  UBER: XLK
-  MSTR: XLK
-  IONQ: XLK
-  # Semiconductors
+  # AI semiconductors / hardware / networking
   NVDA: SMH
   AMD: SMH
   AVGO: SMH
   MU: SMH
+  ARM: SMH
+  MRVL: SMH
   TSM: SMH
   INTC: SMH
-  QCOM: SMH
-  MRVL: SMH
-  ARM: SMH
   LRCX: SMH
   AMAT: SMH
   KLAC: SMH
   "ON": SMH          # quoted: YAML would read ON as the boolean true
   MPWR: SMH
-  # Communication services
-  GOOGL: XLC
-  META: XLC
-  NFLX: XLC
-  DIS: XLC
-  RDDT: XLC
-  SPOT: XLC
-  ROKU: XLC
-  T: XLC
-  # Consumer discretionary
-  AMZN: XLY
-  TSLA: XLY
-  HD: XLY
-  NKE: XLY
-  SBUX: XLY
-  MCD: XLY
-  LULU: XLY
-  CMG: XLY
-  ABNB: XLY
-  BKNG: XLY
-  DKNG: XLY
-  RIVN: XLY
-  CVNA: XLY
-  DASH: XLY
-  # Consumer staples
-  WMT: XLP
-  COST: XLP
-  PG: XLP
-  KO: XLP
-  PEP: XLP
-  TGT: XLP
-  CELH: XLP
-  # Energy
-  XOM: XLE
-  CVX: XLE
-  OXY: XLE
-  SLB: XLE
-  COP: XLE
-  # Financials
-  JPM: XLF
-  BAC: XLF
-  GS: XLF
-  MS: XLF
-  C: XLF
-  WFC: XLF
-  SCHW: XLF
+  ALAB: SMH
+  CRDO: SMH
+  COHR: SMH
+  AAOI: SMH
+  SNDK: SMH
+  WDC: XLK
+  STX: XLK
+  LITE: XLK
+  CIEN: XLK
+  ANET: XLK
+  DELL: XLK
+  SMCI: XLK
+  CLS: XLK
+  VRT: XLI
+  # AI infrastructure / cloud / data centres
+  NBIS: XLK
+  CRWV: XLK
+  IREN: XLK
+  ORCL: XLK
+  # AI software / high-growth software
+  PLTR: XLK
+  APP: XLK
+  CRWD: XLK
+  NET: XLK
+  SNOW: XLK
+  DDOG: XLK
+  MDB: XLK
+  SHOP: XLK
+  TTD: XLK
+  AI: XLK
+  SOUN: XLK
+  # quantum computing
+  IONQ: XLK
+  RGTI: XLK
+  QBTS: XLK
+  # crypto / fintech (high beta)
+  MSTR: XLK
   COIN: XLF
   HOOD: XLF
   SOFI: XLF
-  PYPL: XLF
-  V: XLF
-  MA: XLF
-  AXP: XLF
-  XYZ: XLF
-  # Health care / biotech
-  LLY: XLV
-  UNH: XLV
-  JNJ: XLV
-  MRK: XLV
-  PFE: XLV
-  ABBV: XLV
-  ISRG: XLV
+  AFRM: XLF
+  UPST: XLF
+  MARA: XLK
+  RIOT: XLK
+  CLSK: XLK
+  # high-beta consumer / internet
+  TSLA: XLY
+  CVNA: XLY
+  RIVN: XLY
+  META: XLC
+  RDDT: XLC
+  ASTS: XLC
+  # health-care growth
   HIMS: XLV
-  MRNA: XBI
-  VRTX: XBI
-  REGN: XBI
-  AMGN: XBI
-  GILD: XBI
-  # Industrials / aerospace & defense
-  CAT: XLI
-  DE: XLI
-  BA: ITA
-  GE: ITA
-  HON: XLI
-  LMT: ITA
-  RTX: ITA
-  UPS: XLI
-  GEV: XLI
-  ETN: XLI
-  AXON: ITA
-  RKLB: ITA
-  AVAV: ITA
-  KTOS: ITA
-  # Materials
-  FCX: XLB
-  NEM: XLB
-  LIN: XLB
-  MP: XLB
-  # Real estate
-  PLD: XLRE
-  AMT: XLRE
-  O: XLRE
-  # Utilities / power
-  NEE: XLU
+  TEM: XLV
+  # AI power / nuclear / energy tech
   VST: XLU
   CEG: XLU
-  SO: XLU
+  OKLO: XLU
+  SMR: XLI
+  BE: XLI
+  GEV: XLI
+  # space / defence tech / eVTOL
+  RKLB: ITA
+  KTOS: ITA
+  AVAV: ITA
+  ACHR: ITA
+  JOBY: ITA
+  # leveraged ETFs (exempt from the market-cap rule; no fundamentals / earnings)
+  SOXL: SMH
+  TQQQ: XLK
+  NVDL: SMH
+  TSLL: XLY
+  LABU: XBI
+
+leveraged_etfs: [SOXL, TQQQ, NVDL, TSLL, LABU]
+
+# Daily focus filter: a stock is shown only if it passes EVERY rule (reasons for exclusion are listed
+# on the Data page and in the report). Set enabled: false to show the whole universe.
+universe_filter:
+  enabled: true
+  beta_window: 120          # sessions for beta vs SPY
+  min_beta: 1.3             # 120-session beta vs SPY
+  min_hv60: 0.35            # 60-session annualised volatility (0.35 = 35%)
+  min_market_cap: 2000000000   # USD; leveraged ETFs are exempt
+  market_cap_refresh_days: 7   # market caps are cached and refreshed weekly
 
 liquidity:
   min_price: 5.0                   # USD; below this the stock is excluded
-  min_avg_dollar_volume: 20000000  # 20-day average of close x volume, USD
-  good_avg_dollar_volume: 250000000
+  min_avg_dollar_volume: 100000000  # 20-day average of close x volume, USD (100M)
+  good_avg_dollar_volume: 2000000000
 
 scanner:
   shortlist_size: 40          # candidates (half per direction) that get the deep dive (>= 2 x final_list_size)

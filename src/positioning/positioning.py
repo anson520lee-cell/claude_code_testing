@@ -86,7 +86,7 @@ def insider_summary(table: pd.DataFrame | None, as_of: date, days: int = 90) -> 
     return {"available": True, "window_days": days, "n_buys": int(len(buys)), "n_sales": int(len(sells)),
             "buy_value": value(buys), "sale_value": value(sells), "net_value": value(buys) - value(sells),
             "recent": recent,
-            "note": "Sales are often pre-planned (10b5-1) or tax-related; open-market purchases are the rarer signal."}
+            "note": "賣出多數是預先安排（10b5-1）或與稅務有關；公開市場買入才是較少見的信號。"}
 
 
 def institutional_summary(table: pd.DataFrame | None) -> dict[str, Any]:
@@ -101,7 +101,7 @@ def institutional_summary(table: pd.DataFrame | None) -> dict[str, Any]:
     changes = [r["pct_change"] for r in rows if r["pct_change"] is not None]
     return {"available": True, "top_holders": rows,
             "net_change_top10_avg": float(np.mean(changes)) if changes else None,
-            "note": "13F data: quarter-end long positions filed up to 45 days later; not real-time positioning."}
+            "note": "13F 數據：季末的好倉持股，最多延遲 45 日披露，並非即時持倉。"}
 
 
 class FinraData:
@@ -150,8 +150,8 @@ class FinraData:
             return {"available": False}
         ratios = [r["ratio"] for r in rows if r["ratio"] is not None]
         return {"available": True, "latest": rows[0], "avg_ratio": float(np.mean(ratios)) if ratios else None,
-                "days": rows, "source": "FINRA Reg SHO daily short sale volume (consolidated NMS)",
-                "note": "Short-sale VOLUME (mostly market-maker liquidity), not short interest."}
+                "days": rows, "source": "FINRA Reg SHO 每日賣空成交量（綜合 NMS）",
+                "note": "這是賣空「成交量」（多數是莊家提供流動性），不是做空持倉。"}
 
     def off_exchange(self, symbol: str, session: date, consolidated: pd.Series | None) -> dict[str, Any]:
         """Most recent published week of ATS + non-ATS OTC volume (2-4 week delay)."""
@@ -175,7 +175,7 @@ class FinraData:
                     totals[code] = float(sum(float(d.get("totalWeeklyShareQuantity") or 0) for d in data))
             except Exception as exc:  # noqa: BLE001
                 logger.warning("FINRA OTC data for %s unavailable: %s", symbol, exc)
-                return {"available": False, "reason": "FINRA OTC transparency API unavailable."}
+                return {"available": False, "reason": "FINRA 場外交易數據接口不可用。"}
             if totals:
                 off = sum(totals.values())
                 week_end = week + timedelta(days=4)
@@ -187,9 +187,9 @@ class FinraData:
                 return {"available": True, "week_start": week.isoformat(), "ats_shares": totals.get("ATS_W_SMBL"),
                         "otc_non_ats_shares": totals.get("OTC_W_SMBL"), "off_exchange_shares": off,
                         "consolidated_shares": total, "off_exchange_share": off / total if total else None,
-                        "source": "FINRA OTC Transparency (weekly, Tier 1)",
-                        "note": f"Week of {week.isoformat()} - published with a 2-4 week delay."}
-        return {"available": False, "reason": "No published FINRA OTC week found in the last 6 weeks."}
+                        "source": "FINRA 場外交易透明度數據（每週，Tier 1）",
+                        "note": f"{week.isoformat()} 當週數據，延遲 2 至 4 週公布。"}
+        return {"available": False, "reason": "過去 6 週沒有已公布的 FINRA 場外數據。"}
 
 
 def analyze_positioning(info: dict[str, Any] | None, insider: pd.DataFrame | None, institutions: pd.DataFrame | None,
@@ -201,7 +201,7 @@ def analyze_positioning(info: dict[str, Any] | None, insider: pd.DataFrame | Non
     if finra is not None:
         out["short_volume"] = finra.short_volume(symbol, as_of)
         out["off_exchange"] = finra.off_exchange(symbol, as_of, consolidated_volume)
-    out["block_trades"] = {"available": False, "reason": "No free, reliable public block-trade feed."}
+    out["block_trades"] = {"available": False, "reason": "沒有免費可靠的大宗交易數據來源。"}
     lag = None
     if out.get("short_interest_date"):
         lag = (as_of - date.fromisoformat(out["short_interest_date"])).days
@@ -214,26 +214,24 @@ def interpret(p: dict[str, Any]) -> list[str]:
     notes = []
     si, dtc = p.get("short_percent_float"), p.get("days_to_cover")
     if si is not None:
-        level = "very high" if si >= 0.20 else "high" if si >= 0.10 else "moderate" if si >= 0.05 else "low"
-        notes.append(f"Short interest {si * 100:.1f}% of float ({level}), as of {p.get('short_interest_date')} "
-                     f"({p.get('short_interest_age_days')} days old).")
+        level = "非常高" if si >= 0.20 else "高" if si >= 0.10 else "中等" if si >= 0.05 else "低"
+        notes.append(f"做空比例佔流通股 {si * 100:.1f}%（{level}），截至 {p.get('short_interest_date')}"
+                     f"（已過 {p.get('short_interest_age_days')} 日）。")
     if dtc is not None and dtc >= 5:
-        notes.append(f"Days to cover {dtc:.1f}: crowded short - squeeze risk on positive news, but also persistent "
-                     "bearish conviction.")
+        notes.append(f"回補天數 {dtc:.1f} 日：做空擁擠，利好消息時有軋空風險，但也反映持續的看淡立場。")
     ch = p.get("short_interest_change")
     if ch is not None and abs(ch) >= 0.15:
-        notes.append(f"Short interest {'up' if ch > 0 else 'down'} {abs(ch) * 100:.0f}% vs the prior report.")
+        notes.append(f"做空股數較上一期{'增加' if ch > 0 else '減少'} {abs(ch) * 100:.0f}%。")
     ins = p.get("insider_90d") or {}
     if ins.get("available"):
         if ins["n_buys"]:
-            notes.append(f"{ins['n_buys']} insider purchase(s) in 90 days (${ins['buy_value'] / 1e6:.1f}M).")
+            notes.append(f"90 日內有 {ins['n_buys']} 筆內部人士買入（${ins['buy_value'] / 1e6:.1f}M）。")
         if ins["n_sales"]:
-            notes.append(f"{ins['n_sales']} insider sale(s) in 90 days (${ins['sale_value'] / 1e6:.1f}M) - often "
-                         "planned / compensation-related.")
+            notes.append(f"90 日內有 {ins['n_sales']} 筆內部人士賣出（${ins['sale_value'] / 1e6:.1f}M），多數與預先安排或薪酬有關。")
     sv = p.get("short_volume") or {}
     if sv.get("available") and sv.get("avg_ratio") and sv["latest"].get("ratio"):
         diff = sv["latest"]["ratio"] - sv["avg_ratio"]
         if abs(diff) >= 0.10:
-            notes.append(f"Short-sale volume share {sv['latest']['ratio'] * 100:.0f}% vs {sv['avg_ratio'] * 100:.0f}% "
-                         "10-day average (FINRA; mostly market making - weak signal).")
+            notes.append(f"賣空成交佔比 {sv['latest']['ratio'] * 100:.0f}%，10 日平均 {sv['avg_ratio'] * 100:.0f}%"
+                         "（FINRA 數據，多數是莊家活動，參考價值有限）。")
     return notes

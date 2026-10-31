@@ -38,6 +38,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.i18n.zh import tr
 from src.scanner.setups import SETUP_DIRECTION, SETUP_NAMES
 
 REGIME_LONG = {"Strong Bullish": 100, "Bullish": 80, "Neutral": 50, "Bearish": 25, "Strong Bearish": 10}
@@ -167,7 +168,7 @@ def technical_snapshot(row: pd.Series, ranks: pd.Series) -> dict[str, Any]:
             "bb_pct_b", "bb_width_percentile", "atr", "atr_pct", "hv10", "hv20", "hv60", "volume", "mavol20",
             "volume_ratio", "obv_slope20", "updown_vol_ratio", "roc10", "roc20", "rel_5d", "rel_20d", "rel_60d",
             "rel_sector_20d", "gap", "gap_atr", "high252", "low252", "from_52w_high", "from_52w_low",
-            "extension_atr", "adx", "vwap20", "dollar_volume20", "clv", "high20", "low20"]
+            "extension_atr", "adx", "vwap20", "dollar_volume20", "clv", "high20", "low20", "beta120"]
     out = {k: (None if pd.isna(row.get(k)) else float(row.get(k))) for k in keys}
     for k in ("trend", "momentum", "swing_structure", "structure", "swing_condition", "relative_strength",
               "volatility", "band_state", "macd_state", "rsi_zone"):
@@ -184,61 +185,57 @@ def technical_penalties(c: dict[str, Any], row: pd.Series, settings: dict[str, A
     ext = _f(row.get("extension_atr"))
     if np.isfinite(ext) and (ext if long else -ext) > sc["extension_atr"]:
         c["penalties"]["extended"] = pen["extended"]
-        c["contradicting"].append(f"Extended: close is {abs(ext):.1f} ATR {'above' if long else 'below'} EMA21 "
-                                  f"(> {sc['extension_atr']} ATR) - chasing risk, mean-reversion likely.")
+        c["contradicting"].append(f"過度延伸：收市價在 EMA21 {'上方' if long else '下方'} {abs(ext):.1f} 個 ATR"
+                                  f"（> {sc['extension_atr']} ATR），追價風險高，容易回歸均線。")
     rsi6 = _f(row.get("rsi6"))
     if np.isfinite(rsi6) and ((long and rsi6 > 85) or (not long and rsi6 < 15)):
         c["penalties"]["overbought_extreme"] = pen["overbought_extreme"]
-        c["contradicting"].append(f"RSI6 {rsi6:.0f} is at an extreme - short-term exhaustion risk.")
+        c["contradicting"].append(f"RSI6 為 {rsi6:.0f}，處於極端水平，短線有力竭風險。")
     rr = _f(plan.get("reward_risk"))
     if np.isfinite(rr) and rr < sc["min_reward_risk"]:
         c["penalties"]["poor_reward_risk"] = pen["poor_reward_risk"]
-        c["contradicting"].append(f"Reward/risk to Target 1 is only {rr:.2f} (< {sc['min_reward_risk']}).")
+        c["contradicting"].append(f"到目標一的風險報酬比只有 {rr:.2f}（低於 {sc['min_reward_risk']}）。")
     if plan.get("wide_stop"):
         c["penalties"]["wide_stop"] = pen["wide_stop"]
-        c["contradicting"].append(f"Structural stop is {plan['structural_stop_atr']:.1f} ATR away; the plan caps it "
-                                  f"at {sc['max_stop_atr']} ATR, inside the structure (higher stop-out risk).")
+        c["contradicting"].append(f"結構止損距離 {plan['structural_stop_atr']:.1f} 個 ATR；計劃把止損限制在 "
+                                  f"{sc['max_stop_atr']} 個 ATR，位於結構之內（較易被掃止損）。")
     if c["data_quality"] == "warning":
         c["penalties"]["data_quality"] = pen["data_quality"]
-        c["contradicting"].append("Data-quality warning on this symbol (see Data Quality).")
+        c["contradicting"].append("此股票有數據品質警告（見「數據」頁）。")
 
     # evidence lists (both directions)
     s = 1 if long else -1
-    side = "above" if long else "below"
     if t["rs_percentile"] is not None:
         pct = t["rs_percentile"] if long else 100 - t["rs_percentile"]
         (c["supporting"] if pct >= 70 else c["contradicting"] if pct < 40 else []).append(
-            f"Relative strength vs SPY in the {t['rs_percentile']:.0f}th universe percentile.")
+            f"相對 SPY 的強弱排名在股票池第 {t['rs_percentile']:.0f} 百分位。")
     if t["ema200"] is not None and t["close"] is not None:
         if s * (t["close"] - t["ema200"]) > 0:
-            c["supporting"].append(f"Close {side} EMA200 (long-term trend agrees).")
+            c["supporting"].append(f"收市價在 EMA200 {'上方' if long else '下方'}（長期趨勢一致）。")
         else:
-            c["contradicting"].append(f"Close is {'below' if long else 'above'} EMA200 - trading against the "
-                                      "long-term trend.")
+            c["contradicting"].append(f"收市價在 EMA200 {'下方' if long else '上方'}，與長期趨勢相反。")
     if t["swing_structure"] == ("HH/HL" if long else "LH/LL"):
-        c["supporting"].append(f"Swing structure {t['swing_structure']} (trend structure confirmed).")
+        c["supporting"].append(f"波段結構為{tr(t['swing_structure'])}（趨勢結構確認）。")
     elif t["swing_structure"] == ("LH/LL" if long else "HH/HL"):
-        c["contradicting"].append(f"Swing structure is {t['swing_structure']} - opposite to the trade direction.")
+        c["contradicting"].append(f"波段結構為{tr(t['swing_structure'])}，與交易方向相反。")
     if t["macd_hist"] is not None and _f(row.get("macd_hist_3d")) * s < 0:
-        c["contradicting"].append("MACD histogram has weakened over the last 3 sessions (momentum fading).")
+        c["contradicting"].append("MACD 柱狀圖近 3 個交易日轉弱（動量減退）。")
     vr = t["volume_ratio"]
     if c["setup"] in ("breakout", "breakdown") and vr is not None and vr >= 2:
-        c["supporting"].append(f"Volume {vr:.1f}x MAVOL20 on the {'breakout' if long else 'breakdown'} "
-                               "(institution-sized participation likely).")
+        c["supporting"].append(f"{'突破' if long else '跌破'}當日成交量是 MAVOL20 的 {vr:.1f} 倍（可能有機構級資金參與）。")
     if c["setup"] in ("pullback", "rally_fail") and _f(row.get("vol3_vs_mavol")) < 0.8:
-        c["supporting"].append("Quiet volume during the counter-move (no heavy distribution / accumulation).")
+        c["supporting"].append(f"{'回調' if long else '反彈'}期間成交量偏低（沒有大量{'出貨' if long else '吸納'}）。")
     gap = _f(row.get("gap_atr"))
     if np.isfinite(gap) and s * gap > 2:
-        c["contradicting"].append(f"Gapped {gap:+.1f} ATR today - gap-fill risk.")
+        c["contradicting"].append(f"今日跳空 {gap:+.1f} 個 ATR，有回補缺口的風險。")
     ud = _f(row.get("updown_vol_ratio"))
     if np.isfinite(ud):
         if (long and ud >= 1.3) or (not long and ud <= 0.75):
-            c["supporting"].append(f"Up/down volume ratio (20d) {ud:.2f} - {'accumulation' if long else 'distribution'}.")
+            c["supporting"].append(f"20 日上漲／下跌成交量比為 {ud:.2f}，顯示{'資金吸納' if long else '資金出貨'}。")
         elif (long and ud < 0.8) or (not long and ud > 1.25):
-            c["contradicting"].append(f"Up/down volume ratio (20d) {ud:.2f} works against the trade.")
+            c["contradicting"].append(f"20 日上漲／下跌成交量比為 {ud:.2f}，對交易方向不利。")
     if t["volatility"] in ("High", "Extreme"):
-        c["contradicting"].append(f"ATR in the {t['volatility'].lower()} part of its 1-year range - wider swings, "
-                                  "smaller size needed.")
+        c["contradicting"].append(f"ATR 處於一年內{tr(t['volatility'])}水平，波動較大，倉位需要縮小。")
 
 
 def finalize(c: dict[str, Any], settings: dict[str, Any]) -> None:
@@ -263,23 +260,23 @@ def apply_enrichment(c: dict[str, Any], enrichment: dict[str, Any], settings: di
     earn = cat.get("next_earnings")
     if earn and earn.get("sessions_until") is not None and earn["sessions_until"] <= horizon:
         c["penalties"]["earnings_in_window"] = pen["earnings_in_window"]
-        c["contradicting"].append(f"Earnings {earn['date']} ({earn.get('timing') or 'time n/a'}) in "
-                                  f"{earn['sessions_until']} session(s) - binary gap risk inside the holding window.")
+        c["contradicting"].append(f"財報 {earn['date']}（{tr(earn.get('timing')) or '時間未確認'}）在 "
+                                  f"{earn['sessions_until']} 個交易日後，持倉期內有跳空風險。")
     dilution = [f for f in cat.get("filings", []) if f.get("dilution_risk") and f.get("age_days", 99) <= 30]
     if dilution:
         forms = ", ".join(sorted({f["form"] for f in dilution}))
         if long:
             c["penalties"]["dilution_filing"] = pen["dilution_filing"]
-            c["contradicting"].append(f"Recent dilution-related SEC filing(s): {forms} (offering / shelf).")
+            c["contradicting"].append(f"近期有股權稀釋相關的 SEC 文件：{forms}（發行新股／儲架註冊）。")
         else:
-            c["supporting"].append(f"Recent dilution-related SEC filing(s): {forms} - supply overhang.")
+            c["supporting"].append(f"近期有股權稀釋相關的 SEC 文件：{forms}，有新股供應壓力。")
     for item in cat.get("analyst", [])[:3]:
         if item.get("age_days", 99) <= 10:
             positive = item["sentiment"] == "Positive"
             target = c["supporting"] if positive == long and item["sentiment"] != "Uncertain" else \
                 c["contradicting"] if item["sentiment"] != "Uncertain" else None
             if target is not None:
-                target.append(f"Analyst {item['description']} ({item['date']}).")
+                target.append(f"分析師：{item['description']}（{item['date']}）。")
     fund = enrichment.get("fundamentals") or {}
     flags = fund.get("flags") or []
     severe = [f for f in flags if f.get("severity") == "high"]
@@ -287,34 +284,34 @@ def apply_enrichment(c: dict[str, Any], enrichment: dict[str, Any], settings: di
         c["penalties"]["financial_distress"] = pen["financial_distress"]
     for f in flags:
         bucket = c["contradicting"] if (f.get("kind") == "risk") == long else c["supporting"]
-        bucket.append(f"Fundamentals: {f['text']}")
+        bucket.append(f"基本面：{f['text']}")
     opt = enrichment.get("options") or {}
     if opt.get("available"):
         ratio = opt.get("iv_hv_ratio")
         if ratio is not None and ratio > 1.6:
             c["penalties"]["options_event_premium"] = pen["options_event_premium"]
-            c["contradicting"].append(f"Options price elevated risk: ATM IV is {ratio:.1f}x 20-day realised "
-                                      "volatility (event premium / expected large move).")
+            c["contradicting"].append(f"期權定價反映較高風險：平價隱含波動率是 20 日實際波動率的 {ratio:.1f} 倍"
+                                      "（事件溢價／預期大波動）。")
         em = opt.get("expected_move_pct")
         if em is not None and c["plan"].get("risk_pct"):
             if em > 2.5 * c["plan"]["risk_pct"]:
-                c["contradicting"].append(f"Options-implied move to {opt.get('expected_move_expiry')} is "
-                                          f"+/-{em * 100:.1f}%, > 2.5x the planned stop distance.")
+                c["contradicting"].append(f"期權隱含到 {opt.get('expected_move_expiry')} 的波幅為 ±{em * 100:.1f}%，"
+                                          "超過計劃止損距離的 2.5 倍。")
     pos = enrichment.get("positioning") or {}
     si = pos.get("short_percent_float")
     if si is not None and si >= 0.15:
         (c["supporting"] if long else c["contradicting"]).append(
-            f"Short interest {si * 100:.0f}% of float (as of {pos.get('short_interest_date')}) - squeeze "
-            f"{'potential' if long else 'risk'}.")
+            f"做空比例佔流通股 {si * 100:.0f}%（截至 {pos.get('short_interest_date')}），"
+            f"{'有軋空潛力' if long else '有軋空風險'}。")
     insider = pos.get("insider_90d") or {}
     if insider.get("net_value") is not None and insider.get("n_buys", 0) >= 2 and insider["net_value"] > 0:
-        (c["supporting"] if long else c["contradicting"]).append("Insider open-market buying in the last 90 days.")
+        (c["supporting"] if long else c["contradicting"]).append("過去 90 日有內部人士在公開市場買入。")
     finalize(c, settings)
 
 
 def stats_note(stats: dict[str, Any] | None) -> str:
     if not stats or not stats.get("n"):
-        return "No historical occurrences."
-    note = (f"N={stats['n']}, win {stats['win_rate'] * 100:.0f}%, avg {stats['avg_r']:+.2f}R, "
-            f"target hit {stats['hit_target_rate'] * 100:.0f}%")
-    return note + (" (small sample)" if stats.get("small_sample") else "")
+        return "沒有歷史樣本。"
+    note = (f"樣本 {stats['n']}，勝率 {stats['win_rate'] * 100:.0f}%，平均 {stats['avg_r']:+.2f}R，"
+            f"達到目標一 {stats['hit_target_rate'] * 100:.0f}%")
+    return note + ("（樣本少）" if stats.get("small_sample") else "")

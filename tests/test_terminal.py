@@ -64,6 +64,8 @@ def tsettings(tmp_path: Path) -> dict:
     s["data"]["retry_wait_seconds"] = 0
     s["data"]["sec_user_agent"] = None
     s["liquidity"]["min_avg_dollar_volume"] = 1e6
+    s["universe_filter"]["enabled"] = False   # synthetic stocks are calm; the filter has its own tests
+    s["leveraged_etfs"] = []
     return s
 
 
@@ -375,7 +377,7 @@ def test_candidate_scoring_and_enrichment_penalties(breakout_features, tsettings
     apply_enrichment(c, enrichment, tsettings)
     assert {"earnings_in_window", "dilution_filing", "financial_distress"} <= set(c["penalties"])
     assert c["score"] < before
-    assert any("Earnings" in x for x in c["contradicting"])
+    assert any("財報" in x for x in c["contradicting"])
 
 
 # ======================================================================= fundamentals
@@ -395,7 +397,7 @@ def test_fundamentals_point_in_time_and_ytd_derivation():
     assert m["revenue_yoy"] == pytest.approx(165 / 110 - 1)
     assert m["revenue_ttm"] == 120 + 130 + 150 + 165
     assert m["shares_yoy"] == pytest.approx(0.15)
-    assert any("dilution" in f["text"] for f in r["flags"])
+    assert any("稀釋" in f["text"] for f in r["flags"])
     early = analyze_fundamentals(facts, date(2025, 8, 15), price=10.0)
     assert early["metrics"]["latest_quarter_end"] == "2025-06-30"
 
@@ -444,8 +446,8 @@ def test_macro_events_rules():
     ev = macro_events(SESSION, [{"date": "2026-11-12", "event": "CPI"}], days=30)
     names = [(e["event_date"], e["event_type"]) for e in ev]
     assert ("2026-11-12", "CPI") in names
-    assert ("2026-11-20", "Monthly options expiration") in names
-    assert any(e["event_type"].startswith("Employment") and e["status"] == "Estimated" for e in ev)
+    assert ("2026-11-20", "每月期權到期日") in names
+    assert any(e["event_type"].startswith("美國非農") and e["status"] == "Estimated" for e in ev)
 
 
 # ======================================================================= options
@@ -455,7 +457,7 @@ def test_options_analysis():
     assert o["available"] and o["pcr_volume"] == pytest.approx(1.0)
     assert o["atm_iv"] == pytest.approx(0.35) and o["iv_hv_ratio"] == pytest.approx(1.4)
     assert o["expected_move"] == pytest.approx(6.0, rel=0.01)   # call mid + put mid at 100 = 3 + 3
-    assert o["iv_rank"] is None and "Insufficient" in o["iv_rank_note"]
+    assert o["iv_rank"] is None and "不足" in o["iv_rank_note"]
     sym = pd.DataFrame({"strike": [90.0, 95, 100, 105, 110], "openInterest": [1000.0] * 5})
     assert max_pain({"calls": sym, "puts": sym}) == pytest.approx(100.0)   # symmetric OI -> middle strike
     assert not analyze_chains([], 100, 0.2)["available"]
@@ -480,7 +482,7 @@ def test_daily_pipeline_end_to_end(tsettings, tmp_path):
     assert aaa["deep_dive"] and "earnings_in_window" in aaa["penalties"] and "dilution_filing" in aaa["penalties"]
     assert aaa["history"]["setup"] is not None and aaa["thesis"]
     report = (out / "report.md").read_text()
-    assert "Market regime" in report and "AAA" in report and "not investment advice" in report
+    assert "市場狀態" in report and "AAA" in report and "不構成投資建議" in report
     conn = sqlite3.connect(tsettings["paths"]["database"])
     assert conn.execute("SELECT status FROM terminal_runs").fetchone()[0].startswith("success")
     assert conn.execute("SELECT COUNT(*) FROM scan_candidates").fetchone()[0] >= 1
@@ -501,7 +503,7 @@ def test_pipeline_uses_latest_published_session(tsettings):
     result = run_daily(tsettings, session=SESSION, downloader=FakeDownloader(frames), skip_deep=True,
                        fred_getter=fake_fred, progress=lambda m: None)
     assert result["session"]["date"] == "2026-10-29"
-    assert any("has not published" in w for w in result["warnings"])
+    assert any("尚未發布" in w for w in result["warnings"])
 
 
 def test_existing_database_is_backed_up_before_upgrade(tsettings, tmp_path):
@@ -525,7 +527,7 @@ def test_build_catalysts_events(tmp_path):
     raw = FakeEnrichment().fetch("AAA")
     cat = build_catalysts("AAA", SESSION, raw["earnings_dates"], {}, raw["filings"], None)
     assert cat["next_earnings"]["sessions_until"] == 3          # after close Tue -> reacts Wed
-    assert any(e["event_type"] == "Earnings release" for e in cat["events"])
+    assert any(e["event_type"] == "財報公布" for e in cat["events"])
     assert cat["filings"][0]["dilution_risk"]
 
 
@@ -548,7 +550,9 @@ def test_web_api(tsettings):
     assert client.get("/api/regime/history").json()["history"]
     assert client.get("/api/runs").json()["runs"][0]["status"].startswith("success")
     assert client.get("/api/candidate-history/AAA").json()["history"]
-    assert "Composite" in client.get("/api/methodology").json()["regime"] or client.get("/api/methodology").status_code == 200
+    assert "綜合分數" in client.get("/api/methodology").json()["regime"]
+    assert client.get("/api/i18n").json()["Bearish"] == "看空"
+    assert client.get("/api/minicharts?symbols=AAA,BBB&days=30").json()["AAA"]["c"]
     assert client.get("/reports/2026-10-30/report.html").status_code == 200
     assert client.get("/api/snapshot?session=1999-01-01").status_code == 404
 
@@ -575,3 +579,54 @@ def test_api_run_if_new_skips_when_current(tsettings, monkeypatch):
     body = client.post("/api/run?if_new=true").json()
     assert body["started"] is False and "up to date" in body["reason"]
     assert client.get("/api/run/status").json()["running"] is False
+
+
+# ======================================================================= focus filter (high beta / high volatility)
+def test_universe_filter_rules(tsettings):
+    from src.scanner.universe_filter import apply_universe_filter
+    spy = bars(400, seed=11, vol=0.01)["adj_close"]
+    calm = build_features(bars(400, seed=3, vol=0.008, volume=5e7), spy, None)        # low vol, low beta
+    wild = bars(400, seed=4, vol=0.008, volume=5e7)
+    spy_ret = spy.pct_change().fillna(0).to_numpy()
+    noise = np.random.default_rng(9).normal(0, 0.02, 400)
+    close = 50 * np.cumprod(1 + 2.2 * spy_ret + noise)                                  # beta ~2.2, high vol
+    wild["close"] = wild["adj_close"] = close
+    wild["open"] = close * 0.999; wild["high"] = close * 1.01; wild["low"] = close * 0.99
+    wild_f = build_features(wild, spy, None)
+    s = copy.deepcopy(tsettings)
+    s["universe_filter"]["enabled"] = True
+    s["liquidity"]["min_avg_dollar_volume"] = 1e8
+    s["leveraged_etfs"] = ["LEV"]
+    out = apply_universe_filter({"CALM": calm, "WILD": wild_f, "SMALL": wild_f, "LEV": wild_f}, s,
+                                {"CALM": 5e11, "WILD": 9e10, "SMALL": 5e8, "LEV": None})
+    assert wild_f["beta120"].iloc[-1] > 1.6 and wild_f["hv60"].iloc[-1] > 0.35
+    assert sorted(out["kept"]) == ["LEV", "WILD"]
+    reasons = {x["symbol"]: x["reason"] for x in out["excluded"]}
+    assert "Beta" in reasons["CALM"] and "波動率" in reasons["CALM"]
+    assert "市值" in reasons["SMALL"]
+
+
+def test_market_cap_cache(tmp_path):
+    from src.data.profiles import market_caps
+    calls = []
+    fetch = lambda s: (calls.append(s), {"A": 3e9}.get(s))[1]  # noqa: E731
+    first = market_caps(["A", "B"], tmp_path, SESSION, fetch=fetch)
+    assert first == {"A": 3e9, "B": None} and calls == ["A", "B"]
+    calls.clear()
+    second = market_caps(["A", "B"], tmp_path, SESSION, fetch=fetch)
+    assert second["A"] == 3e9 and calls == ["B"]          # A cached; unknown B retried
+    assert market_caps(["A"], tmp_path, date(2026, 12, 31), offline=True, fetch=fetch)["A"] == 3e9
+
+
+def test_pipeline_with_filter_enabled(tsettings):
+    from src.daily.pipeline import run_daily
+    s = copy.deepcopy(tsettings)
+    s["universe_filter"]["enabled"] = True
+    s["universe_filter"]["min_beta"] = -10          # let the synthetic stocks pass beta / volatility ...
+    s["universe_filter"]["min_hv60"] = 0.0
+    caps = {"AAA": 5e9, "BBB": 5e9, "CCC": 1e8, "DDD": 5e9}   # ... but CCC is too small
+    result = run_daily(s, session=SESSION, downloader=FakeDownloader(market_frames(s)), skip_deep=True,
+                       fred_getter=fake_fred, progress=lambda m: None, market_cap_fetch=caps.get)
+    assert [x["symbol"] for x in result["universe_filter"]["excluded"]] == ["CCC"]
+    assert "CCC" not in [u["symbol"] for u in result["universe"]]
+    assert all(c["symbol"] != "CCC" for side in ("long", "short") for c in result["candidates"][side])
