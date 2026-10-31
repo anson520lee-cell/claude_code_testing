@@ -27,6 +27,8 @@ def load_terminal_settings(path: str | Path | None = None) -> dict[str, Any]:
     agent = os.environ.get("SEC_USER_AGENT")
     if agent:
         settings["data"]["sec_user_agent"] = agent
+    settings["core_universe"] = dict(settings["universe"])
+    merge_auto_universe(settings)
     for day, name in (settings.get("calendar", {}).get("extra_closures") or {}).items():
         calendar.SPECIAL_CLOSURES[date.fromisoformat(str(day))] = str(name)
         calendar.holidays.cache_clear()
@@ -73,3 +75,24 @@ def market_symbols(settings: dict[str, Any]) -> list[str]:
 
 def all_symbols(settings: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys([*market_symbols(settings), *settings["universe"]]))
+
+
+def merge_auto_universe(settings: dict[str, Any]) -> None:
+    """Append the auto-built universe (config/universe_auto.yaml) to the core list, up to max_size."""
+    from src.market.universe_builder import load_auto
+
+    builder = settings.get("universe_builder") or {}
+    if not builder.get("enabled", True):
+        return
+    auto = load_auto()
+    if not auto:
+        return
+    max_size = int(builder.get("max_size", 500))
+    universe = settings["universe"]
+    known = set(settings["market"]["sector_etfs"]) | set(settings["market"].get("industry_etfs", {}))
+    for symbol, etf in (auto.get("symbols") or {}).items():
+        if len(universe) >= max_size:
+            break
+        if isinstance(symbol, str) and symbol not in universe and etf in known:
+            universe[symbol] = etf
+    settings["universe_auto_info"] = {k: auto.get(k) for k in ("generated_at", "rules", "screened", "passed")}

@@ -28,6 +28,7 @@ from typing import Any, Callable
 import pandas as pd
 import yaml
 
+from src.analyst.analyst import analyze
 from src.catalysts.catalysts import build_catalysts, macro_events
 from src.daily import store
 from src.daily.settings import all_symbols, path
@@ -269,7 +270,8 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     elif skip_deep:
         warnings.append("已略過深入分析（--skip-deep）：沒有基本面、期權、持倉和催化劑數據。")
 
-    # 8. final ranking
+    # 8. final ranking (+ analyst note for every listed candidate)
+    sector_by_etf = {x["symbol"]: x for x in sectors}
     final = {"long": [], "short": []}
     keep = int(sc["final_list_size"])
     for d in ("long", "short"):
@@ -283,6 +285,12 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             c["history"] = {"setup": st, "setup_in_regime": st_reg, "regime": reg["label"],
                             "note": stats_note(st), "note_regime": stats_note(st_reg)}
             c["thesis"] = thesis(c)
+            try:
+                c["analyst"] = analyze(c["symbol"], features[c["symbol"]], c, deep.get(c["symbol"]), reg,
+                                       sector_by_etf.get(universe[c["symbol"]]), spy_close,
+                                       float(ranks.loc[c["symbol"], "rs_pct"]), [SETUP_NAMES[x] for x in [c["setup"], *c["other_setups"]]])
+            except Exception as exc:  # noqa: BLE001 - the note is optional
+                warnings.append(f"{c['symbol']}：分析師報告生成失敗（{type(exc).__name__}: {exc}）")
         final[d] = side
     store.save_candidates(conn, target, final["long"] + final["short"])
 

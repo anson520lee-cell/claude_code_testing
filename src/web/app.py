@@ -180,6 +180,55 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         from src.i18n.zh import LABELS
         return LABELS
 
+    analyst_cache: dict[tuple, Any] = {}
+
+    @app.get("/api/analyst/{symbol}")
+    def api_analyst(symbol: str, session: str | None = None, live: bool = False) -> dict[str, Any]:
+        """Analyst note for any stored symbol. Uses the session snapshot (regime, sectors, deep dive) and,
+        with live=true, fetches fundamentals / options / positioning / catalysts for names not in the deep dive."""
+        from src.analyst.analyst import analyze
+        from src.daily.pipeline import enrich
+
+        symbol = symbol.upper()
+        available = sessions()
+        chosen = session if session in available else (available[0] if available else None)
+        key = (symbol, chosen, live)
+        if key in analyst_cache:
+            return analyst_cache[key]
+        snap = json.loads((reports_dir / chosen / "data.json").read_text()) if chosen else {}
+        conn = connect()
+        try:
+            prices, spy = db.load_prices(conn, symbol), db.load_prices(conn, "SPY")
+            etf = settings["universe"].get(symbol)
+            sector_p = db.load_prices(conn, etf) if etf else None
+        finally:
+            conn.close()
+        if prices.empty or len(prices) < 120:
+            raise HTTPException(404, f"{symbol} 沒有足夠的已儲存價格（需要至少 120 個交易日）")
+        if chosen:
+            cut = pd.Timestamp(chosen)
+            prices, spy = prices[prices.index <= cut], spy[spy.index <= cut]
+            sector_p = sector_p[sector_p.index <= cut] if sector_p is not None else None
+        spy_close = spy["adj_close"] if not spy.empty else None
+        f = build_features(prices, spy_close, sector_p["adj_close"] if sector_p is not None and not sector_p.empty else None)
+        cand = next((c for side in ("long", "short") for c in (snap.get("candidates") or {}).get(side, []) if c["symbol"] == symbol), None)
+        deep = (snap.get("deep_dive") or {}).get(symbol)
+        if deep is None and live:
+            from src.daily.enrichment import YahooSecEnrichment
+            sess_date = pd.Timestamp(chosen).date() if chosen else f.index[-1].date()
+            fetcher = YahooSecEnrichment(settings["data"].get("sec_user_agent"), path(settings, "cache_dir"), sess_date)
+            conn2 = store.connect(db_path, path(settings, "backups_dir"))
+            try:
+                deep = enrich(symbol, fetcher.fetch(symbol), f, sess_date, settings, conn2, fetcher.finra)
+            finally:
+                conn2.close()
+        sector_row = next((x for x in snap.get("sectors", []) if x["symbol"] == etf), None)
+        uni = next((u for u in snap.get("universe", []) if u["symbol"] == symbol), None)
+        note = analyze(symbol, f, cand, deep, snap.get("regime"), sector_row, spy_close, (uni or {}).get("rs_pct"))
+        out = store.jsonable({"note": note, "deep": deep, "candidate": cand})
+        analyst_cache[key] = out
+        return out
+
     @app.get("/api/regime/history")
     def api_regime_history(limit: int = Query(260, ge=10, le=2000)) -> dict[str, Any]:
         conn = connect()

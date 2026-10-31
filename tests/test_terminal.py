@@ -630,3 +630,36 @@ def test_pipeline_with_filter_enabled(tsettings):
     assert [x["symbol"] for x in result["universe_filter"]["excluded"]] == ["CCC"]
     assert "CCC" not in [u["symbol"] for u in result["universe"]]
     assert all(c["symbol"] != "CCC" for side in ("long", "short") for c in result["candidates"][side])
+
+
+# ======================================================================= analyst note + techniques toolkit
+def test_techniques_and_analyst_note():
+    from src.analyst.analyst import analyze
+    from src.analyst.techniques import run_all, volume_profile
+    spy = bars(520, seed=11)["adj_close"]
+    f = build_features(bars(520, seed=2, drift=0.0012, breakout_last=True), spy, spy)
+    tk = run_all(f, spy)
+    assert tk["count"] >= 45 and not [x for x in tk["findings"] if x["group"] == "系統"]
+    groups = {x["group"] for x in tk["findings"]}
+    assert {"個股習性", "籌碼分佈", "形態", "指標共識", "相對表現"} <= groups
+    for x in tk["findings"]:
+        assert x["signal"] in (-1, 0, 1) and 0 <= x["strength"] <= 1 and x["text"]
+    vp = volume_profile(f)
+    assert vp["val"] <= vp["poc"] <= vp["vah"] and 0 <= vp["profit_ratio"] <= 1
+    assert abs(sum(b["volume"] for b in vp["bins"]) - f["volume"].tail(120).sum()) / f["volume"].tail(120).sum() < 1e-6
+    note = analyze("AAA", f, None, None, {"label": "Bullish"}, {"symbol": "XLK", "name": "Technology", "quadrant": "Leading"}, spy, 80.0)
+    assert note["bias"] in ("強烈偏多", "偏多", "中性偏多", "中性", "中性偏空", "偏空", "強烈偏空")
+    assert note["confidence"] in ("高", "中", "低") and -100 <= note["bias_score"] <= 100
+    assert len(note["scorecard"]) == 14 and sum(x["weight"] for x in note["scorecard"]) == 100
+    assert note["summary"] and len(note["scenarios"]) == 3 and note["watch"]
+    assert any(sec["title"].startswith("籌碼分佈") for sec in note["sections"])
+
+
+def test_level_reaction_counts_rejections():
+    from src.analyst.techniques import level_reaction
+    idx = pd.bdate_range("2026-01-01", periods=12)
+    level = pd.Series(100.0, index=idx)
+    close = pd.Series([95, 96, 97, 99.5, 98, 97, 96, 95, 96, 99.6, 97, 96], index=idx, dtype=float)
+    f = pd.DataFrame({"close": close, "high": close + 0.8, "low": close - 0.8}, index=idx)
+    r = level_reaction(f, level, "L", horizon=2)
+    assert r["n_below"] == 2 and r["rejected"] == 1.0

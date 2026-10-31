@@ -156,6 +156,15 @@ universe_filter:
   min_market_cap: 2000000000   # USD; leveraged ETFs are exempt
   market_cap_refresh_days: 7   # market caps are cached and refreshed weekly
 
+# Automatic universe expansion (config/universe_auto.yaml, rebuilt every refresh_days or with
+# `python daily_run.py --rebuild-universe`): every US stock passing the universe_filter rules below,
+# ranked by dollar volume, added after the core list above until max_size names.
+universe_builder:
+  enabled: true
+  max_size: 500
+  refresh_days: 30
+  min_avg_shares: 500000      # coarse screener pass before the real dollar-volume rule
+
 liquidity:
   min_price: 5.0                   # USD; below this the stock is excluded
   min_avg_dollar_volume: 100000000  # 20-day average of close x volume, USD (100M)

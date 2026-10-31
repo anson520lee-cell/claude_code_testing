@@ -33,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--offline", action="store_true", help="use stored data only (no downloads)")
     parser.add_argument("--skip-deep", action="store_true", help="skip fundamentals / options / positioning / catalysts")
     parser.add_argument("--if-new", action="store_true", help="exit if the session was already processed successfully")
+    parser.add_argument("--rebuild-universe", action="store_true",
+                        help="rebuild config/universe_auto.yaml now (otherwise automatically every 30 days)")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,
@@ -59,6 +61,18 @@ def main(argv: list[str] | None = None) -> int:
             if done:
                 print(f"交易日 {target} 已經處理過，不需再運行。")
                 return 0
+    builder = settings.get("universe_builder") or {}
+    if not args.offline and builder.get("enabled", True):
+        from src.daily.settings import merge_auto_universe
+        from src.market.universe_builder import build_universe, is_stale, load_auto
+        if args.rebuild_universe or is_stale(load_auto(), date.today(), int(builder.get("refresh_days", 30))):
+            try:
+                settings["universe"] = dict(settings["core_universe"])
+                build_universe(settings, progress=print)
+                merge_auto_universe(settings)
+            except Exception as exc:  # noqa: BLE001 - keep the previous universe
+                print(f"股票池自動更新失敗，沿用現有名單：{type(exc).__name__}: {exc}", file=sys.stderr)
+                settings = load_terminal_settings(args.config)
     try:
         result = run_daily(settings, session=session, offline=args.offline, skip_deep=args.skip_deep, progress=print)
     except DailyRunError as exc:

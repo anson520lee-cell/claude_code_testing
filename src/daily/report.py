@@ -176,6 +176,13 @@ def candidate_detail(c: dict[str, Any], deep: dict[str, Any]) -> str:
     if prof.get("longName"):
         lines.append(f"{prof['longName']} · {prof.get('sector') or ''} / {prof.get('industry') or ''} · "
                      f"市值 {_money(prof.get('marketCap'))} · 板塊 ETF {c['sector_etf']}（{tr(c.get('sector_quadrant')) or 'n/a'}）\n")
+    a = c.get("analyst")
+    if a:
+        lines.append(f"> **分析師判斷：{a['bias']}**（{a['bias_score']:+.0f}/100，信心{a['confidence']}）— {a['headline']}\n")
+        lines.append(a["summary"] + "\n")
+        lines.append(_table(["情景", "條件", "目標", "失效"], [[x["name"], x["trigger"], x["target"], x["invalidation"]] for x in a["scenarios"]]))
+        lines.append("**評分卡：** " + "、".join(f"{x['name']} {x['score']:+.1f}" for x in a["scorecard"]) + "\n")
+        lines.append("**留意：** " + "；".join(a["watch"]) + "\n")
     lines.append(c["thesis"] + "\n")
     comp = "、".join(f"{tr(k)} {v:.0f}" for k, v in c["components"].items())
     pen = "、".join(f"{tr(k)} −{v:g}" for k, v in c["penalties"].items()) or "無"
