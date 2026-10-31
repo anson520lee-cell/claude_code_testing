@@ -40,8 +40,14 @@ echo "Using $PYTHON ($("$PYTHON" --version))"
 
 # 2. virtual environment + dependencies
 if [ ! -x .venv/bin/python ]; then "$PYTHON" -m venv .venv; fi
-.venv/bin/python -m pip install --quiet --upgrade pip
-.venv/bin/python -m pip install --quiet -r requirements.txt
+echo
+echo "Installing dependencies (pandas, numpy, yfinance, FastAPI ...). This takes 1-5 minutes on the first run;"
+echo "progress is shown below."
+.venv/bin/python -m pip install --upgrade pip --progress-bar on 2>&1 | grep -E "^(Collecting|Successfully)" || true
+.venv/bin/python -m pip install -r requirements.txt --progress-bar on 2>&1 \
+  | grep --line-buffered -E "^(Collecting|Downloading|Installing|Successfully|ERROR)" || true
+.venv/bin/python -c "import pandas, numpy, yfinance, fastapi, uvicorn, matplotlib, yaml" \
+  || { echo "Dependency installation failed - scroll up for the ERROR lines and re-run this script."; exit 1; }
 echo "Dependencies installed."
 
 # 3. SEC contact (SEC EDGAR refuses requests without a name + email in the User-Agent)
