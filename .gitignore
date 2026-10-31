@@ -8,6 +8,12 @@ venv/
 # Local database (re-created automatically; see README "Database")
 data/*.db
 data/*.db-journal
+data/cache/
+data/backups/
+data/*.log
+
+# Generated daily research reports (re-created by daily_run.py)
+reports/daily/
 
 # Editor / OS
 .DS_Store

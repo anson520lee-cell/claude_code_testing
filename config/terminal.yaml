@@ -1,0 +1,241 @@
+# ---------------------------------------------------------------------------
+# Settings for the quantitative swing trading research terminal
+# (daily_run.py + serve.py). The single-ticker tool (analyze.py) keeps using
+# config/settings.yaml.
+#
+# This is a RESEARCH tool. Nothing here places, routes or simulates live orders.
+# ---------------------------------------------------------------------------
+
+paths:
+  database: "data/stock_research.db"     # shared with analyze.py (new tables are added, nothing is dropped)
+  reports_dir: "reports/daily"           # reports/daily/<YYYY-MM-DD>/
+  cache_dir: "data/cache"                # SEC / options / profile caches
+  backups_dir: "data/backups"            # database copies made before schema upgrades
+
+data:
+  history_period: "2y"         # first download per symbol (EMA250 + 1y percentiles need ~500 sessions)
+  refresh_days: 15             # later runs re-download only the last N calendar days (cheap, idempotent)
+  min_history_days: 260        # fewer sessions -> symbol excluded from scoring (EMA250 warm-up)
+  settle_minutes: 30           # wait this long after the close before a session counts as "completed"
+  download_attempts: 3
+  retry_wait_seconds: 2
+  # SEC EDGAR requires a User-Agent that identifies YOU (name + email), see
+  # https://www.sec.gov/os/accessing-edgar-data - requests without one are refused (HTTP 403).
+  # Set it in the environment rather than in this file:   export SEC_USER_AGENT="Jane Doe jane@example.com"
+  # Without it, fundamentals fall back to Yahoo quarterly statements and SEC filings are unavailable.
+  sec_user_agent: null
+
+market:
+  indices: ["SPY", "QQQ", "IWM", "DIA"]
+  volatility: ["^VIX", "^VIX3M"]
+  credit_rates: ["HYG", "IEF", "TLT"]          # credit spread proxy (HYG/IEF) and duration
+  yields_fred: ["DGS2", "DGS10", "DGS3MO"]      # FRED constant-maturity Treasury yields (%)
+  sector_etfs:
+    XLK: "Technology"
+    XLC: "Communication Services"
+    XLY: "Consumer Discretionary"
+    XLP: "Consumer Staples"
+    XLE: "Energy"
+    XLF: "Financials"
+    XLV: "Health Care"
+    XLI: "Industrials"
+    XLB: "Materials"
+    XLRE: "Real Estate"
+    XLU: "Utilities"
+  industry_etfs:
+    SMH: "Semiconductors"
+    XBI: "Biotech"
+    KRE: "Regional Banks"
+    ITA: "Aerospace & Defense"
+  offensive_sectors: ["XLK", "XLY", "XLC"]
+  defensive_sectors: ["XLP", "XLU", "XLV"]
+
+# Stocks screened every session, with the ETF used for "relative strength vs sector".
+# Add / remove freely. Survivorship bias: this is TODAY's list, so historical
+# setup statistics are computed only on stocks that are still listed and liquid.
+universe:
+  # Technology / software / hardware
+  AAPL: XLK
+  MSFT: XLK
+  ORCL: XLK
+  CRM: XLK
+  ADBE: XLK
+  NOW: XLK
+  INTU: XLK
+  IBM: XLK
+  PLTR: XLK
+  CRWD: XLK
+  PANW: XLK
+  ZS: XLK
+  NET: XLK
+  SNOW: XLK
+  DDOG: XLK
+  MDB: XLK
+  SHOP: XLK
+  APP: XLK
+  ANET: XLK
+  DELL: XLK
+  SMCI: XLK
+  UBER: XLK
+  MSTR: XLK
+  IONQ: XLK
+  # Semiconductors
+  NVDA: SMH
+  AMD: SMH
+  AVGO: SMH
+  MU: SMH
+  TSM: SMH
+  INTC: SMH
+  QCOM: SMH
+  MRVL: SMH
+  ARM: SMH
+  LRCX: SMH
+  AMAT: SMH
+  KLAC: SMH
+  "ON": SMH          # quoted: YAML would read ON as the boolean true
+  MPWR: SMH
+  # Communication services
+  GOOGL: XLC
+  META: XLC
+  NFLX: XLC
+  DIS: XLC
+  RDDT: XLC
+  SPOT: XLC
+  ROKU: XLC
+  T: XLC
+  # Consumer discretionary
+  AMZN: XLY
+  TSLA: XLY
+  HD: XLY
+  NKE: XLY
+  SBUX: XLY
+  MCD: XLY
+  LULU: XLY
+  CMG: XLY
+  ABNB: XLY
+  BKNG: XLY
+  DKNG: XLY
+  RIVN: XLY
+  CVNA: XLY
+  DASH: XLY
+  # Consumer staples
+  WMT: XLP
+  COST: XLP
+  PG: XLP
+  KO: XLP
+  PEP: XLP
+  TGT: XLP
+  CELH: XLP
+  # Energy
+  XOM: XLE
+  CVX: XLE
+  OXY: XLE
+  SLB: XLE
+  COP: XLE
+  # Financials
+  JPM: XLF
+  BAC: XLF
+  GS: XLF
+  MS: XLF
+  C: XLF
+  WFC: XLF
+  SCHW: XLF
+  COIN: XLF
+  HOOD: XLF
+  SOFI: XLF
+  PYPL: XLF
+  V: XLF
+  MA: XLF
+  AXP: XLF
+  XYZ: XLF
+  # Health care / biotech
+  LLY: XLV
+  UNH: XLV
+  JNJ: XLV
+  MRK: XLV
+  PFE: XLV
+  ABBV: XLV
+  ISRG: XLV
+  HIMS: XLV
+  MRNA: XBI
+  VRTX: XBI
+  REGN: XBI
+  AMGN: XBI
+  GILD: XBI
+  # Industrials / aerospace & defense
+  CAT: XLI
+  DE: XLI
+  BA: ITA
+  GE: ITA
+  HON: XLI
+  LMT: ITA
+  RTX: ITA
+  UPS: XLI
+  GEV: XLI
+  ETN: XLI
+  AXON: ITA
+  RKLB: ITA
+  AVAV: ITA
+  KTOS: ITA
+  # Materials
+  FCX: XLB
+  NEM: XLB
+  LIN: XLB
+  MP: XLB
+  # Real estate
+  PLD: XLRE
+  AMT: XLRE
+  O: XLRE
+  # Utilities / power
+  NEE: XLU
+  VST: XLU
+  CEG: XLU
+  SO: XLU
+
+liquidity:
+  min_price: 5.0                   # USD; below this the stock is excluded
+  min_avg_dollar_volume: 20000000  # 20-day average of close x volume, USD
+  good_avg_dollar_volume: 250000000
+
+scanner:
+  shortlist_size: 40          # candidates (half per direction) that get the deep dive (>= 2 x final_list_size)
+  final_list_size: 20         # candidates shown in the daily report per direction
+  horizons: [3, 5, 7, 10]     # trading days for forward statistics
+  plan_horizon_days: 7        # time stop of the standard swing plan
+  min_reward_risk: 1.5        # T1 / stop distance below this -> "poor reward/risk" penalty
+  max_stop_atr: 3.0           # structural stop further than this is capped and flagged
+  min_stop_atr: 1.0           # stop never tighter than 1 ATR (daily noise)
+  extension_atr: 3.0          # close more than N ATR above EMA21 = extended
+  event_window_days: 7        # earnings within this many sessions = event risk for the swing
+  slippage_bps: 10            # per side, used in the historical setup simulation
+
+# Weights of the transparent composite score (sum = 100). Each component is a
+# 0-100 sub-score; the composite is the weighted average minus penalties.
+weights:
+  trend: 20
+  momentum: 15
+  relative_strength: 15
+  volume: 10
+  setup_quality: 15
+  reward_risk: 10
+  liquidity: 5
+  regime_alignment: 10
+
+penalties:          # points subtracted from the composite (0-100 scale)
+  earnings_in_window: 15
+  extended: 10
+  overbought_extreme: 5
+  dilution_filing: 10
+  financial_distress: 10
+  poor_reward_risk: 10
+  wide_stop: 5
+  data_quality: 10
+  options_event_premium: 5
+
+tiers:              # composite score -> research priority tier
+  A: 75
+  B: 62
+  C: 50
+
+calendar:
+  extra_closures: {}   # e.g. {"2026-12-31": "Unscheduled closure"}

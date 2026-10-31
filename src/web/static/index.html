@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swing Research Terminal</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">◧</span> SWING<span class="dim">//</span>TERMINAL</div>
+  <nav id="nav">
+    <a href="#/overview" data-view="overview">Market</a>
+    <a href="#/scanner" data-view="scanner">Candidates</a>
+    <a href="#/universe" data-view="universe">Universe</a>
+    <a href="#/catalysts" data-view="catalysts">Catalysts</a>
+    <a href="#/research" data-view="research">Research</a>
+    <a href="#/quality" data-view="quality">Data</a>
+  </nav>
+  <div class="right">
+    <form id="jump" autocomplete="off"><input id="jump-input" placeholder="Ticker…" aria-label="Open ticker"></form>
+    <select id="session" aria-label="Session"></select>
+    <span id="regime-badge" class="badge">…</span>
+    <button id="run-btn" title="Run the daily pipeline now (downloads data)">Run</button>
+    <button id="theme-btn" title="Toggle light / dark">◐</button>
+  </div>
+</header>
+<div id="banner" class="banner hidden"></div>
+<main id="app"><div class="loading">Loading…</div></main>
+<footer class="foot">Research and decision support only — no orders are placed, nothing here is investment advice.
+  Data: Yahoo Finance (unofficial), SEC EDGAR, FINRA, FRED. <span id="foot-session"></span></footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

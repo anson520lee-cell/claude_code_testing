@@ -38,6 +38,21 @@ Anything the program cannot know from its data is shown as **Unknown** or
 
 ---
 
+## Research terminal (daily swing workflow)
+
+Besides the single-ticker deep dive below, the project contains a **quantitative swing research
+terminal** that runs after every US session over a whole stock universe: market regime, sector
+rotation, setup scan with risk plans, point-in-time fundamentals, options, positioning, catalysts,
+transparent ranking, a daily report and a web dashboard. It is research only - it never trades.
+
+```bash
+export SEC_USER_AGENT="Your Name you@example.com"
+python daily_run.py        # analyse the latest completed session
+python serve.py            # dashboard at http://127.0.0.1:8000
+```
+
+Full guide, methodology and data caveats: [docs/TERMINAL.md](docs/TERMINAL.md).
+
 ## Contents
 
 1. [Quick start](#1-quick-start)
@@ -921,6 +936,7 @@ The tests need no internet. They cover:
 | `test_charts.py` | readable axis labels on edge cases: low-volatility stocks, very short histories, undefined statistics, extreme thresholds |
 | `test_pipeline.py` | the complete workflow with a fake provider: every output file (incl. `technical_analysis.md`, `technical_chart.png`, the summary snapshot and the JSON block), database contents, re-runs, invalid tickers, network failure + cache fallback, offline mode, earnings event-risk banner, a failing technical step not stopping the report, the CLI |
 | `test_technical.py` | the exact indicator settings, and every indicator against an independent step-by-step calculation (EMA9/21/50/200/250, RSI6/14, MACD 12/26/9, BOLL 20/1.8, MAVOL20 and volume ratio, ATR, rolling VWAP, OBV, 20D/60D highs and lows, relative strength), causality, every classification rule at its thresholds (EMA9/EMA21 trend, RSI6 zones and RSI6/RSI14 relationships, MACD states and crossovers, volume with price direction, BOLL position, squeeze, band walk vs extension), all 21 structure states, the priority-weighted Swing Technical Condition, support / resistance (nearest levels, merged duplicates, polarity, lookback, unconfirmed pivots), earnings event-risk counting, historical context (N, episodes, small samples), report rules (section order, sentence limits, <= 150-word summary incl. the longest case, condition line, no Buy / Sell / Hold, no obsolete indicators, event-risk banner), chart panels, legends and y-range, settings validation |
+| `test_terminal.py` | research terminal: NYSE calendar (holidays, early closes, latest completed session), settings validation, incremental / idempotent price updates, discarded partial bars, corporate-action re-download, data-quality gate, regime labels and guards, setup detection, causal features (no look-ahead), long / short risk plans, historical simulation (target, conservative stop-first rule), scoring and enrichment penalties, point-in-time SEC fundamentals (YTD-derived quarters, restatements ignored, late filings invisible), Yahoo fallback dates, filing classification, earnings timing, macro calendar, options metrics, the full daily pipeline with fake data, database backup before upgrade, the dashboard API |
 
 ---
 
