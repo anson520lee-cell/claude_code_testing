@@ -141,3 +141,11 @@
     (1.5 ATR + 3-ATR trail, 10 days) +0.17R OOS but random entries earn +0.14R with the same exit; short setups lose;
     score has no predictive power. The live plan is unchanged pending the user's decision.
   - 264 tests pass.
+* Portfolio and context layer (2026-10-31):
+  - Portfolio page: ATR/stop-based position sizing with regime budget and caps, direction-adjusted correlation matrix,
+    total heat vs cap, effective bets, correlated clusters, trade journal (manual records, R review by setup), price alerts
+    (checked after every run and on page load; macOS notification).
+  - Market page: cross-asset table (DXY, WTI, gold, Bitcoin) with z-scores and QQQ correlation; universe advance / decline
+    line and McClellan oscillator; industry-group RS ranking with 5-day rank change; each candidate shows its group rank.
+  - Ticker pages: earnings reaction study (options-implied vs historical moves, post-earnings drift, gap fade) and SEC
+    fails-to-deliver analysis (needs SEC_USER_AGENT).

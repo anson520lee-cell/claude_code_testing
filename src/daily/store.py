@@ -88,6 +88,33 @@ CREATE TABLE IF NOT EXISTS catalyst_events (
     first_seen    TEXT,
     PRIMARY KEY (symbol, event_date, event_type)
 );
+CREATE TABLE IF NOT EXISTS trade_journal (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT NOT NULL,
+    symbol      TEXT NOT NULL,
+    direction   TEXT NOT NULL,
+    setup       TEXT,
+    entry_date  TEXT,
+    entry_price REAL NOT NULL,
+    stop        REAL NOT NULL,
+    target      REAL,
+    shares      REAL,
+    exit_date   TEXT,
+    exit_price  REAL,
+    status      TEXT NOT NULL DEFAULT 'open',
+    notes       TEXT
+);
+CREATE TABLE IF NOT EXISTS price_alerts (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at        TEXT NOT NULL,
+    symbol            TEXT NOT NULL,
+    kind              TEXT NOT NULL,
+    level             REAL NOT NULL,
+    note              TEXT,
+    active            INTEGER NOT NULL DEFAULT 1,
+    triggered_session TEXT,
+    triggered_price   REAL
+);
 CREATE TABLE IF NOT EXISTS data_quality (
     session_date TEXT NOT NULL,
     symbol       TEXT NOT NULL,

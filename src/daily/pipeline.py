@@ -21,7 +21,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
@@ -38,7 +38,12 @@ from src.fundamentals.sec_fundamentals import analyze_fundamentals, facts_from_y
 from src.i18n.zh import tr
 from src.market import calendar, regime
 from src.positioning.positioning import analyze_positioning
-from src.data.profiles import market_caps
+from src.catalysts.earnings_study import earnings_study
+from src.data.profiles import industries, market_caps
+from src.market import macro as macro_mod
+from src.portfolio import journal
+from src.portfolio.risk import portfolio_report
+from src.positioning.ftd import analyze_ftd, load_ftd
 from src.scanner.backtest import run_backtest
 from src.scanner.universe_filter import apply_universe_filter
 from src.scanner.features import build_features
@@ -155,8 +160,10 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         target = latest
         prices = {s: f[f.index <= pd.Timestamp(target)] for s, f in prices.items()}
 
-    # 3. quality
-    q = quality.check_universe(prices, symbols, target, int(settings["data"].get("min_history_days", 260)))
+    # 3. quality (cross-asset macro series trade on other calendars - context only, not quality-gated)
+    macro_syms = set(settings["market"].get("macro", {}))
+    q = quality.check_universe(prices, [s for s in symbols if s not in macro_syms], target,
+                               int(settings["data"].get("min_history_days", 260)))
     store.save_quality(conn, target, q)
     status_by_symbol = {r["symbol"]: r["status"] for r in q["symbols"]}
     usable_stocks = [s for s in universe if status_by_symbol.get(s) != "excluded"]
@@ -180,6 +187,8 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     quadrant = {s["symbol"]: s["quadrant"] for s in sectors}
     indices = regime.index_table(prices, [*settings["market"]["indices"], *settings["market"]["volatility"],
                                           *settings["market"]["credit_rates"]], index)
+    macro_table = macro_mod.macro_table(prices, settings["market"].get("macro", {}), index)
+    breadth_ad = macro_mod.advance_decline(prices, usable_stocks, index)
     say(f"市場狀態：{tr(reg['label'])}（{reg['composite']:+.0f}）")
 
     # 5. features, setups, history
@@ -205,6 +214,18 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     if not features:
         raise DailyRunError("沒有股票通過高 Beta／高波動篩選，請檢查 config/terminal.yaml 的 universe_filter 設定。")
     say(f"高 Beta／高波動篩選：保留 {len(features)} 檔，排除 {len(universe_filter['excluded'])} 檔")
+    try:
+        from src.market.universe_builder import load_auto
+        seed = (load_auto() or {}).get("details") or {}
+        inds = industries(list(features), path(settings, "cache_dir"), target, seed=seed, offline=offline)
+    except Exception as exc:  # noqa: BLE001
+        inds = {}
+        warnings.append(f"行業分類讀取失敗（{type(exc).__name__}），行業組排名改用板塊 ETF。")
+    from src.i18n.zh import industry_zh
+    lev = set(settings.get("leveraged_etfs") or [])
+    inds = {s: ("槓桿／反向 ETF" if s in lev else industry_zh(v)) for s, v in {**inds, **{x: None for x in lev if x in features}}.items()}
+    groups = macro_mod.industry_groups(features, inds, {s: universe[s] for s in features})
+    group_of = macro_mod.group_lookup(groups)
     say(f"已計算 {len(features)} 檔股票的指標，正在回測形態歷史")
     bt = run_backtest(features, setups, sc, history["label"])
     trades_frame = bt.pop("trades_frame", None)
@@ -255,8 +276,15 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         finra = getattr(enrichment, "finra", None)
         with ThreadPoolExecutor(max_workers=6) as pool:
             raws = dict(zip(symbols_deep, pool.map(enrichment.fetch, symbols_deep)))
+        ftd = None
+        sec = getattr(enrichment, "sec", None)
+        if sec is not None and getattr(enrichment, "sec_enabled", False):
+            try:
+                ftd = load_ftd(sec, target)
+            except Exception as exc:  # noqa: BLE001
+                warnings.append(f"SEC 交收失敗（FTD）數據讀取失敗：{type(exc).__name__}")
         for symbol in symbols_deep:
-            deep[symbol] = enrich(symbol, raws[symbol], features[symbol], target, settings, conn, finra)
+            deep[symbol] = enrich(symbol, raws[symbol], features[symbol], target, settings, conn, finra, ftd)
         for c in shortlist:
             apply_enrichment(c, deep[c["symbol"]], settings)
             c["deep_dive"] = True
@@ -280,6 +308,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         side = sorted(side[: max(keep, per_side)], key=lambda c: -c["score"])[:keep]
         for rank, c in enumerate(side, 1):
             c["rank"] = rank
+            c["group"] = group_of.get(c["symbol"])
             st = bt["by_setup"].get(c["setup"])
             st_reg = (bt["by_setup_regime"].get(c["setup"]) or {}).get(reg["label"])
             c["history"] = {"setup": st, "setup_in_regime": st_reg, "regime": reg["label"],
@@ -293,6 +322,18 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
                 warnings.append(f"{c['symbol']}：分析師報告生成失敗（{type(exc).__name__}: {exc}）")
         final[d] = side
     store.save_candidates(conn, target, final["long"] + final["short"])
+    pcfg = settings.get("portfolio") or {}
+    try:
+        portfolio = portfolio_report(features, final, pcfg, {"long": float(reg.get("long_risk_budget") or 1),
+                                                             "short": float(reg.get("short_risk_budget") or 1)},
+                                     int(pcfg.get("candidates_per_side", 10)))
+    except Exception as exc:  # noqa: BLE001
+        portfolio = {"error": f"{type(exc).__name__}: {exc}"}
+    fired = journal.check_alerts(conn)
+    alerts_recent = journal.recent_triggers(conn, target - timedelta(days=7))
+    for a in fired:
+        warnings.append(f"價格提醒：{a['symbol']} {journal.ALERT_KINDS.get(a['kind'], a['kind'])} {a['level']:g}"
+                        f"（{a['triggered_session']}，{a['triggered_price']:.2f}）" + (f" — {a['note']}" if a.get("note") else ""))
 
     universe_table = []
     for symbol, f in features.items():
@@ -305,6 +346,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             "setups": active_setups(setups[symbol].iloc[-1]), "atr_pct": row["atr_pct"],
             "from_52w_high": row["from_52w_high"], "dollar_volume20": row["dollar_volume20"],
             "beta": row["beta120"], "hv60": row["hv60"], "market_cap": caps.get(symbol),
+            "industry": inds.get(symbol), "group_rank": (group_of.get(symbol) or {}).get("rank"),
             "leveraged": symbol in set(settings.get("leveraged_etfs") or []),
             "data_quality": status_by_symbol.get(symbol)})
 
@@ -319,6 +361,12 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         "regime": reg,
         "sectors": sectors,
         "indices": indices,
+        "macro": macro_table,
+        "advance_decline": breadth_ad,
+        "industry_groups": groups,
+        "portfolio": portfolio,
+        "alerts_fired": fired,
+        "alerts_recent": alerts_recent,
         "candidates": final,
         "deep_dive": deep,
         "universe": universe_table,
@@ -346,7 +394,7 @@ def _numeric(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, settings: dict[str, Any], conn,
-           finra: Any) -> dict[str, Any]:
+           finra: Any, ftd: pd.DataFrame | None = None) -> dict[str, Any]:
     row = f.iloc[-1]
     price = float(row["close"])
     out: dict[str, Any] = {}
@@ -388,6 +436,13 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
                                                  session, finra, symbol, volume)
     except Exception as exc:  # noqa: BLE001
         out["positioning"] = {"error": f"Positioning analysis failed: {exc}"}
+    try:
+        out["earnings_study"] = earnings_study(raw.get("earnings_dates"), f, session,
+                                               (out.get("catalysts") or {}).get("next_earnings"), chains)
+    except Exception as exc:  # noqa: BLE001
+        out["earnings_study"] = {"available": False, "reason": f"財報分析失敗：{exc}"}
+    out["ftd"] = analyze_ftd(ftd, symbol, f["volume"]) if ftd is not None else {
+        "available": False, "reason": "未取得 SEC 交收失敗（FTD）數據：需要在 .env 設定 SEC_USER_AGENT。"}
     info = raw.get("info") or {}
     out["profile"] = {k: info.get(k) for k in ("longName", "sector", "industry", "marketCap", "exchange",
                                                "beta", "fullTimeEmployees", "website")}

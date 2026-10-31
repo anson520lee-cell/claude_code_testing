@@ -90,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{'做多' if side == 'long' else '做空'}前列：" + ("、".join(f"{c['symbol']}（{c['score']:.0f} 分 {tr(c['tier'])}）" for c in top) or "沒有"))
     for w in result["warnings"]:
         print(f"提示：{w}")
+    notify_alerts(result.get("alerts_fired") or [])
     print(f"報告：{result['output_dir']}/report.html  ·  網頁介面：python serve.py")
     if not (args.offline or args.skip_backtest) and backtest_stale(settings):
         print("\nSL／TP 回測結果超過 30 日（或未有），重新回測（約 5 分鐘）…")
@@ -99,6 +100,22 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # noqa: BLE001 - the daily report is already written
             print(f"回測失敗（不影響每日報告）：{type(exc).__name__}: {exc}", file=sys.stderr)
     return 0
+
+
+def notify_alerts(fired: list[dict]) -> None:
+    """macOS notification for each price alert triggered by this run (no-op elsewhere)."""
+    if not fired or sys.platform != "darwin":
+        return
+    import subprocess
+    from src.portfolio.journal import ALERT_KINDS
+    for a in fired[:5]:
+        text = f"{a['symbol']} {ALERT_KINDS.get(a['kind'], a['kind'])} {a['level']:g}（{a['triggered_price']:.2f}）"
+        text = text.replace('"', "").replace("\\", "")
+        script = f'display notification "{text}" with title "Swing Terminal 價格提醒"'
+        try:
+            subprocess.run(["osascript", "-e", script], check=False, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            pass
 
 
 def backtest_stale(settings: dict, max_age_days: int = 30) -> bool:

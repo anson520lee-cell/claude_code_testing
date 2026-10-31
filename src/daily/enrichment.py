@@ -61,7 +61,7 @@ class YahooSecEnrichment:
                 "cashflow": self._safe(f"quarterly cash flow {symbol}", lambda: t.get_cash_flow(pretty=False, freq="quarterly")),
             }
         raw["info"] = self._safe(f"info {symbol}", t.get_info, {}) or {}
-        raw["earnings_dates"] = self._safe(f"earnings dates {symbol}", lambda: t.get_earnings_dates(limit=12))
+        raw["earnings_dates"] = self._safe(f"earnings dates {symbol}", lambda: t.get_earnings_dates(limit=24))
         raw["calendar"] = self._safe(f"calendar {symbol}", lambda: t.calendar, {})
         raw["insider"] = self._safe(f"insider {symbol}", lambda: t.insider_transactions)
         raw["institutions"] = self._safe(f"institutions {symbol}", lambda: t.institutional_holders)

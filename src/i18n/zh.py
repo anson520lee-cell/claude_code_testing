@@ -138,3 +138,50 @@ METHODOLOGY: dict[str, str] = {
 已知偏差：倖存者偏差（使用今日的股票池）、樣本內（規則和數據重疊）、相關股票的信號重疊、未計佣金和借券成本、只用日線。
 請把這些統計當作規則的合理性檢查，而不是未來回報的預期。""",
 }
+
+
+# Yahoo Finance industry names -> Traditional Chinese (unknown names are shown as they are)
+INDUSTRY_ZH = {
+    "Advertising Agencies": "廣告代理", "Aerospace & Defense": "航太與國防", "Airlines": "航空公司",
+    "Airports & Air Services": "機場與航空服務", "Aluminum": "鋁業", "Asset Management": "資產管理",
+    "Auto & Truck Dealerships": "汽車經銷", "Auto Manufacturers": "汽車製造", "Auto Parts": "汽車零件",
+    "Biotechnology": "生物科技", "Building Materials": "建築材料", "Building Products & Equipment": "建築產品與設備",
+    "Capital Markets": "資本市場（券商／交易平台）", "Communication Equipment": "通訊設備", "Computer Hardware": "電腦硬件",
+    "Copper": "銅礦", "Credit Services": "信貸服務", "Diagnostics & Research": "診斷與研究",
+    "Drug Manufacturers - Specialty & Generic": "專科及仿製藥", "Drug Manufacturers - General": "綜合製藥",
+    "Electrical Equipment & Parts": "電氣設備與零件", "Electronic Components": "電子元件",
+    "Electronic Gaming & Multimedia": "電子遊戲與多媒體", "Electronics & Computer Distribution": "電子及電腦分銷",
+    "Engineering & Construction": "工程與建造", "Farm & Heavy Construction Machinery": "農業及重型工程機械",
+    "Financial Data & Stock Exchanges": "金融數據與交易所", "Gold": "黃金礦業", "Health Information Services": "醫療資訊服務",
+    "Home Improvement Retail": "家居裝修零售", "Industrial Distribution": "工業分銷", "Information Technology Services": "資訊科技服務",
+    "Internet Content & Information": "互聯網內容與資訊", "Internet Retail": "網上零售", "Medical Devices": "醫療器材",
+    "Metal Fabrication": "金屬加工", "Mortgage Finance": "按揭融資", "Oil & Gas Equipment & Services": "油氣設備與服務",
+    "Oil & Gas E&P": "油氣勘探與生產", "Other Industrial Metals & Mining": "其他工業金屬礦業",
+    "Other Precious Metals & Mining": "其他貴金屬礦業", "Real Estate Services": "房地產服務", "Rental & Leasing Services": "租賃服務",
+    "Scientific & Technical Instruments": "科學及技術儀器", "Semiconductor Equipment & Materials": "半導體設備與材料",
+    "Semiconductors": "半導體", "Silver": "白銀礦業", "Software - Application": "應用軟件", "Software - Infrastructure": "基礎設施軟件",
+    "Solar": "太陽能", "Specialty Chemicals": "特種化學品", "Specialty Industrial Machinery": "特種工業機械",
+    "Specialty Retail": "專門零售", "Steel": "鋼鐵", "Telecom Services": "電訊服務", "Travel Services": "旅遊服務",
+    "Uranium": "鈾礦", "Utilities - Independent Power Producers": "獨立發電商", "Utilities - Renewable": "可再生能源公用",
+    "Utilities - Regulated Electric": "受監管電力公用", "Banks - Regional": "地區銀行", "Insurance - Property & Casualty": "財產保險",
+    "Leisure": "休閒", "Resorts & Casinos": "度假村與賭場", "Restaurants": "餐飲", "Apparel Retail": "服裝零售",
+    "Footwear & Accessories": "鞋履與配飾", "Entertainment": "娛樂", "Consumer Electronics": "消費電子",
+    "Security & Protection Services": "保安服務", "Integrated Freight & Logistics": "綜合貨運物流", "Trucking": "貨車運輸",
+    "Marine Shipping": "海運", "Railroads": "鐵路", "Waste Management": "廢物管理", "Conglomerates": "綜合企業",
+    "Packaging & Containers": "包裝與容器", "Chemicals": "化學品", "Agricultural Inputs": "農業投入品",
+    "Thermal Coal": "動力煤", "Coking Coal": "焦煤", "Oil & Gas Midstream": "油氣中游", "Oil & Gas Integrated": "綜合油氣",
+    "Oil & Gas Refining & Marketing": "煉油與銷售", "Oil & Gas Drilling": "油氣鑽探", "Medical Instruments & Supplies": "醫療儀器與用品",
+    "Medical Care Facilities": "醫療設施", "Healthcare Plans": "醫療保險計劃", "Pharmaceutical Retailers": "藥房零售",
+    "Education & Training Services": "教育培訓", "Staffing & Employment Services": "人力資源服務",
+    "Consulting Services": "顧問服務", "Specialty Business Services": "專門商業服務", "Lodging": "酒店",
+    "Gambling": "博彩", "Broadcasting": "廣播", "Publishing": "出版", "Grocery Stores": "超市",
+    "Discount Stores": "折扣店", "Department Stores": "百貨公司", "Beverages - Non-Alcoholic": "非酒精飲品",
+    "Packaged Foods": "包裝食品", "Tobacco": "煙草", "Household & Personal Products": "家居及個人用品",
+    "REIT - Specialty": "專門房地產信託", "Insurance - Life": "人壽保險", "Banks - Diversified": "綜合銀行",
+    "Pollution & Treatment Controls": "污染治理", "Tools & Accessories": "工具與配件", "Furnishings, Fixtures & Appliances": "家具及電器",
+    "Residential Construction": "住宅建造", "Recreational Vehicles": "休閒車", "Shell Companies": "空殼公司",
+}
+
+
+def industry_zh(name: str | None) -> str | None:
+    return INDUSTRY_ZH.get(name, name) if name else name

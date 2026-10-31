@@ -47,6 +47,12 @@ market:
     XBI: "Biotech"
     KRE: "Regional Banks"
     ITA: "Aerospace & Defense"
+  # cross-asset context (shown on the market page; not part of the regime score)
+  macro:
+    "DX-Y.NYB": "美元指數 DXY"
+    "CL=F": "WTI 原油"
+    "GC=F": "黃金"
+    "BTC-USD": "比特幣"
   offensive_sectors: ["XLK", "XLY", "XLC"]
   defensive_sectors: ["XLP", "XLU", "XLV"]
 
@@ -164,6 +170,14 @@ universe_builder:
   max_size: 500
   refresh_days: 30
   min_avg_shares: 500000      # coarse screener pass before the real dollar-volume rule
+
+# Position sizing / total heat on the portfolio page (defaults; the page lets you change them).
+portfolio:
+  account_size: 100000
+  risk_per_trade: 0.005        # 0.5% of the account lost if the stop is hit
+  max_position_pct: 0.25       # no single position above 25% of the account
+  max_heat: 0.04               # total open risk if every stop is hit together
+  candidates_per_side: 10
 
 liquidity:
   min_price: 5.0                   # USD; below this the stock is excluded

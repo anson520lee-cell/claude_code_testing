@@ -46,6 +46,8 @@ def main() -> None:
         "/api/regime/history": get("/api/regime/history"),
         "/api/run/status": {"running": False, "status": None, "log": []},
         "/api/backtest": get("/api/backtest"),
+        "/api/journal": {"trades": [], "stats": {"n_closed": 0, "n_open": 0}},
+        "/api/alerts": {"alerts": [], "fired": [], "kinds": {}},
         "/api/backtest/status": {"running": False, "status": None, "log": []},
         "/api/minicharts": get(f"/api/minicharts?days=60&session={session}&symbols={','.join(cands)}"),
     }

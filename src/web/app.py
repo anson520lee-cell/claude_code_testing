@@ -10,6 +10,8 @@ Endpoints (JSON unless noted):
     GET  /api/candidate-history/{symbol}   past appearances in the candidate lists
     GET  /api/options-history/{symbol}     stored ATM IV snapshots
     GET  /api/methodology           the documented rules (module docstrings)
+    GET/POST /api/journal, PUT/DELETE /api/journal/{id}     your own trade journal (manual records)
+    GET/POST /api/alerts, DELETE /api/alerts/{id}, POST /api/alerts/{id}/rearm   price alerts
     GET  /api/backtest              latest SL / TP validation backtest (python backtest.py)
     GET  /api/backtest/status, POST /api/backtest/run   re-run that backtest in the background
     GET  /api/run/status, POST /api/run    run the daily pipeline in the background
@@ -30,7 +32,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -284,6 +286,70 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         from src.i18n.zh import METHODOLOGY
         return {**METHODOLOGY,
                 "weights": settings["weights"], "penalties": settings["penalties"], "tiers": settings["tiers"]}
+
+    def tconn() -> sqlite3.Connection:
+        return store.connect(db_path, path(settings, "backups_dir"))
+
+    def guarded(fn, *args):
+        conn = tconn()
+        try:
+            return fn(conn, *args)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        finally:
+            conn.close()
+
+    @app.get("/api/journal")
+    def api_journal() -> dict[str, Any]:
+        from src.portfolio import journal
+        return store.jsonable(guarded(journal.journal_review))
+
+    @app.post("/api/journal")
+    def api_journal_add(data: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        from src.portfolio import journal
+        return {"id": guarded(journal.add_trade, data)}
+
+    @app.put("/api/journal/{trade_id}")
+    def api_journal_update(trade_id: int, data: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        from src.portfolio import journal
+        guarded(journal.update_trade, trade_id, data)
+        return {"ok": True}
+
+    @app.delete("/api/journal/{trade_id}")
+    def api_journal_delete(trade_id: int) -> dict[str, Any]:
+        from src.portfolio import journal
+        guarded(journal.delete_trade, trade_id)
+        return {"ok": True}
+
+    @app.get("/api/alerts")
+    def api_alerts() -> dict[str, Any]:
+        from src.portfolio import journal
+
+        def work(conn):
+            fired = journal.check_alerts(conn)
+            return {"alerts": journal.list_alerts(conn), "fired": fired, "kinds": journal.ALERT_KINDS}
+        return store.jsonable(guarded(work))
+
+    @app.post("/api/alerts")
+    def api_alerts_add(data: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        from src.portfolio import journal
+        try:
+            level = float(data.get("level"))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, "價位必須是數字") from exc
+        return {"id": guarded(journal.add_alert, str(data.get("symbol") or ""), str(data.get("kind") or ""), level, data.get("note"))}
+
+    @app.delete("/api/alerts/{alert_id}")
+    def api_alerts_delete(alert_id: int) -> dict[str, Any]:
+        from src.portfolio import journal
+        guarded(journal.delete_alert, alert_id)
+        return {"ok": True}
+
+    @app.post("/api/alerts/{alert_id}/rearm")
+    def api_alerts_rearm(alert_id: int) -> dict[str, Any]:
+        from src.portfolio import journal
+        guarded(journal.rearm_alert, alert_id)
+        return {"ok": True}
 
     backtest_dir = reports_dir.parent / "backtest"
     bt_state: dict[str, Any] = {"running": False, "started_at": None, "finished_at": None, "status": None, "log": []}

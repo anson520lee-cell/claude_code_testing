@@ -42,6 +42,36 @@ class SecClient:
         self.blocked = False          # True after SEC answered 403 (User-Agent policy)
         self.last_error: str | None = None
 
+    def get_file(self, url: str, cache_name: str) -> bytes | None:
+        """Download an immutable SEC data file (e.g. fails-to-deliver zip) once and keep it on disk.
+        A 404 (not yet published) is remembered for the day. Same User-Agent and rate limit as the API."""
+        path = self.cache_dir / "files" / cache_name
+        missing = path.with_suffix(path.suffix + ".missing")
+        if path.exists():
+            return path.read_bytes()
+        if self.offline or (missing.exists() and missing.read_text().strip() == self.today.isoformat()):
+            return None
+        wait = MIN_INTERVAL - (time.monotonic() - self._last)
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            response = self.http.get(url, headers=self.headers, timeout=60)
+            self._last = time.monotonic()
+            if response.status_code == 404:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                missing.write_text(self.today.isoformat())
+                return None
+            if response.status_code == 403:
+                self.blocked = True
+            response.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("SEC file request failed (%s): %s", url, exc)
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(response.content)
+        return response.content
+
     def _get_json(self, url: str, cache_name: str, max_age_days: int = 0) -> Any | None:
         stamp = self.today.isoformat()
         path = self.cache_dir / f"{cache_name}.json"

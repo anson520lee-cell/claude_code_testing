@@ -79,6 +79,11 @@ def market_frames(settings: dict, end: date = SESSION, n: int = 520) -> dict[str
     frames["BBB"] = bars(n, end, drift=0.0008, seed=3, volume=5e6)
     frames["CCC"] = bars(n, end, drift=-0.0012, seed=4, volume=5e6)
     frames["DDD"] = bars(n, end, drift=0.0004, seed=5, volume=5e6)
+    for i, sym in enumerate(settings["market"].get("macro", {})):
+        frames[sym] = bars(n, end, drift=0.0002, vol=0.01, seed=60 + i, base=50 + 10 * i)
+    if "BTC-USD" in frames:   # crypto trades every day: weekend bars must not break anything
+        idx = pd.date_range(end=pd.Timestamp(end), periods=n, freq="D").rename("date")
+        frames["BTC-USD"] = frames["BTC-USD"].set_axis(idx)
     return frames
 
 
@@ -736,3 +741,163 @@ def test_backtest_api(tsettings, tmp_path):
     b = client.get("/api/backtest").json()
     assert b["available"] and "method" not in b and "median_r" not in b["grid"][0]["is"]
     assert client.get("/api/backtest/status").json()["running"] is False
+
+
+# ======================================================================= portfolio, groups, macro, earnings, FTD, alerts
+def test_earnings_study_reactions_and_implied_move():
+    from src.catalysts.earnings_study import earnings_study
+    px = bars(300, seed=7)
+    days = px.index
+    # an after-close report two sessions before a +8% gap, and a pre-market report with a -6% day
+    i1, i2 = 200, 260
+    px.iloc[i1 + 1, px.columns.get_loc("open")] = px["close"].iat[i1] * 1.08
+    px.iloc[i1 + 1, px.columns.get_loc("close")] = px["close"].iat[i1] * 1.09
+    px.iloc[i2, px.columns.get_loc("open")] = px["close"].iat[i2 - 1] * 0.95
+    px.iloc[i2, px.columns.get_loc("close")] = px["close"].iat[i2 - 1] * 0.94
+    dates = pd.DataFrame({"Surprise(%)": [5.0, -3.0]},
+                         index=pd.DatetimeIndex([days[i1] + pd.Timedelta(hours=16, minutes=5), days[i2] + pd.Timedelta(hours=7)]))
+    calls = pd.DataFrame({"strike": [95.0, 100.0, 105.0], "mid": [6.0, 3.0, 1.0], "lastPrice": [6.0, 3.0, 1.0]})
+    puts = pd.DataFrame({"strike": [95.0, 100.0, 105.0], "mid": [1.0, 3.0, 6.0], "lastPrice": [1.0, 3.0, 6.0]})
+    nxt = {"reaction_session": "2026-11-12"}
+    res = earnings_study(dates, px, SESSION, nxt, [{"expiry": "2026-11-13", "days": 14, "calls": calls, "puts": puts}])
+    assert res["available"] and res["n"] == 2
+    moves = {e["timing"]: e for e in res["events"]}
+    assert moves["after close"]["reaction_session"] == days[i1 + 1].strftime("%Y-%m-%d")
+    assert moves["before open"]["move"] == pytest.approx(-0.06, abs=0.002)
+    assert moves["after close"]["gap"] == pytest.approx(0.08)
+    k = min([95.0, 100.0, 105.0], key=lambda x: abs(x - px["close"].iat[-1]))
+    straddle = {95.0: 7.0, 100.0: 6.0, 105.0: 7.0}[k]
+    assert res["implied"]["move_pct"] == pytest.approx(straddle / px["close"].iat[-1]) and res["implied_vs_history"] > 0 and "期權隱含" in res["note"]
+
+
+def test_ftd_parse_and_analysis():
+    import io
+    import zipfile
+
+    from src.positioning.ftd import analyze_ftd, candidate_files, load_ftd
+    txt = ("SETTLEMENT DATE|CUSIP|SYMBOL|QUANTITY (FAILS)|DESCRIPTION|PRICE\n"
+           "20261001|111|AAA|50000|AAA INC|10.5\n20261002|111|AAA|400000|AAA INC|10.7\n20261002|222|BBB|100|BBB|5\n"
+           "Trailer: record count 3\n")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("cnsfails202610a.txt", txt)
+
+    class FakeSec:
+        def __init__(self):
+            self.urls = []
+
+        def get_file(self, url, name):
+            self.urls.append(url)
+            return buf.getvalue() if name == "cnsfails202610a.zip" else None
+    sec = FakeSec()
+    frame = load_ftd(sec, date(2026, 10, 31), files=1)
+    assert set(frame["symbol"]) == {"AAA", "BBB"} and sec.urls[0].endswith("cnsfails202610b.zip")
+    assert candidate_files(date(2026, 1, 5))[2][1] == "cnsfails202512b.zip"
+    vol = pd.Series(2e6, index=pd.bdate_range("2026-09-01", "2026-10-30"))
+    a = analyze_ftd(frame, "AAA", vol)
+    assert a["max"] == 400000 and a["max_vs_adv"] == pytest.approx(0.2) and "借券" in a["note"]
+    assert analyze_ftd(frame, "ZZZ", vol)["n"] == 0
+    assert analyze_ftd(None, "AAA", vol)["available"] is False
+
+
+def test_portfolio_report_sizing_correlation_and_heat():
+    from src.portfolio.risk import portfolio_report, size_position
+    sz = size_position(100, 95, 100_000, 0.005, 1.0, 0.25)
+    assert sz["shares"] == 100 and sz["dollar_risk"] == pytest.approx(500)
+    assert size_position(10, 9.99, 100_000, 0.01, 1.0, 0.25)["capped"]
+    base = bars(200, seed=3)
+    twin = base.copy()
+    twin["close"] = base["close"] * (1 + np.random.default_rng(1).normal(0, 0.0005, 200))
+    feats = {"AAA": base, "BBB": twin, "CCC": bars(200, seed=9)}
+    cand = lambda s, d: {"symbol": s, "direction": d, "setup": "breakout", "score": 70,
+                         "plan": {"entry": 100.0, "stop": 96.0, "atr": 2.0}}
+    rep = portfolio_report(feats, {"long": [cand("AAA", "long"), cand("BBB", "long"), cand("CCC", "long")], "short": []},
+                           {"account_size": 100_000, "risk_per_trade": 0.01, "max_heat": 0.02}, {"long": 1.0, "short": 0.5})
+    assert rep["total_heat"] == pytest.approx(3 * 1000) and rep["total_heat_pct"] > 0.02
+    assert ["AAA", "BBB"] in rep["clusters"] and rep["effective_bets"] < 3
+    assert any("超過上限" in n for n in rep["notes"])
+    hedge = portfolio_report(feats, {"long": [cand("AAA", "long")], "short": [cand("BBB", "short")]}, {}, {"long": 1, "short": 1})
+    assert hedge["correlation"][0][1] < -0.9   # long AAA vs short of its twin = hedge
+
+
+def test_industry_groups_breadth_and_macro():
+    from src.market.macro import advance_decline, group_lookup, industry_groups, macro_table
+    spy = bars(400, seed=99)
+    feats = {f"S{i}": build_features(bars(400, seed=20 + i, drift=0.002 if i < 3 else -0.001), spy["adj_close"], None) for i in range(6)}
+    inds = {"S0": "Semiconductors", "S1": "Semiconductors", "S2": "Semiconductors", "S3": "Biotechnology", "S4": "Biotechnology", "S5": None}
+    groups = industry_groups(feats, inds, {s: "XLK" for s in feats})
+    assert groups[0]["group"] == "Semiconductors" and groups[0]["rank"] == 1 and len(groups) == 2   # S5 alone is dropped
+    assert group_lookup(groups)["S3"]["of"] == 2
+    prices = {s: bars(400, seed=30 + i) for i, s in enumerate([*[f"S{i}" for i in range(12)], "SPY", "QQQ"])}
+    ad = advance_decline(prices, [f"S{i}" for i in range(12)], prices["SPY"].index)
+    assert ad["available"] and ad["advancers"] + ad["decliners"] + ad["unchanged"] == 12 and len(ad["series"]["ad_line"]) == 160
+    btc = bars(560, seed=5)
+    btc.index = pd.date_range(end=pd.Timestamp(SESSION), periods=560, freq="D")
+    prices["BTC-USD"] = btc
+    m = macro_table(prices, {"BTC-USD": "比特幣", "NOPE": "無"}, prices["SPY"].index)
+    assert m[0]["available"] and m[0]["corr_qqq_60d"] is not None and m[0]["comment"] and m[1]["available"] is False
+
+
+def test_journal_and_alerts(tsettings):
+    from src.daily import store as st
+    from src.portfolio import journal
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    from src.database import db
+    db.upsert_stock(conn, "AAA")
+    frame = bars(30, end=SESSION, seed=4)
+    db.upsert_prices(conn, "AAA", frame, "test")
+    tid = journal.add_trade(conn, {"symbol": "aaa", "direction": "long", "setup": "breakout", "entry_price": 100, "stop": 95,
+                                   "shares": 10, "exit_price": 110})
+    journal.add_trade(conn, {"symbol": "AAA", "direction": "short", "entry_price": 100, "stop": 105, "target": 90, "shares": 5})
+    with pytest.raises(ValueError):
+        journal.add_trade(conn, {"symbol": "AAA", "direction": "sideways", "entry_price": 1, "stop": 2})
+    rev = journal.journal_review(conn)
+    closed = next(t for t in rev["trades"] if t["id"] == tid)
+    assert closed["symbol"] == "AAA" and closed["r"] == pytest.approx(2.0) and closed["pnl"] == pytest.approx(100)
+    assert rev["stats"]["n_closed"] == 1 and rev["stats"]["n_open"] == 1
+    assert any(t.get("mark") is not None for t in rev["trades"] if t["status"] == "open")
+    # alerts trigger only on bars after creation: back-date the alert so the stored bars count
+    aid = journal.add_alert(conn, "AAA", "above", float(frame["high"].iloc[-5:].max()) - 0.01, "測試")
+    conn.execute("UPDATE price_alerts SET created_at = ? WHERE id = ?", (f"{frame.index[-6]:%Y-%m-%d}T00:00:00Z", aid))
+    conn.commit()
+    far = journal.add_alert(conn, "AAA", "below", 0.01)
+    fired = journal.check_alerts(conn)
+    assert [a["id"] for a in fired] == [aid] and journal.check_alerts(conn) == []
+    lst = {a["id"]: a for a in journal.list_alerts(conn)}
+    assert lst[aid]["active"] == 0 and lst[far]["active"] == 1 and lst[far]["distance"] < 0
+    with pytest.raises(ValueError):
+        journal.add_alert(conn, "AAA", "sideways", 10)
+
+
+def test_journal_and_alert_api(tsettings):
+    from fastapi.testclient import TestClient
+
+    from src.web.app import create_app
+    client = TestClient(create_app(tsettings))
+    r = client.post("/api/journal", json={"symbol": "AAA", "direction": "long", "entry_price": 10, "stop": 9})
+    assert r.status_code == 200
+    assert client.post("/api/journal", json={"symbol": "AAA", "direction": "long", "entry_price": 10, "stop": 10}).status_code == 400
+    tid = r.json()["id"]
+    assert client.put(f"/api/journal/{tid}", json={"exit_price": 12}).status_code == 200
+    j = client.get("/api/journal").json()
+    assert j["trades"][0]["status"] == "closed" and j["stats"]["avg_r"] == pytest.approx(2.0)
+    assert client.post("/api/alerts", json={"symbol": "AAA", "kind": "above", "level": "abc"}).status_code == 400
+    aid = client.post("/api/alerts", json={"symbol": "AAA", "kind": "close_above", "level": 12.5}).json()["id"]
+    assert client.get("/api/alerts").json()["alerts"][0]["id"] == aid
+    assert client.delete(f"/api/alerts/{aid}").status_code == 200 and client.get("/api/alerts").json()["alerts"] == []
+    assert client.delete(f"/api/journal/{tid}").status_code == 200
+
+
+def test_implied_earnings_move_isolates_event_variance():
+    from src.catalysts.earnings_study import implied_earnings_move
+
+    def chain(expiry, days, iv, price):
+        f = pd.DataFrame({"strike": [100.0], "mid": [price], "lastPrice": [price], "impliedVolatility": [iv], "iv_ok": [True]})
+        return {"expiry": expiry, "days": days, "calls": f, "puts": f.copy()}
+    chains = [chain("2026-11-06", 7, 0.40, 2.0), chain("2026-12-04", 35, 0.60, 7.0)]
+    imp = implied_earnings_move(chains, 100.0, date(2026, 11, 12))
+    t = 35 / 365
+    expected = np.sqrt(2 / np.pi) * np.sqrt(0.36 * t - 0.16 * (t - 1 / 365))
+    assert imp["method"] == "event_variance" and imp["move_pct"] == pytest.approx(expected) and imp["straddle_pct"] == pytest.approx(0.14)
+    near = implied_earnings_move([chain("2026-11-13", 14, 0.6, 5.0)], 100.0, date(2026, 11, 12))
+    assert near["method"] == "straddle" and near["move_pct"] == pytest.approx(0.10)

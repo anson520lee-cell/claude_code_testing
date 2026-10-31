@@ -261,13 +261,34 @@ changed automatically - the dashboard shows the backtest's preferred plan next t
 
 | Tab | Contents |
 |---|---|
-| Market | regime gauge, component bars with evidence, regime history, indices / VIX / credit, breadth, rates, sector rotation map + table, top candidates, next events |
+| Market | regime gauge, component bars with evidence, regime history, indices / VIX / credit, breadth, rates, sector rotation map + table, top candidates, next events, cross-asset (DXY, WTI, gold, Bitcoin), advance / decline line + McClellan oscillator, industry-group RS ranking |
 | Candidates | cards (or a table) with a mini K-line preview per stock, score bars, tiers, plan levels, R/R, RS percentile, earnings, evidence counts, penalties, setup history; filters |
 | Ticker (click any row) | candlestick chart with EMA 9/21/50/200/250, BOLL(20, 1.8), plan levels and setup markers; volume + MAVOL20, RSI 6/14, MACD 12/26/9; thesis, evidence, score breakdown, simulation, risk plan, technical snapshot, S/R, fundamentals (quarters, flags), options (IV, expected move, OI by strike, unusual activity, GEX estimate), positioning, catalysts, candidate history |
 | Universe | every screened stock, sortable |
 | Catalysts | upcoming earnings, macro calendar, SEC filings, analyst actions |
-| Research | setup simulation tables (overall and by regime), full methodology |
+| Portfolio | position sizing (account, risk %, position cap, heat cap; saved in the browser), position correlation matrix, total heat, effective number of bets, correlated clusters, price alerts, trade journal with R-based review |
+| Research | how SL / TP are set, the SL / TP validation backtest (section 7b), setup simulation tables, full methodology |
 | Data | quality checks, update summary, run log, report archive |
+
+Ticker pages also show the **earnings reaction study** (options-implied move of the first expiry after
+the next report vs the median absolute move over the last ~16 reports, gap / close / 5- and 10-day
+drift per event, post-earnings-drift and gap-fade tendencies) and **SEC fails-to-deliver** (last ~month
+of published half-month files: max / latest fails, max fails vs 20-day average volume, trend; needs
+`SEC_USER_AGENT`; the data lag two to four weeks). Every risk plan has one-click alert buttons
+(stop / target 1 / trigger).
+
+**Industry groups**: each stock's Yahoo industry (cached 120 days) - groups with at least two members
+ranked by the median RS score (0.5 x rel 20d + 0.3 x rel 60d + 0.2 x rel 5d), with the change in rank
+over 5 sessions. **Advance / decline** is computed on the terminal's own universe, not the whole NYSE
+(no free reliable source). **Cross-asset** series are context only and are not quality-gated (they trade
+on other calendars; Bitcoin trades on weekends).
+
+**Portfolio maths**: shares = account x risk % x regime budget / |entry - stop|, capped at the position
+limit; heat = sum of dollar risk; position correlation uses 60-session daily returns with short positions
+sign-flipped; effective bets = n^2 / sum of the correlation matrix. **Alerts** (`above`, `below`,
+`close_above`, `close_below`) are checked against stored daily bars after every run and when the
+dashboard opens; on macOS a triggered alert raises a system notification. The journal and alerts live in
+the database (`trade_journal`, `price_alerts`). Nothing is ever sent to a broker.
 
 The **Run** button starts the daily pipeline in the background (data download + analysis only).
 Edit `config/macro_events.yaml` to add CPI / PCE / GDP dates; FOMC 2026 dates, monthly options

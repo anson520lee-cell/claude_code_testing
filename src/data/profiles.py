@@ -50,3 +50,42 @@ def market_caps(symbols: list[str], cache_dir: Path, today: date, refresh_days: 
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(cache))
     return {s: (fresh.get(s) or cache.get(s) or {}).get("cap") for s in symbols}
+
+
+def _yahoo_industry(symbol: str) -> dict[str, Any] | None:
+    import yfinance
+
+    try:
+        info = yfinance.Ticker(symbol).get_info()
+        return {"industry": info.get("industry"), "sector": info.get("sector")}
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("profile %s unavailable: %s", symbol, exc)
+        return None
+
+
+def industries(symbols: list[str], cache_dir: Path, today: date, seed: dict[str, dict] | None = None,
+               refresh_days: int = 120, offline: bool = False,
+               fetch: Callable[[str], dict | None] | None = None) -> dict[str, str | None]:
+    """{symbol: Yahoo industry or None}. Industries rarely change: cached for ``refresh_days``;
+    ``seed`` (config/universe_auto.yaml details) avoids fetching names the universe builder already knows."""
+    path = Path(cache_dir) / "industries.json"
+    cache: dict[str, Any] = {}
+    if path.exists():
+        try:
+            cache = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            cache = {}
+    for s, d in (seed or {}).items():
+        if s not in cache and isinstance(d, dict) and d.get("industry"):
+            cache[s] = {"industry": d["industry"], "sector": d.get("sector"), "as_of": today.isoformat()}
+    fresh = {s for s, v in cache.items() if isinstance(v, dict) and (today - date.fromisoformat(v["as_of"])).days <= refresh_days}
+    missing = [s for s in symbols if s not in fresh]
+    if missing and not offline:
+        fetch = fetch or _yahoo_industry
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for symbol, value in zip(missing, pool.map(fetch, missing)):
+                if value:
+                    cache[symbol] = {**value, "as_of": today.isoformat()}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cache))
+    return {s: (cache.get(s) or {}).get("industry") for s in symbols}

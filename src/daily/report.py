@@ -91,6 +91,27 @@ def build_markdown(d: dict[str, Any]) -> str:
                       [[x["rank_20d"], x["symbol"], tr(x["name"]), _pct(x["ret_5d"]), _pct(x["ret_20d"]),
                         _pct(x["rel_20d"]), _pct(x["rel_60d"]), _pct(x["rs_trend"]), _pct(x["rs_momentum"]),
                         tr(x["quadrant"]), "是" if x["above_ema50"] else "否"] for x in d["sectors"]]))
+    if d.get("macro"):
+        out.append("### 跨資產（只作背景）\n")
+        out.append(_table(["資產", "最新", "5 日", "20 日", "20 日 z", "與 QQQ 相關（60 日）", "解讀"],
+                          [[m["name"], _num(m.get("close")), _pct(m.get("ret_5d")), _pct(m.get("ret_20d")), _num(m.get("z20"), 1),
+                            _num(m.get("corr_qqq_60d")), m.get("comment", "")] for m in d["macro"] if m.get("available")]))
+    ad = d.get("advance_decline") or {}
+    if ad.get("available"):
+        out.append(f"### 上漲／下跌家數（{ad['scope']}）\n")
+        out.append(f"上漲 {ad['advancers']}、下跌 {ad['decliners']}、不變 {ad['unchanged']}；McClellan {ad['mcclellan']:+.0f}；"
+                   f"10 日淨上漲 {ad['net_10d']:+d}。{ad.get('comment', '')}\n")
+    if d.get("industry_groups"):
+        g = d["industry_groups"]
+        out.append(f"### 行業組相對強弱（前 10／共 {len(g)} 組）\n")
+        out.append(_table(["排名", "行業組", "5 日變化", "成員", "5 日", "20 日", "最強成員"],
+                          [[x["rank"], x["group"], f"{x['rank_change']:+d}", x["n"], _pct(x["ret_5d"]), _pct(x["ret_20d"]),
+                            "、".join(x["leaders"])] for x in g[:10]]))
+    if d.get("alerts_recent"):
+        out.append("### 近 7 日觸發的價格提醒\n")
+        out.append(_table(["代號", "條件", "價位", "觸發日", "觸發價", "備註"],
+                          [[a["symbol"], a["kind"], _num(a["level"]), a["triggered_session"], _num(a["triggered_price"]), a.get("note") or ""]
+                           for a in d["alerts_recent"]]))
 
     for n, side in ((3, "long"), (4, "short")):
         cands = d["candidates"][side]
@@ -192,6 +213,18 @@ def candidate_detail(c: dict[str, Any], deep: dict[str, Any]) -> str:
                      f"（±{p['expected_move_hv'] / p['entry'] * 100:.1f}%）")
     h = c.get("history") or {}
     lines.append(f"- **形態歷史：** {h.get('note')} · 在{tr(h.get('regime'))}市況下：{h.get('note_regime')}")
+    if p.get("stop_basis"):
+        lines.append(f"- **止損依據：** {p['stop_basis']}")
+        lines.append(f"- **目標依據：** {p.get('target_basis', '')}")
+    if c.get("group"):
+        g = c["group"]
+        lines.append(f"- **行業組：** {g['group']}，相對強弱排第 {g['rank']}／{g['of']} 組")
+    es = (deep or {}).get("earnings_study") or {}
+    if es.get("available"):
+        lines.append(f"- **財報反應：** {es.get('note', '')} {es.get('drift_note', '')}")
+    ftd = (deep or {}).get("ftd") or {}
+    if ftd.get("available") and ftd.get("n"):
+        lines.append(f"- **交收失敗（FTD）：** {ftd['note']}")
     if c["supporting"]:
         lines.append("- **支持證據：** " + " · ".join(c["supporting"]))
     if c["contradicting"]:

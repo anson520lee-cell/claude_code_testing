@@ -69,7 +69,8 @@ def path(settings: dict[str, Any], key: str) -> Path:
 
 def market_symbols(settings: dict[str, Any]) -> list[str]:
     m = settings["market"]
-    symbols = [*m["indices"], *m["volatility"], *m["credit_rates"], *m["sector_etfs"], *m.get("industry_etfs", {})]
+    symbols = [*m["indices"], *m["volatility"], *m["credit_rates"], *m["sector_etfs"], *m.get("industry_etfs", {}),
+               *m.get("macro", {})]
     return list(dict.fromkeys(symbols))
 
 

@@ -275,3 +275,22 @@ table.heat td.live { outline: 2px solid var(--warn); outline-offset: -2px; font-
 table.heat { table-layout: fixed; width: 100%; }
 table.heat thead th { white-space: normal; line-height: 1.35; vertical-align: bottom; }
 table.heat th:first-child { width: 150px; }
+
+/* ---------- portfolio page, market extras, ticker extras */
+.pf-inputs { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; margin: 6px 0 16px; }
+.pf-inputs label { display: flex; flex-direction: column; gap: 4px; font: 10.5px var(--font-mono); letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+.pf-inputs label.wide { flex: 1 1 260px; }
+.pf-inputs input, .pf-inputs select { font: 14px var(--font-sans, inherit); color: var(--fg); background: transparent; border: 0; border-bottom: 1px solid var(--line3); padding: 6px 2px; min-width: 110px; }
+.pf-inputs input:focus, .pf-inputs select:focus { outline: none; border-bottom-color: var(--fg); }
+.pf-inputs select option { background: var(--bg); }
+.pf-inputs .note { flex-basis: 100%; text-transform: none; letter-spacing: 0; }
+.heatbar { height: 6px; background: var(--line); margin: 4px 0 16px; position: relative; }
+.heatbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--up); }
+.heatbar i.over { background: var(--down); }
+table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
+.sparkline { display: block; }
+.qa { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.qa button { font-size: 11.5px; padding: 3px 8px; }
+.ftd-bars { display: flex; align-items: flex-end; gap: 2px; height: 56px; margin: 8px 0; border-bottom: 1px solid var(--line2); }
+.ftd-bars i { flex: 1; background: var(--warn); opacity: .8; min-width: 2px; }
+.list li b { white-space: nowrap; }

@@ -149,7 +149,7 @@ function route() {
   disposeCharts(state.charts);
   const [, view = "overview", arg] = (location.hash || "#/overview").split("/");
   document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
-  const views = { overview, scanner, universe, catalysts, research, quality, ticker };
+  const views = { overview, scanner, universe, catalysts, portfolio, research, quality, ticker };
   (views[view] || overview)(arg);
   window.scrollTo(0, 0);
 }
@@ -321,7 +321,8 @@ function overview() {
       { key: "rel_60d", label: "相對 60 日", n: 1, render: (x) => `<span class="${cls(x.rel_60d)}">${pct(x.rel_60d)}</span>` },
       { key: "quadrant", label: "象限", render: (x) => `<span class="${{ Leading: "up", Lagging: "down", Improving: "", Weakening: "warn" }[x.quadrant] || "muted"}">${tr(x.quadrant)}</span>` },
     ], s.sectors, { sortKey: "rank_20d", sortDir: "asc" })}</div>
-  </div>`;
+  </div>
+  ${marketExtras(s)}`;
   const el = $("#regime-chart");
   const ch = makeChart(el, 220);
   const line = ch.addBaselineSeries({ baseValue: { type: "price", price: 0 }, topLineColor: cssVar("--up"), bottomLineColor: cssVar("--down"),
@@ -331,6 +332,7 @@ function overview() {
     line.createPriceLine({ price: p, color: cssVar("--dim"), lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: t });
   ch.timeScale().fitContent();
   drawRRG($("#rrg"), s.sectors);
+  drawAD(s);
   loadMinicharts([...s.candidates.long.slice(0, 6), ...s.candidates.short.slice(0, 6)]);
 }
 
@@ -520,7 +522,7 @@ function focusHTML(list, i) {
     ${c.analyst ? `<div class="eyebrow" style="margin-top:22px">詳細分析</div><div class="sections">${c.analyst.sections.map((x) => {
       const sig = x.signals; return `<div class="sec"><h4>${esc(x.title)}</h4>${x.body.map((t, i) => `<p>${sig ? `<span class="sig ${sig[i] && sig[i].signal > 0 ? "up" : sig[i] && sig[i].signal < 0 ? "down" : "muted"}">${sig[i] && sig[i].signal > 0 ? "+" : sig[i] && sig[i].signal < 0 ? "−" : "·"}</span>` : ""}${esc(t)}</p>`).join("")}</div>`; }).join("")}</div>` : ""}
     <div class="grid g-side"><div class="grid" style="align-content:start">${candidatePanels(c, deep)}</div>
-      <div class="grid" style="align-content:start">${planPanel(c)}${deep.catalysts ? catalystsPanel(deep.catalysts) : ""}</div></div>
+      <div class="grid" style="align-content:start">${planPanel(c)}${earningsPanel(deep.earnings_study)}${deep.catalysts ? catalystsPanel(deep.catalysts) : ""}${ftdPanel(deep.ftd)}</div></div>
   </div>`;
 }
 
@@ -609,7 +611,9 @@ async function ticker(sym) {
       <div class="card"><h2>技術概況</h2><div id="t-snap" class="kv"></div><h3>支持／阻力（60 個交易日）</h3><div id="t-levels" class="note">…</div></div>
       ${deep.options ? optionsPanel(deep.options) : ""}
       ${deep.positioning ? positioningPanel(deep.positioning) : ""}
+      ${earningsPanel(deep.earnings_study)}
       ${deep.catalysts ? catalystsPanel(deep.catalysts) : ""}
+      ${ftdPanel(deep.ftd)}
       <div class="card"><h2>候選紀錄</h2><div id="t-hist" class="note">…</div></div>
     </div></div>`;
   if (c && c.analyst) $("#t-analyst").innerHTML = analystPanel(c.analyst); else loadAnalyst(sym, $("#t-analyst"));
@@ -706,7 +710,9 @@ function candidatePanels(c, deep) {
   const pens = Object.entries(c.penalties).map(([k, v]) => `<span class="chip">${tr(k)} −${v}</span>`).join("") || '<span class="muted">沒有</span>';
   const h = c.history || {};
   const hrow = (st, label) => st && st.n ? `<tr><td>${label}</td><td class="n">${st.n}${st.small_sample ? " ⚠" : ""}</td><td class="n">${pct(st.win_rate, 0, false)}</td><td class="n ${cls(st.avg_r)}">${num(st.avg_r)}</td><td class="n">${pct(st.hit_target_rate, 0, false)}</td><td class="n">${pct(st.stop_rate, 0, false)}</td><td class="n">${num(st.avg_days, 1)}</td></tr>` : `<tr><td>${label}</td><td colspan="6" class="muted">沒有歷史</td></tr>`;
+  const g = c.group;
   return `<div class="card"><h2>研究摘要 <small>${esc(tr(c.direction))} · ${esc(c.setup_name)}</small></h2><p>${esc(c.thesis)}</p>
+    ${g ? `<p class="note">行業組：<b>${esc(g.group)}</b>，相對強弱排第 ${g.rank}／${g.of} 組${g.rank_change ? `（5 日${g.rank_change > 0 ? "上升" : "下跌"} ${Math.abs(g.rank_change)} 位）` : ""}。</p>` : ""}
     <div class="grid g2"><div><h3 class="up">支持證據</h3><ul class="list ev-pos">${c.supporting.map((x) => `<li>${esc(x)}</li>`).join("") || "<li class=muted>沒有</li>"}</ul></div>
     <div><h3 class="down">反對證據／風險</h3><ul class="list ev-neg">${c.contradicting.map((x) => `<li>${esc(x)}</li>`).join("") || "<li class=muted>沒有</li>"}</ul></div></div></div>
     <div class="card"><h2>評分拆解 <small>原始 ${num(c.raw_score, 1)} − 扣分 ${num(c.penalty_total, 0)} = ${num(c.score, 1)}</small></h2>${comps}<div style="margin-top:8px">扣分：${pens}</div></div>
@@ -726,6 +732,11 @@ function planPanel(c) {
     <div><span>結構止損</span><span class="num ${p.wide_stop ? "warn" : ""}">${num(p.structural_stop_atr, 1)} ATR${p.wide_stop ? "（已設上限）" : ""}</span></div>
     <div><span>${p.horizon_days} 日 1σ 波幅（HV20）</span><span class="num">±${num(p.expected_move_hv)}</span></div></div>
     <p class="note">倉位大小由你決定。例子：以 10 萬美元帳戶承擔 0.5% 風險 = $500 ÷ ${num(Math.abs(p.entry - p.stop))} ≈ ${isNum(p.entry - p.stop) && p.entry !== p.stop ? Math.floor(500 / Math.abs(p.entry - p.stop)) : "n/a"} 股（再乘以市況倉位比例 ×${budget}）。</p>
+    <div class="qa">加價格提醒：${(() => {
+      const L = c.direction === "long", items = [[L ? "below" : "above", p.stop, "觸及止損"], [L ? "above" : "below", p.target1, "到達目標一"]];
+      if (p.conditional_entry) items.unshift([L ? "above" : "below", p.entry, "觸發進場"]);
+      return items.map(([k, lv, n]) => `<button data-qa="${n}" data-sym="${c.symbol}" data-kind="${k}" data-level="${lv}">${n} ${num(lv)}</button>`).join("");
+    })()}</div>
     ${planBasis(c)}</div>`;
 }
 
@@ -868,6 +879,254 @@ function catalysts() {
     { key: "symbol", label: "代號", render: (a) => `<b>${a.symbol}</b>` }, { key: "date", label: "日期" }, { key: "description", label: "評級變動", wrap: 1 }, { key: "sentiment", label: "影響", render: (a) => sent(a.sentiment) }],
     analyst, { sortKey: "date" })}</div>`;
 }
+
+// ------------------------------------------------------------------ market extras: cross-asset, A/D breadth, industry groups
+function sparkLine(vals, w = 120, h = 28) {
+  const v = (vals || []).filter(isNum);
+  if (v.length < 2) return "";
+  const lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1;
+  const pts = v.map((x, i) => `${(i / (v.length - 1) * w).toFixed(1)},${(h - 2 - (x - lo) / r * (h - 4)).toFixed(1)}`).join(" ");
+  return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="var(${v[v.length - 1] >= v[0] ? "--up" : "--down"})" stroke-width="1.4"/></svg>`;
+}
+
+function marketExtras(s) {
+  const m = s.macro || [], ad = s.advance_decline || {}, groups = s.industry_groups || [];
+  if (!m.length && !ad.available && !groups.length) return "";
+  return `<div class="grid g2" style="margin-top:12px">
+    <div class="card"><h2>跨資產 <small>美元 · 原油 · 黃金 · 比特幣（只作背景，不計入市場狀態）</small></h2>${table("mac", [
+      { key: "name", label: "資產", render: (x) => `<b>${esc(x.name)}</b> <span class="muted mono">${esc(x.symbol)}</span>` },
+      { key: "spark", label: "60 日", render: (x) => sparkLine(x.spark) },
+      { key: "close", label: "最新", n: 1, render: (x) => (x.available ? num(x.close, x.close > 1000 ? 0 : 2) : '<span class="muted">沒有數據</span>') },
+      { key: "ret_5d", label: "5 日", n: 1, render: (x) => `<span class="${cls(x.ret_5d)}">${pct(x.ret_5d)}</span>` },
+      { key: "ret_20d", label: "20 日", n: 1, render: (x) => `<span class="${cls(x.ret_20d)}">${pct(x.ret_20d)}</span>` },
+      { key: "z20", label: "20 日 z", n: 1, render: (x) => `<span class="${isNum(x.z20) && Math.abs(x.z20) >= 1.5 ? "warn" : ""}">${num(x.z20, 1)}</span>` },
+      { key: "corr_qqq_60d", label: "與 QQQ 相關", n: 1, render: (x) => num(x.corr_qqq_60d, 2) }], m)}
+      <ul class="list">${m.filter((x) => x.comment).map((x) => `<li><b>${esc(x.name)}</b>：${esc(x.comment)}</li>`).join("")}</ul></div>
+    <div class="card"><h2>上漲／下跌家數 <small>${esc(ad.scope || "")}</small></h2>
+      ${ad.available ? `<div class="grid g4 kpis"><div class="kpi"><span class="l">上漲</span><span class="v up">${ad.advancers}</span></div>
+        <div class="kpi"><span class="l">下跌</span><span class="v down">${ad.decliners}</span></div>
+        <div class="kpi"><span class="l">McClellan</span><span class="v ${cls(ad.mcclellan)}">${num(ad.mcclellan, 0)}</span></div>
+        <div class="kpi"><span class="l">上漲成交量佔比</span><span class="v">${pct(ad.up_volume_share, 0, false)}</span></div></div>
+        <div class="lg">A/D 線（累計上漲減下跌）與 McClellan 振盪指標 · 10 日淨上漲 ${ad.net_10d > 0 ? "+" : ""}${ad.net_10d}</div>
+        <div id="ad-chart" class="chart" style="height:150px"></div><div id="mcc-chart" class="chart small"></div>
+        <p class="note">${esc(ad.comment || "")} 全市場（NYSE）的上漲下跌家數沒有穩定的免費來源，這裏用本股票池計算，代表高 Beta 股的參與面。</p>` : '<p class="note">沒有足夠數據。</p>'}</div>
+  </div>
+  ${groups.length ? `<div class="card" style="margin-top:12px"><h2>行業組相對強弱排名 <small>${groups.length} 組 · 按成員 RS 中位數排名，箭咀為 5 日前名次變化</small></h2>${table("grp", [
+    { key: "rank", label: "#", n: 1 },
+    { key: "group", label: "行業組", render: (g) => `<b>${esc(g.group)}</b>` },
+    { key: "rank_change", label: "5 日變化", n: 1, render: (g) => (g.rank_change ? `<span class="${cls(g.rank_change)}">${g.rank_change > 0 ? "▲" : "▼"}${Math.abs(g.rank_change)}</span>` : '<span class="muted">—</span>') },
+    { key: "n", label: "成員", n: 1 },
+    { key: "pct", label: "RS 百分位", n: 1, render: (g) => num(g.pct, 0) },
+    { key: "ret_5d", label: "5 日（中位）", n: 1, render: (g) => `<span class="${cls(g.ret_5d)}">${pct(g.ret_5d)}</span>` },
+    { key: "ret_20d", label: "20 日（中位）", n: 1, render: (g) => `<span class="${cls(g.ret_20d)}">${pct(g.ret_20d)}</span>` },
+    { key: "breadth", label: "高於 EMA50", n: 1, render: (g) => pct(g.breadth, 0, false) },
+    { key: "leaders", label: "最強成員", wrap: 1, render: (g) => g.leaders.map((x) => `<a href="#/ticker/${x}">${x}</a>`).join(" ") }],
+    groups, { sortKey: "rank", sortDir: "asc" })}<p class="note">行業來自 Yahoo 公司資料（每 120 日更新）；只有一隻成員的行業不列出。RS 分數 = 0.5 × 相對 SPY 20 日 + 0.3 × 60 日 + 0.2 × 5 日。強勢行業組內的領頭股，較容易延續升勢。</p></div>` : ""}`;
+}
+
+function drawAD(s) {
+  const ad = s.advance_decline;
+  if (!ad || !ad.available || !$("#ad-chart")) return;
+  const P = PAL(), d = ad.series.dates;
+  const c1 = makeChart($("#ad-chart"), 150, { timeVisible: false });
+  c1.addLineSeries({ color: P.neutral, lineWidth: 2, priceLineVisible: false }).setData(d.map((t, i) => ({ time: t, value: ad.series.ad_line[i] })));
+  const c2 = makeChart($("#mcc-chart"), 90);
+  c2.addHistogramSeries({ priceLineVisible: false }).setData(d.map((t, i) => ({ time: t, value: ad.series.mcclellan[i], color: ad.series.mcclellan[i] >= 0 ? P.up : P.down })));
+  c1.timeScale().fitContent(); c2.timeScale().fitContent(); syncCharts([c1, c2]);
+}
+
+// ------------------------------------------------------------------ ticker extras: earnings reactions, FTD
+function earningsPanel(e) {
+  if (!e) return "";
+  if (!e.available) return `<div class="card"><h2>財報反應</h2><p class="note">${esc(e.reason || "沒有數據。")}</p></div>`;
+  const imp = e.implied;
+  return `<div class="card"><h2>財報反應 <small>過去 ${e.n} 次 · 期權隱含 vs 歷史</small></h2>
+    <div class="grid g4 kpis">
+      <div class="kpi"><span class="l">期權隱含</span><span class="v">${imp ? "±" + pct(imp.move_pct, 1, false) : "—"}</span><span class="note">${imp ? `${imp.expiry} 跨式 ${num(imp.straddle)}` : "沒有覆蓋財報的到期日"}</span></div>
+      <div class="kpi"><span class="l">歷史波幅中位</span><span class="v">±${pct(e.median_abs_move, 1, false)}</span><span class="note">平均 ±${pct(e.mean_abs_move, 1, false)}</span></div>
+      <div class="kpi"><span class="l">隱含 ÷ 歷史</span><span class="v ${isNum(e.implied_vs_history) ? (e.implied_vs_history > 1.15 ? "warn" : e.implied_vs_history < 0.85 ? "up" : "") : "muted"}">${isNum(e.implied_vs_history) ? num(e.implied_vs_history, 2) + "×" : "—"}</span><span class="note">&gt; 1 期權較貴</span></div>
+      <div class="kpi"><span class="l">上升比例</span><span class="v">${pct(e.up_share, 0, false)}</span><span class="note">最大 ${pct(e.max_up, 0)} ／ ${pct(e.max_down, 0)}</span></div></div>
+    <p>${esc(e.note || "")}</p>${e.drift_note ? `<p>${esc(e.drift_note)}</p>` : ""}
+    <p class="note">跳空後收市回吐的比例 ${pct(e.gap_fade_share, 0, false)}；財報後 10 日延續首日方向 ${pct(e.drift10_same_dir, 0, false)}（平均 ${pct(e.drift10_signed_mean, 1)}）。</p>
+    ${table("earn", [{ key: "date", label: "公布" }, { key: "timing", label: "時間", render: (x) => ({ "before open": "開市前", "after close": "收市後", estimated: "推算" }[x.timing] || x.timing) },
+      { key: "surprise_pct", label: "EPS 驚喜", n: 1, render: (x) => (isNum(x.surprise_pct) ? `<span class="${cls(x.surprise_pct)}">${num(x.surprise_pct, 1)}%</span>` : "—") },
+      { key: "gap", label: "跳空", n: 1, render: (x) => `<span class="${cls(x.gap)}">${pct(x.gap)}</span>` },
+      { key: "move", label: "當日", n: 1, render: (x) => `<span class="${cls(x.move)}">${pct(x.move)}</span>` },
+      { key: "drift5", label: "其後 5 日", n: 1, render: (x) => `<span class="${cls(x.drift5)}">${pct(x.drift5)}</span>` },
+      { key: "drift10", label: "其後 10 日", n: 1, render: (x) => `<span class="${cls(x.drift10)}">${pct(x.drift10)}</span>` }], e.events, { sortKey: "date" })}
+    <p class="note">樣本只有 ${e.n} 次，屬描述性統計。「推算」= 數據商沒有提供公布時間，以跳空較大的一日作反應日。</p></div>`;
+}
+
+function ftdPanel(f) {
+  if (!f) return "";
+  if (!f.available) return `<div class="card"><h2>SEC 交收失敗（FTD）</h2><p class="note">${esc(f.reason)}</p></div>`;
+  return `<div class="card"><h2>SEC 交收失敗（FTD） <small>${esc(f.period)}</small></h2>
+    ${f.n ? `<div class="grid g4 kpis"><div class="kpi"><span class="l">最高</span><span class="v">${fmtVol(f.max)}</span><span class="note">${f.max_date}</span></div>
+      <div class="kpi"><span class="l">最高 ÷ 日均量</span><span class="v ${f.max_vs_adv >= 0.1 ? "warn" : ""}">${pct(f.max_vs_adv, 1, false)}</span></div>
+      <div class="kpi"><span class="l">最新</span><span class="v">${fmtVol(f.latest)}</span><span class="note">${f.latest_date}</span></div>
+      <div class="kpi"><span class="l">紀錄日數</span><span class="v">${f.n}</span><span class="note">≥ 0.5% 日均量：${f.sessions_over_half_pct_adv ?? "—"}</span></div></div>
+      <div class="ftd-bars">${(() => { const mx = Math.max(...f.series.map((x) => x.fails)); return f.series.map((x) => `<i style="height:${Math.max(2, x.fails / mx * 100)}%" title="${x.date}：${x.fails.toLocaleString()} 股"></i>`).join(""); })()}</div>` : ""}
+    <p>${esc(f.note)}</p><p class="note">數據為 SEC 每半個月公布一次，通常滯後兩至四星期；數字是當日累計未交收的股數，不是新增。ETF 申購贖回時間差也會產生 FTD，單獨看意義有限。</p></div>`;
+}
+
+// ------------------------------------------------------------------ portfolio page: sizing, correlation, heat, journal, alerts
+const PF_KEY = "swing.portfolio.v1";
+function pfSettings() {
+  const d = (state.snap.portfolio || {});
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(PF_KEY) || "{}"); } catch (_) { saved = {}; }
+  return { account: saved.account ?? d.account_size ?? 100000, risk: saved.risk ?? (d.risk_per_trade ?? 0.005) * 100,
+    maxPos: saved.maxPos ?? (d.max_position_pct ?? 0.25) * 100, maxHeat: saved.maxHeat ?? (d.max_heat ?? 0.04) * 100, picked: saved.picked || null };
+}
+function pfSave(v) { try { localStorage.setItem(PF_KEY, JSON.stringify(v)); } catch (_) { /* storage unavailable */ } }
+
+function pfSized(v) {
+  const pf = state.snap.portfolio || {}, budgets = pf.budgets || { long: 1, short: 1 };
+  return (pf.positions || []).map((p) => {
+    const per = Math.abs(p.entry - p.stop), risk = v.account * v.risk / 100 * (budgets[p.direction] || 1);
+    let shares = per > 0 ? Math.floor(risk / per) : 0;
+    const cap = Math.floor(v.account * v.maxPos / 100 / p.entry), capped = shares > cap;
+    shares = Math.min(shares, cap);
+    return { ...p, shares, dollar_risk: shares * per, value: shares * p.entry, value_pct: shares * p.entry / v.account, capped };
+  });
+}
+
+function corrHeat(pf, picked) {
+  if (!pf.labels) return '<p class="note">候選不足兩個，沒有相關矩陣。</p>';
+  const idx = pf.labels.map((l, i) => [l, i]).filter(([l]) => !picked || picked.has(l.replace(" (空)", "")));
+  const bg = (v) => `background:color-mix(in srgb, var(${v >= 0 ? "--down" : "--up"}) ${Math.round(Math.min(1, Math.abs(v)) * 70)}%, transparent)`;
+  return `<div class="tw"><table class="heat corr"><thead><tr><th></th>${idx.map(([l]) => `<th class="n">${esc(l)}</th>`).join("")}</tr></thead><tbody>
+    ${idx.map(([l, i]) => `<tr><th>${esc(l)}</th>${idx.map(([, j]) => `<td class="n" style="${i === j ? "" : bg(pf.correlation[i][j])}">${i === j ? "—" : num(pf.correlation[i][j], 2)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <p class="note">倉位相關 = 60 日日回報相關係數，做空倉位已反轉方向：紅色越深 = 越會一起賺一起蝕（風險疊加），綠色 = 互相對沖。</p>`;
+}
+
+async function portfolio() {
+  const s = state.snap, pf = s.portfolio || {};
+  const v = pfSettings();
+  const draw = () => {
+    const rows = pfSized(v);
+    const picked = new Set(v.picked || rows.map((r) => r.symbol));
+    const sel = rows.filter((r) => picked.has(r.symbol));
+    const heat = sel.reduce((a, r) => a + r.dollar_risk, 0), heatPct = heat / v.account * 100;
+    const lab = sel.map((r) => r.symbol + (r.direction === "long" ? "" : " (空)"));
+    const ix = lab.map((l) => (pf.labels || []).indexOf(l)).filter((i) => i >= 0);
+    let sum = 0; ix.forEach((i) => ix.forEach((j) => { sum += pf.correlation[i][j]; }));
+    const eff = ix.length > 1 && sum > 0 ? ix.length * ix.length / sum : null;
+    $("#pf-body").innerHTML = `<div class="grid g4 kpis">
+        <div class="kpi"><span class="l">已選倉位</span><span class="v">${sel.length}</span><span class="note">做多 ${sel.filter((r) => r.direction === "long").length} ／ 做空 ${sel.filter((r) => r.direction === "short").length}</span></div>
+        <div class="kpi"><span class="l">總風險（全部止損）</span><span class="v ${heatPct > v.maxHeat ? "down" : "up"}">${num(heatPct, 2)}%</span><span class="note">$${Math.round(heat).toLocaleString()} ／ 上限 ${num(v.maxHeat, 1)}%</span></div>
+        <div class="kpi"><span class="l">獨立注碼（估算）</span><span class="v">${eff ? num(eff, 1) : "—"}</span><span class="note">n² ÷ Σ 相關係數</span></div>
+        <div class="kpi"><span class="l">總持倉 ／ 淨持倉</span><span class="v">${pct(sel.reduce((a, r) => a + r.value, 0) / v.account, 0, false)}</span><span class="note">淨 ${pct(sel.reduce((a, r) => a + r.value * (r.direction === "long" ? 1 : -1), 0) / v.account, 0)}</span></div></div>
+      <div class="heatbar"><i style="width:${Math.min(100, heatPct / Math.max(v.maxHeat, 0.01) * 100)}%" class="${heatPct > v.maxHeat ? "over" : ""}"></i></div>
+      ${table("pf", [{ key: "pick", label: "選", render: (r) => `<input type="checkbox" data-pick="${r.symbol}" ${picked.has(r.symbol) ? "checked" : ""}>` },
+        { key: "symbol", label: "代號", render: (r) => `<a href="#/ticker/${r.symbol}"><b>${r.symbol}</b></a> <span class="chip ${r.direction}">${r.direction === "long" ? "多" : "空"}</span>` },
+        { key: "score", label: "分數", n: 1, render: (r) => num(r.score, 0) }, { key: "entry", label: "進場", n: 1, render: (r) => num(r.entry) },
+        { key: "stop", label: "止損", n: 1, render: (r) => `<span class="down">${num(r.stop)}</span>` },
+        { key: "per", label: "每股風險", n: 1, sort: (r) => Math.abs(r.entry - r.stop), render: (r) => num(Math.abs(r.entry - r.stop)) },
+        { key: "shares", label: "股數", n: 1, render: (r) => `${r.shares.toLocaleString()}${r.capped ? ' <span class="warn" title="已按單一倉位上限收細">⚑</span>' : ""}` },
+        { key: "value", label: "倉位金額", n: 1, render: (r) => "$" + Math.round(r.value).toLocaleString() },
+        { key: "value_pct", label: "佔帳戶", n: 1, render: (r) => pct(r.value_pct, 1, false) },
+        { key: "dollar_risk", label: "風險金額", n: 1, render: (r) => "$" + Math.round(r.dollar_risk).toLocaleString() }], rows, { sortKey: "score" })}
+      <h3>倉位相關矩陣（已選）</h3>${corrHeat(pf, picked)}
+      <ul class="list">${(pf.clusters || []).map((c) => `<li class="warn">高度相關（≥ 0.7），會一起觸發止損：${c.map(esc).join("、")}</li>`).join("")}</ul>`;
+    app.querySelectorAll("[data-pick]").forEach((cb) => cb.addEventListener("change", () => {
+      const cur = new Set(v.picked || rows.map((r) => r.symbol));
+      cb.checked ? cur.add(cb.dataset.pick) : cur.delete(cb.dataset.pick);
+      v.picked = [...cur]; pfSave(v); draw();
+    }));
+  };
+  app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">倉位 · 相關性 · 總風險 · 交易日誌 · 價格提醒</div><h1 class="display">組合 <em>portfolio</em></h1>
+    <p>把今日的候選當作一個組合來看：每個倉位按止損距離計股數（固定風險比例），再看它們會不會一起輸。系統不會下單，所有交易紀錄由你自行輸入。</p></div></div>
+    <section class="note-block"><div class="pf-inputs">
+      <label>帳戶金額（US$）<input id="pf-acc" type="number" min="1000" step="1000" value="${v.account}"></label>
+      <label>每筆風險（%）<input id="pf-risk" type="number" min="0.05" max="5" step="0.05" value="${v.risk}"></label>
+      <label>單一倉位上限（%）<input id="pf-max" type="number" min="1" max="100" step="1" value="${v.maxPos}"></label>
+      <label>總風險上限（%）<input id="pf-heat" type="number" min="0.5" max="20" step="0.5" value="${v.maxHeat}"></label>
+      <span class="note">股數 = 帳戶 × 每筆風險 × 市況倉位比例（做多 ×${(pf.budgets || {}).long ?? 1}，做空 ×${(pf.budgets || {}).short ?? 1}）÷ |進場 − 止損|。設定只儲存在這個瀏覽器。</span></div>
+      <div id="pf-body"></div></section>
+    <section class="note-block"><div class="note-head"><div><div class="eyebrow">價格提醒</div><div class="hl">到價提醒</div></div></div>
+      <form id="al-form" class="pf-inputs"><label>代號<input name="symbol" required placeholder="NVDA"></label>
+        <label>條件<select name="kind"><option value="above">盤中升穿</option><option value="below">盤中跌穿</option><option value="close_above">收市高於</option><option value="close_below">收市低於</option></select></label>
+        <label>價位<input name="level" type="number" step="0.01" required></label><label class="wide">備註<input name="note" placeholder="例如：突破後加注"></label>
+        <button type="submit">加入提醒</button></form>
+      <div id="al-list" class="note">載入中…</div>
+      <p class="note">提醒在每次每日分析後及打開網頁時，用已儲存的日線檢查（盤中＝當日最高／最低價曾經碰到）。不是即時報價；在 Mac 上觸發時會彈出系統通知。</p></section>
+    <section class="note-block"><div class="note-head"><div><div class="eyebrow">交易日誌 · 檢討</div><div class="hl">交易日誌</div></div></div>
+      <form id="jn-form" class="pf-inputs"><label>代號<input name="symbol" required></label>
+        <label>方向<select name="direction"><option value="long">做多</option><option value="short">做空</option></select></label>
+        <label>形態<select name="setup"><option value="">—</option>${Object.entries(s.setup_names).map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("")}</select></label>
+        <label>進場日<input name="entry_date" type="date"></label><label>進場價<input name="entry_price" type="number" step="0.01" required></label>
+        <label>初始止損<input name="stop" type="number" step="0.01" required></label><label>目標<input name="target" type="number" step="0.01"></label>
+        <label>股數<input name="shares" type="number" step="1"></label><label>出場日<input name="exit_date" type="date"></label><label>出場價<input name="exit_price" type="number" step="0.01"></label>
+        <label class="wide">備註<input name="notes" placeholder="為什麼進場／出場，有沒有跟計劃"></label><button type="submit">記錄交易</button></form>
+      <div id="jn-list" class="note">載入中…</div></section>`;
+  const bind = (id, key) => $(id).addEventListener("input", (e) => { const x = Number(e.target.value); if (isNum(x) && x > 0) { v[key] = x; pfSave(v); draw(); } });
+  bind("#pf-acc", "account"); bind("#pf-risk", "risk"); bind("#pf-max", "maxPos"); bind("#pf-heat", "maxHeat");
+  draw();
+  const formData = (f) => Object.fromEntries([...new FormData(f).entries()].filter(([, x]) => x !== ""));
+  const ro = !!window.__PREVIEW__;
+  const loadAlerts = async () => {
+    try {
+      const a = await api("/api/alerts");
+      $("#al-list").innerHTML = table("al", [{ key: "symbol", label: "代號", render: (x) => `<a href="#/ticker/${x.symbol}"><b>${x.symbol}</b></a>` },
+        { key: "kind_name", label: "條件" }, { key: "level", label: "價位", n: 1, render: (x) => num(x.level) },
+        { key: "last", label: "最新收市", n: 1, render: (x) => num(x.last) }, { key: "distance", label: "距離", n: 1, render: (x) => pct(x.distance) },
+        { key: "active", label: "狀態", render: (x) => (x.active ? '<span class="muted">等待中</span>' : `<span class="warn">已觸發 ${x.triggered_session}（${num(x.triggered_price)}）</span>`) },
+        { key: "note", label: "備註", wrap: 1 }, { key: "act", label: "", render: (x) => `${x.active ? "" : `<button data-rearm="${x.id}">重設</button>`} <button data-del-al="${x.id}">刪除</button>` }],
+        a.alerts, { sortKey: "active" });
+      app.querySelectorAll("[data-del-al]").forEach((b) => b.addEventListener("click", async () => { await api(`/api/alerts/${b.dataset.delAl}`, { method: "DELETE" }); loadAlerts(); }));
+      app.querySelectorAll("[data-rearm]").forEach((b) => b.addEventListener("click", async () => { await api(`/api/alerts/${b.dataset.rearm}/rearm`, { method: "POST" }); loadAlerts(); }));
+    } catch (err) { $("#al-list").textContent = err.message; }
+  };
+  const loadJournal = async () => {
+    try {
+      const j = await api("/api/journal"), st = j.stats || {};
+      $("#jn-list").innerHTML = `<div class="grid g4 kpis"><div class="kpi"><span class="l">已平倉</span><span class="v">${st.n_closed || 0}</span><span class="note">持倉中 ${st.n_open || 0}</span></div>
+        <div class="kpi"><span class="l">勝率</span><span class="v">${pct(st.win_rate, 0, false)}</span><span class="note">盈虧比 ${num(st.profit_factor)}</span></div>
+        <div class="kpi"><span class="l">平均 R</span><span class="v ${cls(st.avg_r)}">${num(st.avg_r)}</span><span class="note">平均贏 ${num(st.avg_win_r)}R ／ 輸 ${num(st.avg_loss_r)}R</span></div>
+        <div class="kpi"><span class="l">累計盈虧</span><span class="v ${cls(st.total_pnl)}">${isNum(st.total_pnl) ? "$" + Math.round(st.total_pnl).toLocaleString() : "—"}</span><span class="note">累計 ${num(st.total_r, 1)}R</span></div></div>
+        ${(st.by_setup || []).length ? `<h3>按形態</h3>${table("jn-set", [{ key: "setup", label: "形態", render: (x) => esc(s.setup_names[x.setup] || x.setup) }, { key: "n", label: "筆數", n: 1 },
+          { key: "win_rate", label: "勝率", n: 1, render: (x) => pct(x.win_rate, 0, false) }, { key: "avg_r", label: "平均 R", n: 1, render: (x) => `<span class="${cls(x.avg_r)}">${num(x.avg_r)}</span>` }], st.by_setup)}` : ""}
+        ${table("jn", [{ key: "symbol", label: "代號", render: (t) => `<a href="#/ticker/${t.symbol}"><b>${t.symbol}</b></a> <span class="chip ${t.direction}">${t.direction === "long" ? "多" : "空"}</span>` },
+          { key: "setup", label: "形態", render: (t) => esc(s.setup_names[t.setup] || t.setup || "") }, { key: "entry_date", label: "進場日" },
+          { key: "entry_price", label: "進場", n: 1, render: (t) => num(t.entry_price) }, { key: "stop", label: "止損", n: 1, render: (t) => num(t.stop) },
+          { key: "exit_price", label: "出場／現價", n: 1, render: (t) => (t.status === "closed" ? num(t.exit_price) : `<span class="muted">${num(t.mark)}</span>`) },
+          { key: "r", label: "R", n: 1, sort: (t) => t.r ?? t.r_open, render: (t) => (t.status === "closed" ? `<span class="${cls(t.r)}">${num(t.r)}</span>` : `<span class="muted">${num(t.r_open)}（未平）</span>`) },
+          { key: "pnl", label: "盈虧", n: 1, sort: (t) => t.pnl ?? t.pnl_open, render: (t) => { const x = t.status === "closed" ? t.pnl : t.pnl_open; return isNum(x) ? `<span class="${cls(x)}">$${Math.round(x).toLocaleString()}</span>` : "—"; } },
+          { key: "flag", label: "", render: (t) => (t.flag ? `<span class="warn">${esc(t.flag)}</span>` : "") },
+          { key: "notes", label: "備註", wrap: 1 },
+          { key: "act", label: "", render: (t) => `${t.status !== "closed" ? `<button data-close="${t.id}">平倉</button>` : ""} <button data-del-jn="${t.id}">刪除</button>` }], j.trades, { sortKey: "entry_date" })}
+        <p class="note">R = 方向 × (出場 − 進場) ÷ |進場 − 初始止損|。持倉中的交易按最新收市價估算。</p>`;
+      app.querySelectorAll("[data-del-jn]").forEach((b) => b.addEventListener("click", async () => { if (confirm("刪除這筆紀錄？")) { await api(`/api/journal/${b.dataset.delJn}`, { method: "DELETE" }); loadJournal(); } }));
+      app.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", async () => {
+        const px = Number(prompt("出場價？")); if (!isNum(px) || px <= 0) return;
+        await api(`/api/journal/${b.dataset.close}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exit_price: px, exit_date: new Date().toISOString().slice(0, 10), status: "closed" }) });
+        loadJournal();
+      }));
+    } catch (err) { $("#jn-list").textContent = err.message; }
+  };
+  const post = (url, f, after) => f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (ro) { alert("預覽版不能儲存。"); return; }
+    try { await api(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(formData(f)) }); f.reset(); after(); }
+    catch (err) { alert(err.message); }
+  });
+  post("/api/alerts", $("#al-form"), loadAlerts);
+  post("/api/journal", $("#jn-form"), loadJournal);
+  loadAlerts(); loadJournal();
+}
+
+async function quickAlert(symbol, kind, level, note) {
+  if (window.__PREVIEW__) { alert("預覽版不能儲存提醒。"); return; }
+  try {
+    await api("/api/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol, kind, level, note }) });
+    alert(`已加入提醒：${symbol} ${note}（${num(level)}）。可在「組合」頁管理。`);
+  } catch (err) { alert(err.message); }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-qa]");
+  if (b) quickAlert(b.dataset.sym, b.dataset.kind, Number(b.dataset.level), b.dataset.qa);
+});
 
 // ------------------------------------------------------------------ SL / TP validation backtest (python backtest.py)
 const BT_STOP_ORDER = ["structural", "atr1.0", "atr1.5", "atr2.0", "atr2.5", "atr3.0", "swing", "chip"];
