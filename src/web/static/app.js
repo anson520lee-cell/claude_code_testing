@@ -260,7 +260,7 @@ function overview() {
       <div class="ev">${c.evidence.map(esc).join(" ")}</div></div>`;
   }).join("");
   const b = r.breadth || {}, v = r.volatility || {}, rt = r.rates || {};
-  const tops = (side) => s.candidates[side].slice(0, 6).map((c) => `<tr class="click" data-sym="${c.symbol}"><td><b>${c.symbol}</b></td><td>${esc(c.setup_name)}</td><td class="n">${c.score.toFixed(0)}</td><td>${tier(c.tier)}</td><td class="n">${num(c.plan.reward_risk, 1)}R</td></tr>`).join("") || `<tr><td class="empty">沒有</td></tr>`;
+  const tops = (side) => s.candidates[side].slice(0, 6).map((c) => `<tr class="click" data-sym="${c.symbol}"><td><b>${c.symbol}</b></td><td><span class="spark" data-mini-sm="${esc(c.symbol)}"></span></td><td>${esc(c.setup_name)}</td><td class="n">${c.score.toFixed(0)}</td><td>${tier(c.tier)}</td><td class="n">${num(c.plan.reward_risk, 1)}R</td></tr>`).join("") || `<tr><td class="empty">沒有</td></tr>`;
   app.innerHTML = `
   <div class="grid g-side">
     <div class="grid">
@@ -328,6 +328,7 @@ function overview() {
     line.createPriceLine({ price: p, color: cssVar("--dim"), lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: t });
   ch.timeScale().fitContent();
   drawRRG($("#rrg"), s.sectors);
+  loadMinicharts([...s.candidates.long.slice(0, 6), ...s.candidates.short.slice(0, 6)]);
 }
 
 function drawRRG(svg, sectors) {
@@ -364,7 +365,7 @@ function scanner() {
   app.innerHTML = `
   <div class="wall-head"><div><div class="eyebrow">交易日 ${esc(s.session.date)} / <b>市場狀態 ${esc(tr(s.regime.label))}</b></div>
     <h1 class="display">波段候選 <em>swing</em></h1>
-    <p>按研究優先次序排列，不是交易信號。滑鼠移到卡片上會傾斜，點擊可打開該股票的圖表和研究資料。</p></div>
+    <p>按研究優先次序排列，不是交易信號。每張卡片和表格每一行都有近期 K 線預覽，點擊可打開該股票的完整圖表和研究資料。</p></div>
     <div class="filters" style="margin:0">
       <div class="seg" id="seg-side"><button data-v="long" class="${side === "long" ? "active" : ""}">做多 ${s.candidates.long.length}</button><button data-v="short" class="${side === "short" ? "active" : ""}">做空 ${s.candidates.short.length}</button></div>
       <div class="seg" id="seg-mode"><button data-v="cards" class="${mode === "cards" ? "active" : ""}">卡片</button><button data-v="table" class="${mode === "table" ? "active" : ""}">表格</button></div>
@@ -383,13 +384,15 @@ function scanner() {
   $("#f-setup").onchange = (e) => { f.setup = e.target.value; route(); };
   $("#f-earn").onchange = (e) => { f.hideEarnings = e.target.checked; route(); };
   $("#f-q").oninput = (e) => { f.q = e.target.value; clearTimeout(state.qt); state.qt = setTimeout(() => { route(); const i = $("#f-q"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
-  if (mode === "cards") { wireCards(rows); loadMinicharts(rows); }
+  if (mode === "cards") wireCards(rows);
+  loadMinicharts(rows);
 }
 
 function scanTable(side, rows) {
   const cols = [
     { key: "rank", label: "#", n: 1 },
     { key: "symbol", label: "代號", render: (c) => `<b>${c.symbol}</b> <span class="muted">${esc(c.sector_etf || "")}</span>` },
+    { key: "spark", label: "走勢（40 日）", render: (c) => `<span class="spark" data-mini-sm="${esc(c.symbol)}"></span>`, sort: (c) => c.technical.return_20d },
     { key: "setup_name", label: "形態", render: (c) => `${esc(c.setup_name)}${c.other_setups.length ? ` <span class="chip">+${c.other_setups.length}</span>` : ""}` },
     { key: "score", label: "分數", n: 1, render: (c) => `<div class="scorecell"><div class="bar"><span style="width:${c.score}%"></span></div><span>${c.score.toFixed(0)}</span></div>` },
     { key: "tier", label: "級別", render: (c) => tier(c.tier), sort: (c) => c.score },
@@ -419,8 +422,7 @@ function stockCard(c, i) {
   const t = c.technical, deep = state.snap.deep_dive[c.symbol] || {}, e = earningsOf(c);
   const name = (deep.profile || {}).longName || c.sector_etf || "";
   const pens = Object.keys(c.penalties).map((k) => `<span class="chip">${tr(k)}</span>`).join("");
-  return `<div class="tilt"><div class="scard" tabindex="0" role="button" data-i="${i}" aria-label="${esc(c.symbol)} ${esc(c.setup_name)}，分數 ${c.score.toFixed(0)}">
-    <div class="glare"></div><div class="rimlight"></div>
+  return `<div><div class="scard" tabindex="0" role="button" data-i="${i}" aria-label="${esc(c.symbol)} ${esc(c.setup_name)}，分數 ${c.score.toFixed(0)}">
     <div class="sc-top z1"><span class="sc-label">${esc(tr(c.direction))} · <b>${String(c.rank).padStart(2, "0")}</b></span>${tier(c.tier)}</div>
     <div class="sc-id z2"><div><div class="sc-sym">${esc(c.symbol)}</div><div class="sc-name">${esc(name)}</div></div>
       <div class="sc-px"><div class="p">${num(t.close)}</div><div class="c ${cls(t.return_1d)}">${pct(t.return_1d, 2)}</div></div></div>
@@ -432,26 +434,12 @@ function stockCard(c, i) {
     <div class="sc-flags z1">${pens}</div></div></div>`;
 }
 
-// Tilt + glare + rim light that follow the pointer (fine pointers only; off for reduced motion).
+// Cards open the focus view on click / Enter.
 function wireCards(list) {
-  const canTilt = window.matchMedia("(hover: hover) and (pointer: fine)").matches && !reduceMotion();
   app.querySelectorAll(".scard").forEach((card) => {
     const i = Number(card.dataset.i);
     card.addEventListener("click", () => openFocus(list, i, card));
     card.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openFocus(list, i, card); } });
-    if (!canTilt) return;
-    let raf = 0;
-    card.addEventListener("pointermove", (ev) => {
-      const r = card.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        card.classList.add("hover");
-        card.style.setProperty("--gx", `${(px * 100).toFixed(1)}%`);
-        card.style.setProperty("--gy", `${(py * 100).toFixed(1)}%`);
-        card.style.transform = `rotateX(${((0.5 - py) * 13).toFixed(2)}deg) rotateY(${((px - 0.5) * 15).toFixed(2)}deg) translateZ(14px)`;
-      });
-    });
-    card.addEventListener("pointerleave", () => { cancelAnimationFrame(raf); card.classList.remove("hover"); card.style.transform = ""; });
   });
 }
 
@@ -459,15 +447,21 @@ async function loadMinicharts(rows) {
   if (!rows.length) return;
   state.mini = state.mini || {};
   const key = state.session, cache = (state.mini[key] = state.mini[key] || {});
-  const need = rows.map((c) => c.symbol).filter((x) => !cache[x]);
+  const need = [...new Set(rows.map((c) => c.symbol))].filter((x) => !cache[x]);
   if (need.length) {
     try { Object.assign(cache, await api(`/api/minicharts?days=60&session=${key}&symbols=${need.join(",")}`)); } catch (_) { /* keep empty */ }
   }
-  rows.forEach((c) => { const el = app.querySelector(`[data-mini="${c.symbol}"]`); if (el && cache[c.symbol]) el.innerHTML = miniChart(cache[c.symbol], c.plan); });
+  rows.forEach((c) => {
+    if (!cache[c.symbol]) return;
+    app.querySelectorAll(`[data-mini="${c.symbol}"]`).forEach((el) => { el.innerHTML = miniChart(cache[c.symbol], c.plan); });
+    app.querySelectorAll(`[data-mini-sm="${c.symbol}"]`).forEach((el) => { el.innerHTML = miniChart(cache[c.symbol], c.plan, true); });
+  });
 }
 
-function miniChart(d, plan) {
-  const P = PAL(), W = 300, H = 132, R = 26, n = d.c.length;
+function miniChart(d, plan, small = false) {
+  const P = PAL(), W = small ? 160 : 300, H = small ? 44 : 132, R = small ? 0 : 26;
+  if (small) d = { ...d, ...Object.fromEntries(["t", "o", "h", "l", "c", "ema9", "ema21", "ema50"].map((k) => [k, d[k].slice(-40)])) };
+  const n = d.c.length;
   const lows = d.l.filter(isNum), highs = d.h.filter(isNum);
   let lo = Math.min(...lows), hi = Math.max(...highs);
   const span0 = hi - lo;
@@ -483,6 +477,7 @@ function miniChart(d, plan) {
   }
   const poly = (arr, col, w, op = 1) => `<polyline fill="none" stroke="${col}" stroke-width="${w}" stroke-opacity="${op}" stroke-linejoin="round" points="${arr.map((v, i) => (isNum(v) ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : "")).filter(Boolean).join(" ")}"/>`;
   const level = (v, col, label, dash) => (isNum(v) && v >= lo && v <= hi ? `<line x1="0" x2="${W - R + 2}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="${dash}" stroke-opacity=".9"/><text x="${W - R + 5}" y="${(y(v) + 3.5).toFixed(1)}" fill="${col}" font-size="9.5" font-family="JetBrains Mono, monospace">${label}</text>` : "");
+  if (small) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${poly(d.ema21, P.ema21, 1)}${poly(d.ema9, P.ema9, 1)}${g}</svg>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${poly(d.ema50, P.ema50, 1, 0.55)}${poly(d.ema21, P.ema21, 1.3)}${poly(d.ema9, P.ema9, 1.3)}${g}
     ${level(plan.target1, P.up, "T1", "4 3")}${level(plan.entry, P.neutral, plan.conditional_entry ? "TR" : "IN", "2 3")}${level(plan.stop, P.down, "SL", "4 3")}</svg>`;
 }

@@ -182,19 +182,10 @@ pre.doc { white-space: pre-wrap; font: 12px/1.55 var(--font-mono); color: var(--
 .wall-head h1 { margin: 0; font-size: clamp(40px, 5.2vw, 76px); }
 .wall-head p { margin: 6px 0 0; color: var(--muted); max-width: 46rem; }
 .wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(286px, 1fr)); gap: 18px; }
-.tilt { perspective: 1000px; }
-.scard { position: relative; border-radius: 26px; padding: 16px 16px 14px; cursor: pointer; transform-style: preserve-3d;
-  transition: transform .55s var(--ease), box-shadow .3s; will-change: auto; outline: none; }
+.scard { position: relative; border-radius: 26px; padding: 16px 16px 14px; cursor: pointer; outline: none;
+  transition: box-shadow .25s var(--ease), background .25s var(--ease); }
+.scard:hover { box-shadow: inset 1px 1.5px .5px var(--rim-hi), inset 0 0 0 1px var(--line3), 0 22px 46px rgba(0,0,0,.55); }
 .scard:focus-visible { box-shadow: 0 0 0 2px var(--fg), var(--shadow); }
-.scard.hover { transition: transform .08s linear, box-shadow .3s; will-change: transform; }
-.scard .glare { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s;
-  background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 0%), rgba(255,255,255,.16), transparent 45%); }
-.scard .rimlight { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s; padding: 1px;
-  background: radial-gradient(260px circle at var(--gx, 50%) var(--gy, 0%), rgba(255,255,255,.85), transparent 60%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
-.scard.hover .glare, .scard.hover .rimlight { opacity: 1; }
-.scard .z1 { transform: translateZ(28px); }
-.scard .z2 { transform: translateZ(46px); }
 .sc-top { display: flex; justify-content: space-between; align-items: center; }
 .sc-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
 .sc-label b { color: var(--fg); font-weight: 500; }
@@ -205,6 +196,8 @@ pre.doc { white-space: pre-wrap; font: 12px/1.55 var(--font-mono); color: var(--
 .sc-px .p { font-size: 18px; font-weight: 700; }
 .sc-px .c { font-size: 12.5px; font-weight: 600; }
 .sc-chart { margin: 12px -4px 6px; height: 132px; }
+.spark { display: inline-block; width: 140px; height: 38px; vertical-align: middle; }
+.spark svg { width: 100%; height: 100%; display: block; }
 .sc-chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .sc-setup { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .sc-setup .s { font-weight: 650; font-size: 13px; line-height: 1.25; }

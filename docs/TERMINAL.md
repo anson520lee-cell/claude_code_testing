@@ -230,7 +230,7 @@ not as expected performance.
 | Tab | Contents |
 |---|---|
 | Market | regime gauge, component bars with evidence, regime history, indices / VIX / credit, breadth, rates, sector rotation map + table, top candidates, next events |
-| Candidates | long / short tables with score bars, tiers, plan levels, R/R, RS percentile, earnings, evidence counts, penalties, setup history; filters |
+| Candidates | cards (or a table) with a mini K-line preview per stock, score bars, tiers, plan levels, R/R, RS percentile, earnings, evidence counts, penalties, setup history; filters |
 | Ticker (click any row) | candlestick chart with EMA 9/21/50/200/250, BOLL(20, 1.8), plan levels and setup markers; volume + MAVOL20, RSI 6/14, MACD 12/26/9; thesis, evidence, score breakdown, simulation, risk plan, technical snapshot, S/R, fundamentals (quarters, flags), options (IV, expected move, OI by strike, unusual activity, GEX estimate), positioning, catalysts, candidate history |
 | Universe | every screened stock, sortable |
 | Catalysts | upcoming earnings, macro calendar, SEC filings, analyst actions |
