@@ -113,3 +113,19 @@
 * Indicator values can differ slightly from a charting platform: EMAs start at the first downloaded price
   (EMA200 / EMA250 need a few hundred sessions to settle; a note is shown below 500 sessions), BOLL uses the
   population standard deviation (a sample-std platform draws ~2.6% wider bands) and MAVOL20 includes today.
+
+* Quantitative swing research terminal (2026-10-31):
+  - Audit baseline: 217/217 tests passing; Yahoo, SEC EDGAR, FRED and FINRA reachable from this environment.
+  - Added a universe-level daily workflow (`daily_run.py`) and a web dashboard (`serve.py`, FastAPI + vanilla JS +
+    lightweight-charts) on top of the existing indicator / classification / structure code, which is reused unchanged.
+  - New modules: NYSE calendar, batch market data with incremental refresh + corporate-action detection, data-quality
+    gate, market regime (6 documented components, history), sector rotation, setup rules (5 long / 3 short), risk plans,
+    universe-wide historical simulation, transparent composite score with penalties and supporting / contradicting
+    evidence, point-in-time SEC XBRL fundamentals (Yahoo fallback with estimated publication dates), options analysis,
+    positioning (short interest, 13F, Form 4, FINRA short volume and off-exchange share), catalysts (earnings, SEC
+    filing classification, analyst actions, macro calendar), Markdown / HTML / JSON daily report.
+  - Database: 6 new tables added non-destructively; existing databases are backed up before the first upgrade.
+  - 254 tests pass (37 new). Real run for session 2026-10-30: 149 symbols, 0 excluded, regime Bearish (-26),
+    40 deep dives, ~2 minutes; candidate indicators / plan / score re-computed independently from stored prices: 0 mismatches.
+  - Known limitation in this environment: SEC EDGAR needs SEC_USER_AGENT (name + email); without it the run falls back
+    to Yahoo statements and reports the missing SEC filing checks.

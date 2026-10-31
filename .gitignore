@@ -8,8 +8,22 @@ venv/
 # Local database (re-created automatically; see README "Database")
 data/*.db
 data/*.db-journal
+data/cache/
+data/backups/
+data/*.log
+
+# Generated daily research reports (re-created by daily_run.py)
+reports/daily/
 
 # Editor / OS
 .DS_Store
 .idea/
 .vscode/
+
+# Local secrets (SEC_USER_AGENT) and launcher state
+.env
+data/server.pid
+data/.daily_run.lock
+
+# Static preview build output (scripts/export_preview.py)
+preview/

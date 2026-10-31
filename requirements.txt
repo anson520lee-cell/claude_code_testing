@@ -9,3 +9,10 @@ matplotlib>=3.7
 PyYAML>=6.0
 # Running the automated tests
 pytest>=7.0
+# Research terminal web dashboard (serve.py)
+fastapi>=0.110
+uvicorn>=0.29
+# Downloads from SEC EDGAR / FINRA / FRED
+requests>=2.31
+# FastAPI test client (tests only)
+httpx>=0.27

@@ -1,0 +1,214 @@
+# ---------------------------------------------------------------------------
+# Settings for the quantitative swing trading research terminal
+# (daily_run.py + serve.py). The single-ticker tool (analyze.py) keeps using
+# config/settings.yaml.
+#
+# This is a RESEARCH tool. Nothing here places, routes or simulates live orders.
+# ---------------------------------------------------------------------------
+
+paths:
+  database: "data/stock_research.db"     # shared with analyze.py (new tables are added, nothing is dropped)
+  reports_dir: "reports/daily"           # reports/daily/<YYYY-MM-DD>/
+  cache_dir: "data/cache"                # SEC / options / profile caches
+  backups_dir: "data/backups"            # database copies made before schema upgrades
+
+data:
+  history_period: "2y"         # first download per symbol (EMA250 + 1y percentiles need ~500 sessions)
+  refresh_days: 15             # later runs re-download only the last N calendar days (cheap, idempotent)
+  min_history_days: 260        # fewer sessions -> symbol excluded from scoring (EMA250 warm-up)
+  settle_minutes: 30           # wait this long after the close before a session counts as "completed"
+  download_attempts: 3
+  retry_wait_seconds: 2
+  # SEC EDGAR requires a User-Agent that identifies YOU (name + email), see
+  # https://www.sec.gov/os/accessing-edgar-data - requests without one are refused (HTTP 403).
+  # Set it in the environment rather than in this file:   export SEC_USER_AGENT="Jane Doe jane@example.com"
+  # Without it, fundamentals fall back to Yahoo quarterly statements and SEC filings are unavailable.
+  sec_user_agent: null
+
+market:
+  indices: ["SPY", "QQQ", "IWM", "DIA"]
+  volatility: ["^VIX", "^VIX3M"]
+  credit_rates: ["HYG", "IEF", "TLT"]          # credit spread proxy (HYG/IEF) and duration
+  yields_fred: ["DGS2", "DGS10", "DGS3MO"]      # FRED constant-maturity Treasury yields (%)
+  sector_etfs:
+    XLK: "Technology"
+    XLC: "Communication Services"
+    XLY: "Consumer Discretionary"
+    XLP: "Consumer Staples"
+    XLE: "Energy"
+    XLF: "Financials"
+    XLV: "Health Care"
+    XLI: "Industrials"
+    XLB: "Materials"
+    XLRE: "Real Estate"
+    XLU: "Utilities"
+  industry_etfs:
+    SMH: "Semiconductors"
+    XBI: "Biotech"
+    KRE: "Regional Banks"
+    ITA: "Aerospace & Defense"
+  offensive_sectors: ["XLK", "XLY", "XLC"]
+  defensive_sectors: ["XLP", "XLU", "XLV"]
+
+# Stocks screened every session, with the ETF used for "relative strength vs sector".
+# Focus: AI / semiconductors / high growth / high beta, plus leveraged ETFs. Low-volatility large caps
+# are deliberately left out, and ``universe_filter`` below removes anything that becomes too calm,
+# too small or too thin each day. Survivorship bias: this is TODAY's list.
+universe:
+  # AI semiconductors / hardware / networking
+  NVDA: SMH
+  AMD: SMH
+  AVGO: SMH
+  MU: SMH
+  ARM: SMH
+  MRVL: SMH
+  TSM: SMH
+  INTC: SMH
+  LRCX: SMH
+  AMAT: SMH
+  KLAC: SMH
+  "ON": SMH          # quoted: YAML would read ON as the boolean true
+  MPWR: SMH
+  ALAB: SMH
+  CRDO: SMH
+  COHR: SMH
+  AAOI: SMH
+  SNDK: SMH
+  WDC: XLK
+  STX: XLK
+  LITE: XLK
+  CIEN: XLK
+  ANET: XLK
+  DELL: XLK
+  SMCI: XLK
+  CLS: XLK
+  VRT: XLI
+  # AI infrastructure / cloud / data centres
+  NBIS: XLK
+  CRWV: XLK
+  IREN: XLK
+  ORCL: XLK
+  # AI software / high-growth software
+  PLTR: XLK
+  APP: XLK
+  CRWD: XLK
+  NET: XLK
+  SNOW: XLK
+  DDOG: XLK
+  MDB: XLK
+  SHOP: XLK
+  TTD: XLK
+  AI: XLK
+  SOUN: XLK
+  # quantum computing
+  IONQ: XLK
+  RGTI: XLK
+  QBTS: XLK
+  # crypto / fintech (high beta)
+  MSTR: XLK
+  COIN: XLF
+  HOOD: XLF
+  SOFI: XLF
+  AFRM: XLF
+  UPST: XLF
+  MARA: XLK
+  RIOT: XLK
+  CLSK: XLK
+  # high-beta consumer / internet
+  TSLA: XLY
+  CVNA: XLY
+  RIVN: XLY
+  META: XLC
+  RDDT: XLC
+  ASTS: XLC
+  # health-care growth
+  HIMS: XLV
+  TEM: XLV
+  # AI power / nuclear / energy tech
+  VST: XLU
+  CEG: XLU
+  OKLO: XLU
+  SMR: XLI
+  BE: XLI
+  GEV: XLI
+  # space / defence tech / eVTOL
+  RKLB: ITA
+  KTOS: ITA
+  AVAV: ITA
+  ACHR: ITA
+  JOBY: ITA
+  # leveraged ETFs (exempt from the market-cap rule; no fundamentals / earnings)
+  SOXL: SMH
+  TQQQ: XLK
+  NVDL: SMH
+  TSLL: XLY
+  LABU: XBI
+
+leveraged_etfs: [SOXL, TQQQ, NVDL, TSLL, LABU]
+
+# Daily focus filter: a stock is shown only if it passes EVERY rule (reasons for exclusion are listed
+# on the Data page and in the report). Set enabled: false to show the whole universe.
+universe_filter:
+  enabled: true
+  beta_window: 120          # sessions for beta vs SPY
+  min_beta: 1.3             # 120-session beta vs SPY
+  min_hv60: 0.35            # 60-session annualised volatility (0.35 = 35%)
+  min_market_cap: 2000000000   # USD; leveraged ETFs are exempt
+  market_cap_refresh_days: 7   # market caps are cached and refreshed weekly
+
+# Automatic universe expansion (config/universe_auto.yaml, rebuilt every refresh_days or with
+# `python daily_run.py --rebuild-universe`): every US stock passing the universe_filter rules below,
+# ranked by dollar volume, added after the core list above until max_size names.
+universe_builder:
+  enabled: true
+  max_size: 500
+  refresh_days: 30
+  min_avg_shares: 500000      # coarse screener pass before the real dollar-volume rule
+
+liquidity:
+  min_price: 5.0                   # USD; below this the stock is excluded
+  min_avg_dollar_volume: 100000000  # 20-day average of close x volume, USD (100M)
+  good_avg_dollar_volume: 2000000000
+
+scanner:
+  shortlist_size: 40          # candidates (half per direction) that get the deep dive (>= 2 x final_list_size)
+  final_list_size: 20         # candidates shown in the daily report per direction
+  horizons: [3, 5, 7, 10]     # trading days for forward statistics
+  plan_horizon_days: 7        # time stop of the standard swing plan
+  min_reward_risk: 1.5        # T1 / stop distance below this -> "poor reward/risk" penalty
+  max_stop_atr: 3.0           # structural stop further than this is capped and flagged
+  min_stop_atr: 1.0           # stop never tighter than 1 ATR (daily noise)
+  extension_atr: 3.0          # close more than N ATR above EMA21 = extended
+  event_window_days: 7        # earnings within this many sessions = event risk for the swing
+  slippage_bps: 10            # per side, used in the historical setup simulation
+
+# Weights of the transparent composite score (sum = 100). Each component is a
+# 0-100 sub-score; the composite is the weighted average minus penalties.
+weights:
+  trend: 20
+  momentum: 15
+  relative_strength: 15
+  volume: 10
+  setup_quality: 15
+  reward_risk: 10
+  liquidity: 5
+  regime_alignment: 10
+
+penalties:          # points subtracted from the composite (0-100 scale)
+  earnings_in_window: 15
+  extended: 10
+  overbought_extreme: 5
+  dilution_filing: 10
+  financial_distress: 10
+  poor_reward_risk: 10
+  wide_stop: 5
+  data_quality: 10
+  options_event_premium: 5
+
+tiers:              # composite score -> research priority tier
+  A: 75
+  B: 62
+  C: 50
+
+calendar:
+  extra_closures: {}   # e.g. {"2026-12-31": "Unscheduled closure"}
