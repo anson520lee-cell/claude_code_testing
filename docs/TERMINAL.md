@@ -33,6 +33,30 @@ python serve.py              # dashboard at http://127.0.0.1:8000
 Outputs per session: `reports/daily/<YYYY-MM-DD>/report.html` (printable), `report.md`, `data.json`
 (everything the dashboard shows). All history accumulates in `data/stock_research.db`.
 
+### macOS: one-click app in the Dock
+
+Everything runs on your own Mac (the dashboard is a local web page, `http://127.0.0.1:8000`).
+One-time setup in Terminal (needs Python 3.10+; macOS's built-in `python3` may be older - install from
+python.org or `brew install python@3.12`):
+
+```bash
+git clone https://github.com/anson520lee-cell/claude_code_testing.git ~/swing-terminal
+```
+
+```bash
+cd ~/swing-terminal && bash scripts/install_mac.sh
+```
+
+The installer creates `.venv`, installs the dependencies, asks for your SEC contact (saved in `.env`,
+never committed), builds `~/Applications/Swing Terminal.app`, optionally adds it to the Dock, optionally
+installs an hourly background job (`launchd`, runs the analysis once per new US session) and runs the
+first data download.
+
+Clicking **Swing Terminal** in the Dock starts the dashboard server if needed, starts a background data
+update when a newer session has closed (the page shows progress and refreshes when done) and opens
+the browser. `bash scripts/stop_terminal.sh` stops the server. Logs: `data/server.log`, `data/daily_run.log`.
+Only one analysis can run at a time (file lock), whichever of Dock, button or schedule starts it.
+
 ### Scheduling (after the close)
 
 The run identifies the latest *completed* session itself (NYSE calendar incl. holidays, early

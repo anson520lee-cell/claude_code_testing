@@ -20,6 +20,7 @@ import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -51,6 +52,31 @@ class DailyRunError(Exception):
     pass
 
 
+class RunInProgressError(DailyRunError):
+    """Another daily run (cron / launchd job, dashboard button, Dock launcher) holds the lock."""
+
+
+@contextmanager
+def run_lock(lock_dir: Path):
+    """Exclusive, non-blocking file lock so two runs never write the database at the same time.
+    The OS releases it automatically if the process dies. (No-op where fcntl is unavailable.)"""
+    try:
+        import fcntl
+    except ImportError:  # Windows
+        yield
+        return
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    with open(lock_dir / ".daily_run.lock", "w") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise RunInProgressError("Another daily run is already in progress.") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def _load_macro() -> list[dict[str, Any]]:
     if not MACRO_PATH.exists():
         return []
@@ -61,6 +87,11 @@ def _load_macro() -> list[dict[str, Any]]:
 def run_daily(settings: dict[str, Any], now: datetime | None = None, session: date | None = None,
               offline: bool = False, downloader: Any = None, enrichment: Any = None, fred_getter: Any = None,
               skip_deep: bool = False, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+    with run_lock(path(settings, "database").parent):
+        return _run_daily(settings, now, session, offline, downloader, enrichment, fred_getter, skip_deep, progress)
+
+
+def _run_daily(settings, now, session, offline, downloader, enrichment, fred_getter, skip_deep, progress):
     say = progress or (lambda msg: logger.info(msg))
     t0 = time.time()
     warnings: list[str] = []

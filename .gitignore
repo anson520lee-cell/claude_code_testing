@@ -19,3 +19,7 @@ reports/daily/
 .DS_Store
 .idea/
 .vscode/
+
+# Local secrets (SEC_USER_AGENT) and launcher state
+.env
+data/server.pid

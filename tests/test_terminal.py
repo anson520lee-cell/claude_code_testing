@@ -551,3 +551,27 @@ def test_web_api(tsettings):
     assert "Composite" in client.get("/api/methodology").json()["regime"] or client.get("/api/methodology").status_code == 200
     assert client.get("/reports/2026-10-30/report.html").status_code == 200
     assert client.get("/api/snapshot?session=1999-01-01").status_code == 404
+
+
+def test_run_lock_blocks_concurrent_runs(tsettings, tmp_path):
+    from src.daily.pipeline import RunInProgressError, run_daily, run_lock
+    from src.daily.settings import path
+    with run_lock(path(tsettings, "database").parent):
+        with pytest.raises(RunInProgressError):
+            run_daily(tsettings, session=SESSION, downloader=FakeDownloader({}), skip_deep=True, progress=lambda m: None)
+    with run_lock(path(tsettings, "database").parent):  # released after the block
+        pass
+
+
+def test_api_run_if_new_skips_when_current(tsettings, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from src.daily.pipeline import run_daily
+    from src.web.app import create_app
+    run_daily(tsettings, session=SESSION, downloader=FakeDownloader(market_frames(tsettings)), skip_deep=True,
+              fred_getter=fake_fred, progress=lambda m: None)
+    monkeypatch.setattr("src.web.app.calendar.latest_completed_session", lambda **kw: SESSION)
+    client = TestClient(create_app(tsettings))
+    body = client.post("/api/run?if_new=true").json()
+    assert body["started"] is False and "up to date" in body["reason"]
+    assert client.get("/api/run/status").json()["running"] is False

@@ -35,6 +35,7 @@ from fastapi.staticfiles import StaticFiles
 from src.daily import store
 from src.daily.settings import load_terminal_settings, path
 from src.database import db
+from src.market import calendar
 from src.market import regime as regime_module
 from src.scanner import backtest as backtest_module
 from src.scanner import plan as plan_module
@@ -211,8 +212,32 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
     def api_run_status() -> dict[str, Any]:
         return run_state
 
+    def already_current() -> str | None:
+        """Reason to skip an ``if_new`` run: the latest completed session is already reported,
+        or a run finished in the last 30 minutes (the provider may not have published yet)."""
+        target = calendar.latest_completed_session(settle_minutes=settings["data"].get("settle_minutes", 30))
+        if target.isoformat() in sessions():
+            return f"Session {target} is already up to date."
+        if db_path.exists():
+            conn = sqlite3.connect(db_path)
+            try:
+                row = conn.execute("SELECT MAX(finished_at) FROM terminal_runs WHERE status LIKE 'success%'").fetchone()
+            except sqlite3.OperationalError:
+                row = None
+            finally:
+                conn.close()
+            if row and row[0]:
+                finished = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
+                if (datetime.now(timezone.utc) - finished).total_seconds() < 1800:
+                    return "A run finished less than 30 minutes ago."
+        return None
+
     @app.post("/api/run")
-    def api_run(skip_deep: bool = False, offline: bool = False) -> dict[str, Any]:
+    def api_run(skip_deep: bool = False, offline: bool = False, if_new: bool = False) -> dict[str, Any]:
+        if if_new:
+            reason = already_current()
+            if reason:
+                return {"started": False, "reason": reason}
         with lock:
             if run_state["running"]:
                 raise HTTPException(409, "A run is already in progress.")

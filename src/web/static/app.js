@@ -71,11 +71,16 @@ async function boot() {
   applyTheme(localStorageGet("theme") || "dark");
   try {
     const { sessions } = await api("/api/sessions");
+    const run = await api("/api/run/status");
+    if (run.running) watchRun(true);
     const sel = $("#session");
     sel.innerHTML = sessions.map((s) => `<option>${s}</option>`).join("");
     if (!sessions.length) {
-      app.innerHTML = `<div class="card empty"><h2>No data yet</h2><p>Run <code>python daily_run.py</code> or press <b>Run</b> above.
-        The first run downloads ~2 years of history for the universe (a few minutes).</p></div>`;
+      app.innerHTML = run.running
+        ? `<div class="card empty"><h2>Downloading market data…</h2><p>The first run downloads ~2 years of history for the
+            universe and analyses it (2–4 minutes). This page opens the report automatically when it is ready.</p></div>`
+        : `<div class="card empty"><h2>No data yet</h2><p>Run <code>python daily_run.py</code> or press <b>Run</b> above.
+            The first run downloads ~2 years of history for the universe (a few minutes).</p></div>`;
       return;
     }
     state.session = sessions[0];
@@ -107,20 +112,28 @@ $("#theme-btn").onclick = () => { applyTheme(document.documentElement.dataset.th
 $("#jump").onsubmit = (e) => { e.preventDefault(); const v = $("#jump-input").value.trim().toUpperCase(); if (v) location.hash = `#/ticker/${v}`; };
 $("#run-btn").onclick = async () => {
   if (!confirm("Run the daily pipeline now? It downloads market data and takes a few minutes.")) return;
-  try { await api("/api/run", { method: "POST" }); pollRun(); } catch (err) { alert(err.message); }
+  try { await api("/api/run", { method: "POST" }); watchRun(false); } catch (err) { alert(err.message); }
 };
-async function pollRun() {
-  const btn = $("#run-btn");
-  const st = await api("/api/run/status");
-  btn.textContent = st.running ? `Running… ${st.log.length ? "(" + st.log[st.log.length - 1].slice(0, 40) + ")" : ""}` : "Run";
+// Poll a running pipeline. ``quiet``: started elsewhere (Dock launcher / schedule) - no alert, just refresh.
+async function watchRun(quiet) {
+  const btn = $("#run-btn"), banner = $("#banner");
+  let st;
+  try { st = await api("/api/run/status"); } catch (_) { setTimeout(() => watchRun(quiet), 5000); return; }
   btn.disabled = st.running;
-  if (st.running) { setTimeout(pollRun, 3000); return; }
-  if (st.status) {
-    alert(`Run finished: ${st.status}${st.message ? " - " + st.message : ""}`);
-    const { sessions } = await api("/api/sessions");
-    $("#session").innerHTML = sessions.map((s) => `<option>${s}</option>`).join("");
-    if (sessions.length) loadSession(sessions[0]);
+  btn.textContent = st.running ? "Updating…" : "Run";
+  if (st.running) {
+    banner.classList.remove("hidden");
+    banner.textContent = `Updating data: ${st.log.length ? st.log[st.log.length - 1] : "starting…"}`;
+    setTimeout(() => watchRun(quiet), 3000);
+    return;
   }
+  if (!quiet && st.status) alert(`Run finished: ${st.status}${st.message ? " - " + st.message : ""}`);
+  const { sessions } = await api("/api/sessions");
+  const sel = $("#session");
+  sel.innerHTML = sessions.map((x) => `<option>${x}</option>`).join("");
+  sel.onchange = () => loadSession(sel.value);
+  if (sessions.length) loadSession(sessions[0]);
+  else { banner.classList.remove("hidden"); banner.textContent = `Run ${st.status || "ended"}: ${st.message || ""}`; }
 }
 
 // ------------------------------------------------------------------ router

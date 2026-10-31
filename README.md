@@ -51,6 +51,7 @@ python daily_run.py        # analyse the latest completed session
 python serve.py            # dashboard at http://127.0.0.1:8000
 ```
 
+On a Mac, `bash scripts/install_mac.sh` sets everything up and adds a one-click **Swing Terminal** app to the Dock.
 Full guide, methodology and data caveats: [docs/TERMINAL.md](docs/TERMINAL.md).
 
 ## Contents
