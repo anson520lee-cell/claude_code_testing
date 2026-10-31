@@ -74,6 +74,7 @@ async function boot() {
   applyTheme(localStorageGet("theme") || "dark");
   state.scanMode = localStorageGet("scanMode") || "cards";
   try { I18N = await api("/api/i18n"); } catch (_) { I18N = {}; }
+  api("/api/backtest").then((b) => { state.btFull = b && b.available ? b : null; }).catch(() => { state.btFull = null; });
   try {
     const { sessions } = await api("/api/sessions");
     const run = await api("/api/run/status");
@@ -724,7 +725,26 @@ function planPanel(c) {
     <div><span>風險報酬比（目標一）</span><span class="num">${num(p.reward_risk, 2)}</span></div><div><span>每股風險</span><span class="num">${pct(p.risk_pct, 2, false)}</span></div>
     <div><span>結構止損</span><span class="num ${p.wide_stop ? "warn" : ""}">${num(p.structural_stop_atr, 1)} ATR${p.wide_stop ? "（已設上限）" : ""}</span></div>
     <div><span>${p.horizon_days} 日 1σ 波幅（HV20）</span><span class="num">±${num(p.expected_move_hv)}</span></div></div>
-    <p class="note">倉位大小由你決定。例子：以 10 萬美元帳戶承擔 0.5% 風險 = $500 ÷ ${num(Math.abs(p.entry - p.stop))} ≈ ${isNum(p.entry - p.stop) && p.entry !== p.stop ? Math.floor(500 / Math.abs(p.entry - p.stop)) : "n/a"} 股（再乘以市況倉位比例 ×${budget}）。</p></div>`;
+    <p class="note">倉位大小由你決定。例子：以 10 萬美元帳戶承擔 0.5% 風險 = $500 ÷ ${num(Math.abs(p.entry - p.stop))} ≈ ${isNum(p.entry - p.stop) && p.entry !== p.stop ? Math.floor(500 / Math.abs(p.entry - p.stop)) : "n/a"} 股（再乘以市況倉位比例 ×${budget}）。</p>
+    ${planBasis(c)}</div>`;
+}
+
+function planBasis(c) {
+  const p = c.plan, long = c.direction === "long", b = state.btFull;
+  let alt = "";
+  const ss = b && (b.selected_side || {})[c.direction];
+  if (ss && isNum(p.atr)) {
+    const k = ss.stop.startsWith("atr") ? Number(ss.stop.slice(3)) : null, sg = long ? 1 : -1;
+    const bl = (b.baseline || {})[`${c.direction}|${ss.stop}|${ss.target}|${ss.horizon}`];
+    const tgt = ss.target === "trail" ? `不設固定目標，用移動止損（${long ? "持倉期最高價 − 3 ATR" : "持倉期最低價 + 3 ATR"}，約 ${num(3 * p.atr)}）`
+      : ss.target.startsWith("r") ? `目標 ${ss.target.slice(1)}R ≈ ${k ? num(p.entry + sg * Number(ss.target.slice(1)) * k * p.atr) : "n/a"}` : esc(b.target_names[ss.target]);
+    alt = `<p class="${ss.oos.avg_r > 0 ? "" : "down"}"><b>回測較佳方案（${long ? "做多" : "做空"}）</b>：${k ? `止損 ${num(p.entry - sg * k * p.atr)}（${k} ATR）` : esc(b.stop_names[ss.stop])}；${tgt}；${ss.horizon} 日時間止損。
+      五年回測樣本外每筆 ${num(ss.oos.avg_r)}R（現行方案 ${num(b.live.oos.avg_r)}R）${bl ? `；同規則隨機進場 ${num(bl.baseline_oos.avg_r)}R` : ""}。${ss.oos.avg_r > 0 ? "" : "做空形態整體仍然虧損，只作迴避／對沖參考。"}
+      <a href="#/research">詳情見研究頁</a></p>`;
+  }
+  return `<div class="plan-basis"><div class="eyebrow">為什麼這樣設定</div>
+    ${p.stop_basis ? `<p><b>止損</b>：${esc(p.stop_basis)}</p>` : ""}${p.target_basis ? `<p><b>目標</b>：${esc(p.target_basis)}</p>` : ""}
+    <p class="note">依據：${esc(p.method || "結構位 + ATR 噪音下限 + 歷史阻力／支持")}。</p>${alt}</div>`;
 }
 
 function fundamentalsPanel(f) {
@@ -849,15 +869,209 @@ function catalysts() {
     analyst, { sortKey: "date" })}</div>`;
 }
 
+// ------------------------------------------------------------------ SL / TP validation backtest (python backtest.py)
+const BT_STOP_ORDER = ["structural", "atr1.0", "atr1.5", "atr2.0", "atr2.5", "atr3.0", "swing", "chip"];
+const BT_TGT_ORDER = ["resistance", "atr2", "atr3", "atr4", "r2", "r3", "chip", "trail"];
+const REGIMES = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
+state.bt = { side: "long", hz: 10, period: "oos" };
+const rv = (v, d = 2) => (isNum(v) ? `<span class="${cls(v)}">${v > 0 ? "+" : ""}${num(v, d)}R</span>` : '<span class="muted">—</span>');
+const tval = (v) => (isNum(v) ? `<span class="${Math.abs(v) >= 2 ? (v > 0 ? "up" : "down") : "muted"}">${num(v, 1)}</span>` : "—");
+
+function slTpExplainer(b) {
+  const live = b && b.available ? b.live : null, d = (b && b.diagnostics) || {};
+  const mae = d.winner_mae_atr || {}, mfe = d.mfe_r || {}, rr = d.rr_calibration || [];
+  const edge = !!live && live.oos.avg_r > 0.05 && live.oos.t_stat > 2, tight = (d.stopped_then_target || 0) > 0.2;
+  const below = rr.filter((r) => r.target_rate < r.breakeven).length;
+  const verdictLine = (txt, ok) => `<li><b class="tag ${ok ? "up" : "down"}">${ok ? "合格" : "問題"}</b>${txt}</li>`;
+  return `<section class="note-block bt-explain"><div class="note-head"><div><div class="eyebrow">止損 · 目標 · 時間止損</div>
+      <div class="hl">SL／TP 是怎樣定的？用了什麼，沒有用什麼</div></div></div>
+    <div class="grid g3 ruled">
+      <div><h3>止損 SL</h3><p>按<b>價格結構</b>定：每個形態都有一個「前提失效」的價位，例如突破形態用突破位（前 20 日高位）和突破當日低位兩者較低者，
+        回調形態用近 5 日低位和 EMA21 兩者較低者，再留 <b>0.25 ATR</b> 緩衝。</p>
+        <p>然後用 <b>ATR（14 日平均真實波幅）</b>限制距離：少於 1 ATR 會放寬到 1 ATR（避免被日常雜訊掃走），多於 3 ATR 會收窄到 3 ATR 並標示「止損過寬」。</p></div>
+      <div><h3>目標 TP</h3><p><b>目標一</b> = 上方最近、而且至少 0.75 ATR 以外的歷史高位（20 日、60 日、52 週高位，即前期阻力）；如果股價已在新高、上方沒有阻力，就用進場價 + 2 ATR。</p>
+        <p><b>目標二</b> = 目標一 + 1 ATR 與 2 倍風險兩者較遠者。做空形態全部反過來（用歷史低位作支持）。</p></div>
+      <div><h3>時間止損</h3><p>持倉 <b>7 個交易日</b>後，未到止損或目標就在收市出場：短線形態的動力通常在一至兩星期內消退。</p>
+        <p class="note">籌碼（成交量分佈）<b>沒有</b>用在現行 SL／TP，但回測把「籌碼密集區／價值區下沿止損」和「上方籌碼區／真空區頂部目標」當作替代方案測試（見下表）。
+        期權<b>沒有</b>用：沒有免費的歷史引伸波幅數據可以回測，期權預期波幅只在個股頁作參考。</p></div>
+    </div>
+    ${live ? `<h3>回測怎樣說這套 SL／TP？</h3><ul class="list verdict">
+      ${verdictLine(`整體 ${live.all.n.toLocaleString()} 筆：勝率 ${pct(live.all.win_rate, 0, false)}，平均 ${rv(live.all.avg_r)}；樣本外 ${rv(live.oos.avg_r)}（t ${tval(live.oos.t_stat)}）——${edge ? "<b>有統計上顯著的優勢</b>" : "<b>沒有可靠優勢</b>"}。`, edge)}
+      ${verdictLine(`止損${tight ? "可能太緊" : "不算太緊"}：被止損後仍然到達目標的有 ${pct(d.stopped_then_target, 0, false)}；最終達標的交易途中最大浮虧中位數 ${num(mae.p50)} ATR、90% 不超過 ${num(mae.p90)} ATR，而平均止損距離是 ${num(d.avg_risk_atr)} ATR。`, !tight)}
+      ${verdictLine(`目標${below === rr.length && rr.length ? "太遠：所有計劃 R:R 區間的實際達標率都低於打和所需" : `：${rr.length - below}／${rr.length} 個計劃 R:R 區間的達標率高於打和所需`}；交易最遠走到的盈利中位數是 ${num(mfe.p50)}R，${pct(mfe.ge2, 0, false)} 曾經到 2R。`, below < rr.length)}
+      ${verdictLine(`做多 ${rv(live.long.avg_r)}，做空 ${rv(live.short.avg_r)}：做空形態在這個高 Beta 股票池整體虧損。`, live.short.avg_r > 0)}
+    </ul>` : ""}
+  </section>`;
+}
+
+function btHeat(b) {
+  const v = state.bt, cell = {};
+  for (const g of b.grid) if (g.side === v.side && g.horizon === v.hz) cell[g.stop + "|" + g.target] = g[v.period];
+  const vals = Object.values(cell).map((x) => x && x.avg_r).filter(isNum), m = Math.max(0.05, ...vals.map(Math.abs));
+  const bg = (x) => (isNum(x) ? `background:color-mix(in srgb, var(${x > 0 ? "--up" : "--down"}) ${Math.round(8 + 52 * Math.min(1, Math.abs(x) / m))}%, transparent)` : "");
+  const head = BT_TGT_ORDER.map((t) => `<th class="n">${esc(b.target_names[t])}</th>`).join("");
+  const rows = BT_STOP_ORDER.map((s) => `<tr><th>${esc(b.stop_names[s])}</th>${BT_TGT_ORDER.map((t) => {
+    const c = cell[s + "|" + t] || {}, live = s === "structural" && t === "resistance" && v.hz === 7;
+    return `<td class="n ${live ? "live" : ""}" style="${bg(c.avg_r)}" title="${c.n || 0} 筆 · 勝率 ${pct(c.win_rate, 0, false)} · t ${num(c.t_stat, 1)}">${isNum(c.avg_r) ? (c.avg_r > 0 ? "+" : "") + num(c.avg_r) : "—"}</td>`;
+  }).join("")}</tr>`).join("");
+  const seg = (k, opts) => `<div class="seg" data-bt="${k}">${opts.map(([val, lab]) => `<button data-v="${val}" class="${String(v[k]) === String(val) ? "active" : ""}">${lab}</button>`).join("")}</div>`;
+  return `<div class="heat-ctl">${seg("side", [["long", "做多"], ["short", "做空"]])} ${seg("hz", [[5, "5 日"], [7, "7 日"], [10, "10 日"]])} ${seg("period", [["is", "樣本內"], ["oos", "樣本外"]])}</div>
+    <div class="tw"><table class="heat"><thead><tr><th>止損 ↓ ／ 目標 →</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">每格 = 平均每筆 R（1R = 止損距離）。滑鼠停在格上看筆數、勝率和 t 值。外框標示的是現行方案（結構止損 + 阻力目標 + 7 日）。</p>`;
+}
+
+function btBestTable(b, side) {
+  const base = b.baseline || {};
+  const rows = (b.best_is[side] || []).map((g, i) => {
+    const bl = base[`${side}|${g.stop}|${g.target}|${g.horizon}`];
+    return { rank: i + 1, ...g, bl_oos: bl ? bl.baseline_oos.avg_r : null, edge: bl ? bl.edge_oos : null };
+  });
+  const lv = b.grid.find((g) => g.side === side && g.stop === "structural" && g.target === "resistance" && g.horizon === 7);
+  if (lv) rows.push({ rank: "現行", ...lv, bl_oos: null, edge: null });
+  return table("bt-best-" + side, [
+    { key: "rank", label: "#", render: (r) => (r.rank === "現行" ? '<b class="warn">現行</b>' : r.rank) },
+    { key: "stop", label: "止損", render: (r) => esc(b.stop_names[r.stop]) }, { key: "target", label: "目標", render: (r) => esc(b.target_names[r.target]) },
+    { key: "horizon", label: "持倉", n: 1, render: (r) => r.horizon + " 日" },
+    { key: "is_r", label: "樣本內 R", n: 1, sort: (r) => r.is.avg_r, render: (r) => rv(r.is.avg_r) },
+    { key: "oos_r", label: "樣本外 R", n: 1, sort: (r) => r.oos.avg_r, render: (r) => rv(r.oos.avg_r) },
+    { key: "oos_w", label: "樣本外勝率", n: 1, sort: (r) => r.oos.win_rate, render: (r) => pct(r.oos.win_rate, 0, false) },
+    { key: "oos_pf", label: "盈虧比", n: 1, sort: (r) => r.oos.profit_factor, render: (r) => num(r.oos.profit_factor) },
+    { key: "oos_t", label: "t 值", n: 1, sort: (r) => r.oos.t_stat, render: (r) => tval(r.oos.t_stat) },
+    { key: "oos_n", label: "筆數", n: 1, sort: (r) => r.oos.n, render: (r) => (r.oos.n || 0).toLocaleString() },
+    { key: "bl_oos", label: "隨機進場（樣本外）", n: 1, render: (r) => rv(r.bl_oos) },
+    { key: "edge", label: "形態額外優勢", n: 1, render: (r) => rv(r.edge) }], rows);
+}
+
+function quarterBars(q, title) {
+  const ks = Object.keys(q || {}).sort(), vals = ks.map((k) => q[k]);
+  if (!ks.length) return "";
+  const W = 640, H = 130, m = Math.max(0.1, ...vals.filter(isNum).map(Math.abs)), bw = W / ks.length;
+  const y0 = H / 2, sc = (H / 2 - 14) / m;
+  const bars = ks.map((k, i) => {
+    const v = isNum(q[k]) ? q[k] : 0, h = Math.abs(v) * sc;
+    return `<rect x="${i * bw + 2}" y="${v > 0 ? y0 - h : y0}" width="${Math.max(1, bw - 4)}" height="${Math.max(0.5, h)}" fill="var(${v > 0 ? "--up" : "--down"})"><title>${k}：${num(v)}R</title></rect>`
+      + (i % 4 === 0 ? `<text x="${i * bw + 2}" y="${H - 1}" class="ax">${k.slice(0, 4)}</text>` : "");
+  }).join("");
+  return `<div class="qbars"><div class="eyebrow">${esc(title)}</div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(title)}">
+    <line x1="0" x2="${W}" y1="${y0}" y2="${y0}" stroke="var(--line3)"/>${bars}</svg></div>`;
+}
+
+function icTable(f, id) {
+  if (!f) return "";
+  const rows = f.factors.slice(0, 14);
+  const bar = (v) => `<span class="icbar ${v > 0 ? "pos" : "neg"}"><i style="width:${Math.min(100, Math.abs(v) / 0.12 * 100)}%"></i></span>`;
+  return table(id, [{ key: "name", label: "因子" },
+    { key: "ic_is", label: "樣本內 IC", n: 1, render: (r) => `${bar(r.ic_is)} <span class="${cls(r.ic_is)}">${num(r.ic_is, 3)}</span>` },
+    { key: "ic_oos", label: "樣本外 IC", n: 1, render: (r) => `${bar(r.ic_oos)} <span class="${cls(r.ic_oos)}">${num(r.ic_oos, 3)}</span>` },
+    { key: "stable", label: "方向一致", render: (r) => (r.stable ? '<span class="up">是</span>' : '<span class="muted">否</span>') }], rows);
+}
+
+function calibNote(f) {
+  const q = ((f || {}).calibrated || {}).oos_quintiles;
+  if (!q || q.length < 5) return "";
+  const r = q.map((x) => x.avg_r), mono = r.every((v, i) => i === 0 || v >= r[i - 1] - 0.01), spread = r[4] - r[0];
+  return `用樣本內 IC 加權重新組合的分數，在樣本外由低至高分五組：${r.map((v) => num(v)).join(" ／ ")} R。`
+    + (mono && spread > 0.05 ? "大致單調向上，代表這些因子有用，可以考慮調整評分權重。" : "並不單調，代表重新組合後的分數在樣本外站不住，所以暫時不改評分權重。");
+}
+
+function backtestSection(b) {
+  if (!b || !b.available) {
+    return `<section class="note-block"><div class="hl">SL／TP 回測驗證</div><p class="note">${esc((b && b.reason) || "沒有回測結果。")}</p>
+      <button id="bt-run" class="wide">重新回測</button> <span id="bt-status" class="note"></span></section>`;
+  }
+  const live = b.live, L = (b.selected_side || {}).long, S = (b.selected_side || {}).short, sc = b.score_calibration || {}, d = b.diagnostics || {};
+  const blL = L && (b.baseline || {})[`long|${L.stop}|${L.target}|${L.horizon}`];
+  const fx = b.factors || {};
+  return `<section class="note-block bt"><div class="note-head"><div><div class="eyebrow">${b.first} → ${b.last} · ${b.n_symbols} 檔 · ${b.n_signals.toLocaleString()} 個信號 · 樣本內至 ${b.cutoff}，之後為樣本外</div>
+      <div class="hl">SL／TP 回測驗證：現行止損目標準不準？</div></div>
+      <div class="meta">現行方案樣本外<b class="${cls(live.oos.avg_r)}">${num(live.oos.avg_r)}R</b>t ${num(live.oos.t_stat, 1)}</div></div>
+    <ul class="list verdict">${(b.verdict || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    <div class="grid g4 kpis">
+      <div class="kpi"><span class="l">現行方案勝率</span><span class="v">${pct(live.all.win_rate, 0, false)}</span><span class="note">平均 ${rv(live.all.avg_r)}</span></div>
+      <div class="kpi"><span class="l">做多最佳（樣本外）</span><span class="v ${cls(L && L.oos.avg_r)}">${L ? num(L.oos.avg_r) + "R" : "—"}</span><span class="note">${L ? esc(b.stop_names[L.stop] + " + " + b.target_names[L.target] + " + " + L.horizon + " 日") : ""}</span></div>
+      <div class="kpi"><span class="l">同規則隨機進場</span><span class="v ${cls(blL && blL.baseline_oos.avg_r)}">${blL ? num(blL.baseline_oos.avg_r) + "R" : "—"}</span><span class="note">形態額外優勢 ${blL ? rv(blL.edge_oos) : "—"}</span></div>
+      <div class="kpi"><span class="l">評分與結果相關</span><span class="v ${Math.abs(sc.spearman || 0) < 0.03 ? "muted" : cls(sc.spearman)}">${num(sc.spearman, 2)}</span><span class="note">等級相關係數（0 = 無預測力）</span></div>
+    </div>
+    <h3>止損 × 目標 熱圖</h3><div id="bt-heat">${btHeat(b)}</div>
+    <h3>做多：樣本內最佳 8 組，再看樣本外</h3>${btBestTable(b, "long")}
+    <h3>做空：樣本內最佳 8 組，再看樣本外</h3>${btBestTable(b, "short")}
+    ${S && S.oos.avg_r <= 0 ? `<p class="note down">做空最佳組合樣本外仍然 ${num(S.oos.avg_r)}R，只有 ${pct(S.positive_quarters, 0, false)} 季度為正：在這個高 Beta 股票池，做空形態目前只適合作迴避／對沖參考。</p>` : ""}
+    <p class="note">選法：只用樣本內（較早 60% 的日子）排名，樣本外（之後 40%）的數字從來沒有參與挑選，所以樣本外才是真正的驗證。「隨機進場」= 同一批股票每 5 個交易日進場一次、不看任何形態，用同一套出場規則；
+      如果隨機進場也賺，代表利潤主要來自市場趨勢和出場規則，而不是形態。</p>
+    <div class="grid g2">
+      <div><h3>計劃風險報酬比 vs 實際達標率</h3>${table("bt-rr", [{ key: "bucket", label: "計劃 R:R" }, { key: "n", label: "筆數", n: 1 },
+        { key: "target_rate", label: "實際達標", n: 1, render: (r) => pct(r.target_rate, 1, false) },
+        { key: "breakeven", label: "打和所需", n: 1, render: (r) => pct(r.breakeven, 0, false) },
+        { key: "ok", label: "", render: (r) => (r.target_rate >= r.breakeven ? '<span class="up">✓</span>' : '<span class="down">✗</span>') },
+        { key: "avg_r", label: "平均 R", n: 1, render: (r) => rv(r.avg_r) }], d.rr_calibration || [])}
+        <p class="note">計劃 R:R 越高，目標越遠，達標率就跌得越快；所以「R:R 高」並不代表交易更好。</p></div>
+      <div><h3>途中浮盈浮虧</h3><div class="kv">
+        <div><span>被止損後仍然到達目標</span><span class="num">${pct(d.stopped_then_target, 0, false)}</span></div>
+        <div><span>達標交易的最大浮虧（中位／75%／90%）</span><span class="num">${num((d.winner_mae_atr || {}).p50)} ／ ${num((d.winner_mae_atr || {}).p75)} ／ ${num((d.winner_mae_atr || {}).p90)} ATR</span></div>
+        <div><span>平均止損距離</span><span class="num">${num(d.avg_risk_atr)} ATR</span></div><div><span>平均目標距離</span><span class="num">${num(d.avg_reward_atr)} ATR</span></div>
+        <div><span>最大浮盈中位數（MFE）</span><span class="num">${num((d.mfe_r || {}).p50)}R</span></div>
+        <div><span>曾經到 1R ／ 2R ／ 3R</span><span class="num">${pct((d.mfe_r || {}).ge1, 0, false)} ／ ${pct((d.mfe_r || {}).ge2, 0, false)} ／ ${pct((d.mfe_r || {}).ge3, 0, false)}</span></div>
+        <div><span>時間止損出場時賺錢的比例</span><span class="num">${pct(d.time_exits_positive, 0, false)}</span></div></div></div>
+    </div>
+    <div class="grid g2">
+      <div><h3>現行評分分組</h3>${table("bt-sc", [{ key: "bucket", label: "分數分組" }, { key: "score_range", label: "分數" }, { key: "n", label: "筆數", n: 1 },
+        { key: "win_rate", label: "勝率", n: 1, render: (r) => pct(r.win_rate, 0, false) }, { key: "avg_r", label: "平均 R", n: 1, render: (r) => rv(r.avg_r) }], sc.quintiles || [])}
+        <h3>因子預測力（做多，與每筆 R 的等級相關）</h3>${icTable(fx.long, "bt-ic-l")}
+        <p class="note">IC 是因子與交易結果的等級相關係數：|IC| 0.02–0.05 屬弱、0.05 以上在短線交易已算有用。「方向一致」= 樣本內外正負號相同。
+          ${calibNote(fx.long)}</p></div>
+      <div><h3>因子預測力（做空）</h3>${icTable(fx.short, "bt-ic-s")}
+        <h3>按形態（現行方案）</h3>${table("bt-set", [{ key: "name", label: "形態" }, { key: "n", label: "筆數", n: 1 },
+          { key: "win_rate", label: "勝率", n: 1, render: (r) => pct(r.win_rate, 0, false) }, { key: "avg_r", label: "平均 R", n: 1, render: (r) => rv(r.avg_r) },
+          { key: "t_stat", label: "t 值", n: 1, render: (r) => tval(r.t_stat) },
+          { key: "best", label: "該形態樣本內最佳 → 樣本外", wrap: 1, render: (r) => { const x = ((b.best_by_setup[r.key] || {}).best || [])[0]; return x ? `${esc(b.stop_names[x.stop])} + ${esc(b.target_names[x.target])} + ${x.horizon} 日：${rv(x.is.avg_r)} → ${rv(x.oos.avg_r)}` : "—"; } }],
+          Object.entries(b.by_setup).map(([k, v]) => ({ key: k, ...v })), { sortKey: "avg_r" })}</div>
+    </div>
+    <h3>按市況（現行方案，平均 R）</h3>${table("bt-reg", [{ key: "side", label: "方向" }, ...REGIMES.map((r) => ({ key: r, label: tr(r), n: 1, sort: (x) => (x[r] || {}).avg_r,
+      render: (x) => (x[r] && x[r].n ? `${rv(x[r].avg_r)} <span class="muted">(${x[r].n})</span>` : '<span class="muted">—</span>') }))],
+      [["long", "做多"], ["short", "做空"]].map(([k, lab]) => ({ side: lab, ...Object.fromEntries(REGIMES.map((r) => [r, (b.by_regime_side || {})[`${r}|${k}`]])) })))}
+    <div class="grid g2">${quarterBars(Object.fromEntries(Object.entries(b.by_quarter || {}).map(([k, v]) => [k, v.avg_r])), "每季平均 R：現行方案")}
+      ${L ? quarterBars(L.quarters, `每季平均 R：做多最佳（${b.stop_names[L.stop]} + ${b.target_names[L.target]} + ${L.horizon} 日）`) : ""}</div>
+    <p class="note">${esc(b.survivorship_note || "")} 其他限制：只用日線（同一根 K 線同時碰到止損和目標時當作止損）、每邊滑點 ${b.slippage_bps} 基點、未計佣金和借券成本、同日多個相關股票的信號會重疊。
+      生成於 ${esc(b.generated_at || "")}，用時 ${b.elapsed_seconds} 秒。 <button id="bt-run">重新回測</button> <span id="bt-status"></span></p>
+  </section>`;
+}
+
+function wireBacktest(b) {
+  document.querySelectorAll(".seg[data-bt] button").forEach((btn) => btn.addEventListener("click", () => {
+    const k = btn.closest(".seg").dataset.bt;
+    state.bt[k] = k === "hz" ? Number(btn.dataset.v) : btn.dataset.v;
+    $("#bt-heat").innerHTML = btHeat(b);
+    wireBacktest(b);
+  }));
+  const run = $("#bt-run");
+  if (run && !run.dataset.wired) {
+    run.dataset.wired = 1;
+    if (window.__PREVIEW__) { run.disabled = true; run.title = "預覽版不能運行"; }
+    run.addEventListener("click", async () => {
+      try { await api("/api/backtest/run", { method: "POST" }); } catch (err) { $("#bt-status").textContent = err.message; return; }
+      const poll = async () => {
+        const st = await api("/api/backtest/status");
+        $("#bt-status").textContent = st.running ? `運行中… ${(st.log || []).slice(-1)[0] || ""}` : st.status === "success" ? "完成，重新載入…" : `失敗：${(st.log || []).slice(-1)[0] || ""}`;
+        if (st.running) setTimeout(poll, 3000); else if (st.status === "success") route();
+      };
+      poll();
+    });
+  }
+}
+
 // ------------------------------------------------------------------ views: research
 async function research() {
   const s = state.snap, bt = s.backtest;
+  let full = null;
+  try { full = await api("/api/backtest"); } catch (err) { full = { available: false, reason: err.message }; }
   const rows = Object.entries(bt.by_setup || {}).map(([k, v]) => ({ key: k, name: s.setup_names[k] || tr(k), ...v })).filter((r) => r.n);
   const regimes = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
   app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">${bt.first_signal || ""} → ${bt.last_signal || ""} / <b>${bt.n_trades} 筆模擬交易</b></div><h1 class="display">研究 <em>research</em></h1>
-    <p>每個形態的交易計劃在歷史數據上的模擬結果：${bt.horizon_days} 個交易日時間止損，每邊滑點 ${bt.slippage_bps} 基點。</p></div></div>
-    <div class="card"><h2>形態歷史回測</h2>
+    <p>止損和目標是怎樣定的、在五年歷史上準不準、有沒有更好的設定；下面再列出每日報告附帶的形態回測和計算方法。</p></div></div>
+    ${slTpExplainer(full)}
+    ${backtestSection(full)}
+    <div class="card" style="margin-top:14px"><h2>形態歷史回測 <small>每日報告附帶 · ${bt.horizon_days} 日時間止損 · 滑點 ${bt.slippage_bps} 基點</small></h2>
     ${table("bt", [{ key: "name", label: "形態" }, { key: "n", label: "樣本", n: 1 }, { key: "win_rate", label: "勝率", n: 1, render: (r) => pct(r.win_rate, 0, false) },
       { key: "avg_r", label: "平均 R", n: 1, render: (r) => `<span class="${cls(r.avg_r)}">${num(r.avg_r)}</span>` }, { key: "median_r", label: "中位 R", n: 1, render: (r) => num(r.median_r) },
       { key: "profit_factor", label: "盈虧比", n: 1, render: (r) => num(r.profit_factor) }, { key: "hit_target_rate", label: "達目標一", n: 1, render: (r) => pct(r.hit_target_rate, 0, false) },
@@ -875,6 +1089,7 @@ async function research() {
       .map(([t, d]) => `<h3>${t}</h3><pre class="doc">${esc((d || "").trim())}</pre>`).join("")
       + `<h3>權重 · 扣分 · 級別（config/terminal.yaml）</h3><pre class="doc">${esc(JSON.stringify({ 權重: m.weights, 扣分: m.penalties, 級別: m.tiers }, null, 2))}</pre>`;
   } catch (err) { $("#meth").textContent = err.message; }
+  if (full && full.available) wireBacktest(full); else wireBacktest(null);
 }
 
 // ------------------------------------------------------------------ views: data quality

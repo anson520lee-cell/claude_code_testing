@@ -27,3 +27,6 @@ data/.daily_run.lock
 
 # Static preview build output (scripts/export_preview.py)
 preview/
+
+# SL / TP validation backtest output (python backtest.py; refreshed monthly by daily_run.py)
+reports/backtest/

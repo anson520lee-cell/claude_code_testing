@@ -32,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--session", help="analyse this session (YYYY-MM-DD) instead of the latest completed one")
     parser.add_argument("--offline", action="store_true", help="use stored data only (no downloads)")
     parser.add_argument("--skip-deep", action="store_true", help="skip fundamentals / options / positioning / catalysts")
+    parser.add_argument("--skip-backtest", action="store_true", help="do not refresh the monthly SL / TP validation backtest")
     parser.add_argument("--if-new", action="store_true", help="exit if the session was already processed successfully")
     parser.add_argument("--rebuild-universe", action="store_true",
                         help="rebuild config/universe_auto.yaml now (otherwise automatically every 30 days)")
@@ -90,7 +91,24 @@ def main(argv: list[str] | None = None) -> int:
     for w in result["warnings"]:
         print(f"提示：{w}")
     print(f"報告：{result['output_dir']}/report.html  ·  網頁介面：python serve.py")
+    if not (args.offline or args.skip_backtest) and backtest_stale(settings):
+        print("\nSL／TP 回測結果超過 30 日（或未有），重新回測（約 5 分鐘）…")
+        try:
+            import backtest
+            backtest.main([])
+        except Exception as exc:  # noqa: BLE001 - the daily report is already written
+            print(f"回測失敗（不影響每日報告）：{type(exc).__name__}: {exc}", file=sys.stderr)
     return 0
+
+
+def backtest_stale(settings: dict, max_age_days: int = 30) -> bool:
+    import json
+    latest = path(settings, "reports_dir").parent / "backtest" / "latest.json"
+    try:
+        session = date.fromisoformat(json.loads(latest.read_text())["session"])
+    except (OSError, ValueError, KeyError):
+        return True
+    return (date.today() - session).days > max_age_days
 
 
 if __name__ == "__main__":

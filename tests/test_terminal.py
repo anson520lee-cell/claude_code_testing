@@ -663,3 +663,76 @@ def test_level_reaction_counts_rejections():
     f = pd.DataFrame({"close": close, "high": close + 0.8, "low": close - 0.8}, index=idx)
     r = level_reaction(f, level, "L", horizon=2)
     assert r["n_below"] == 2 and r["rejected"] == 1.0
+
+
+# ======================================================================= SL / TP validation research
+def _sig_data(paths: list[list[tuple[float, float, float, float]]], long: bool = True) -> dict:
+    from src.backtest.research import H_MAX
+    rows, arrs = [], {k: [] for k in "OHLC"}
+    for i, p in enumerate(paths):
+        p = p + [p[-1]] * (H_MAX - len(p))
+        for k, j in zip("OHLC", range(4)):
+            arrs[k].append([bar[j] for bar in p])
+        rows.append({"symbol": f"S{i}", "setup": "breakout" if long else "breakdown", "long": long, "date": pd.Timestamp("2025-01-02") + pd.Timedelta(days=i),
+                     "ref": 100.0, "atr": 2.0, "structural": 97.0 if long else 103.0, "resistance": 104.0 if long else 96.0, "planned_rr": 1.33,
+                     "swing": np.nan, "chip_stop": np.nan, "chip_target": np.nan, "regime": "Bullish", "score": 50.0, "tier": "B",
+                     "conditional": False, "hv20": 0.5})
+    return {"signals": pd.DataFrame(rows), **{k: np.array(v, dtype=float) for k, v in arrs.items()}}
+
+
+def test_research_simulation_stop_target_and_trail():
+    from src.backtest.research import simulate
+    data = _sig_data([
+        [(100, 101, 99, 100), (100, 100.5, 96.5, 97)],                                  # stop 1.5 ATR = 97 on day 2
+        [(100, 101, 99.5, 100.5), (101, 102, 100, 101.5), (102, 106.5, 101.5, 106)],    # 2R target = 106 on day 3
+        [(100, 101, 99, 100), (100, 102, 96, 101)],                                     # falls through the stop on day 2
+    ])
+    t = simulate(data, "atr1.5", "r2", 10, 0.0)
+    assert list(t["outcome"]) == ["stop", "target", "stop"]
+    assert t["r"].iloc[0] == pytest.approx(-1.0) and t["r"].iloc[1] == pytest.approx(2.0)
+    # trailing stop: rally to 112 then fall; the chandelier (highest high - 3 ATR = 106) locks in +6
+    up = [(100, 101, 99.5, 100.5), (101, 106, 100.5, 105), (105, 112, 104.5, 111), (111, 111.5, 105.5, 106)]
+    tt = simulate(_sig_data([up]), "atr1.5", "trail", 10, 0.0)
+    assert tt["outcome"].iloc[0] == "stop" and tt["r"].iloc[0] == pytest.approx(6 / 3)
+    # winners' heat is reported as a positive number of ATRs
+    from src.backtest.research import diagnostics
+    d = diagnostics(simulate(data, "atr1.5", "r2", 10, 0.0))
+    assert d["winner_mae_atr"]["p50"] >= 0
+
+
+def test_research_end_to_end_with_baseline():
+    from src.backtest.research import collect_baseline, collect_signals, run_research
+    s = load_terminal_settings()
+    spy = bars(700, seed=99)["adj_close"]
+    features, setups = {}, {}
+    for i in range(4):
+        f = build_features(bars(700, seed=10 + i, vol=0.03, drift=0.001), spy, None)
+        features[f"T{i}"], setups[f"T{i}"] = f, detect_setups(f)
+    data = collect_signals(features, setups, s)
+    assert len(data["signals"]) > 50 and data["O"].shape[1] == 10
+    assert any(c.startswith("c_") for c in data["signals"].columns) and "x_rsi14" in data["signals"].columns
+    base = collect_baseline(features, step=10)
+    assert set(base["signals"]["long"]) == {True, False}
+    res = run_research(data, s, baseline=base)
+    assert res["available"] and res["verdict"] and res["live"]["oos"]["n"] > 0
+    assert len(res["grid"]) == 8 * 8 * 3 * 3
+    assert "long" in res["factors"] and res["baseline"]
+    key = next(k for k in res["baseline"] if not k.startswith("_"))
+    assert {"baseline_oos", "edge_oos"} <= set(res["baseline"][key])
+
+
+def test_backtest_api(tsettings, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from src.web.app import create_app
+    client = TestClient(create_app(tsettings))
+    assert client.get("/api/backtest").json()["available"] is False
+    out = Path(tsettings["paths"]["reports_dir"]).parent / "backtest"
+    (out / "2026-10-30").mkdir(parents=True)
+    g = {"n": 10, "avg_r": 0.1, "win_rate": 0.5, "t_stat": 1.0, "median_r": 0.0}
+    (out / "2026-10-30" / "backtest.json").write_text(json.dumps({"available": True, "method": "x",
+        "grid": [{"stop": "atr1.5", "target": "trail", "horizon": 10, "side": "long", "is": g, "oos": g}]}))
+    (out / "latest.json").write_text(json.dumps({"session": "2026-10-30"}))
+    b = client.get("/api/backtest").json()
+    assert b["available"] and "method" not in b and "median_r" not in b["grid"][0]["is"]
+    assert client.get("/api/backtest/status").json()["running"] is False

@@ -223,6 +223,38 @@ a strong bull market) most long setups were close to break-even in R after slipp
 lost money — the terminal reports this as is. Treat the statistics as a sanity check of the rules,
 not as expected performance.
 
+### 7b. SL / TP validation backtest (`python backtest.py`)
+
+A separate, deeper study of whether the stops and targets themselves are any good
+(`src/backtest/research.py`, results on the dashboard's Research page, refreshed monthly by
+`daily_run.py`, or on demand with the "重新回測" button / `python backtest.py`). It downloads 5 years
+of daily bars once.
+
+* **Signals**: every setup episode (first active day) over the focus universe, with the live plan, the
+  live score and its components, and ~20 raw indicators recorded at the signal date.
+* **Grid**: 8 stops (live structural, 1.0-3.0 ATR, last swing, volume-profile node) x 8 targets (live
+  resistance, 2-4 ATR, 2R, 3R, volume-profile node / vacuum top, 3-ATR chandelier trail) x 3 time stops
+  (5 / 7 / 10 sessions), long and short.
+* **Walk-forward honesty**: everything is chosen on the first 60% of signal dates (in-sample) and judged
+  on the last 40% (out-of-sample), which never takes part in the selection.
+* **Random-entry baseline**: the same exit rules applied to an entry every 5th session of every stock,
+  with no setup. *Setup edge = setup result - baseline result*. If the baseline also makes money, the
+  profit comes from market drift / the exit rule, not from the setups.
+* **Accuracy diagnostics** of the live plan: outcome rates, "stopped then reached the target anyway",
+  heat (MAE) taken by eventual winners, MFE in R, planned R:R vs actual hit rate vs break-even, score
+  quintiles, per setup / regime x direction / quarter.
+* **Factor study**: Spearman IC of each score component and raw indicator with the trade's R, in- and
+  out-of-sample, plus an IC-weighted score fitted in-sample and checked out-of-sample by quintile.
+* Options cannot be back-tested (no free historical implied volatility); survivorship bias applies.
+
+First result (2021-2026, 233 stocks, 54k signals): the live plan has no out-of-sample edge (+0.00R,
+t 0.2); targets are too far (every planned-R:R bucket hits below break-even); stops are not too tight
+(7% stopped-then-target). The best long exit was 1.5 ATR stop + 3-ATR trail + 10 days (+0.17R OOS), but
+random entries with the same exit earn +0.14R, so the setups add only ~+0.03R. Short setups lose in
+this high-beta universe (best combination -0.05R OOS). The score has no predictive power
+(Spearman -0.03); the planned-R:R component is *negatively* related to outcomes. The live plan is not
+changed automatically - the dashboard shows the backtest's preferred plan next to every candidate.
+
 ---
 
 ## 8. Dashboard

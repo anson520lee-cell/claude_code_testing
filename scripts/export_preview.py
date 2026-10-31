@@ -45,6 +45,8 @@ def main() -> None:
         "/api/runs": get("/api/runs"),
         "/api/regime/history": get("/api/regime/history"),
         "/api/run/status": {"running": False, "status": None, "log": []},
+        "/api/backtest": get("/api/backtest"),
+        "/api/backtest/status": {"running": False, "status": None, "log": []},
         "/api/minicharts": get(f"/api/minicharts?days=60&session={session}&symbols={','.join(cands)}"),
     }
     for sym in cands:

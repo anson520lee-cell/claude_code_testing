@@ -129,3 +129,15 @@
     40 deep dives, ~2 minutes; candidate indicators / plan / score re-computed independently from stored prices: 0 mismatches.
   - Known limitation in this environment: SEC EDGAR needs SEC_USER_AGENT (name + email); without it the run falls back
     to Yahoo statements and reports the missing SEC filing checks.
+* SL / TP validation backtest (2026-10-31):
+  - `backtest.py` + `src/backtest/research.py`: 5 years, 233 focus stocks, 54,086 signals; 8 stops x 8 targets x 3 time
+    stops, long / short; in-sample (first 60% of dates) selection, out-of-sample judgement; random-entry baseline with
+    the same exits; live-plan accuracy diagnostics; factor IC study and an in-sample-fitted score checked out-of-sample.
+  - Research page: "SL／TP 是怎樣定的" explainer, verdicts, stop x target heat map (side / horizon / period toggles),
+    best combinations with baseline and setup edge, R:R calibration, MAE / MFE, score quintiles, factor IC, by setup /
+    regime / quarter, re-run button (`/api/backtest`, `/api/backtest/run`). Every plan now states why its stop and
+    targets sit where they do (`stop_basis` / `target_basis`) and shows the backtest's preferred alternative.
+  - Findings: live plan +0.00R out-of-sample (no edge); targets too far; stops not too tight; best long exit
+    (1.5 ATR + 3-ATR trail, 10 days) +0.17R OOS but random entries earn +0.14R with the same exit; short setups lose;
+    score has no predictive power. The live plan is unchanged pending the user's decision.
+  - 264 tests pass.

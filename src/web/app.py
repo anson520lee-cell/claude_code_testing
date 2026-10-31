@@ -10,6 +10,8 @@ Endpoints (JSON unless noted):
     GET  /api/candidate-history/{symbol}   past appearances in the candidate lists
     GET  /api/options-history/{symbol}     stored ATM IV snapshots
     GET  /api/methodology           the documented rules (module docstrings)
+    GET  /api/backtest              latest SL / TP validation backtest (python backtest.py)
+    GET  /api/backtest/status, POST /api/backtest/run   re-run that backtest in the background
     GET  /api/run/status, POST /api/run    run the daily pipeline in the background
     GET  /reports/{session}/report.html    the printable report
 
@@ -282,6 +284,55 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         from src.i18n.zh import METHODOLOGY
         return {**METHODOLOGY,
                 "weights": settings["weights"], "penalties": settings["penalties"], "tiers": settings["tiers"]}
+
+    backtest_dir = reports_dir.parent / "backtest"
+    bt_state: dict[str, Any] = {"running": False, "started_at": None, "finished_at": None, "status": None, "log": []}
+
+    @app.get("/api/backtest")
+    def api_backtest() -> dict[str, Any]:
+        latest = backtest_dir / "latest.json"
+        if not latest.exists():
+            return {"available": False, "reason": "還沒有回測結果：請按「重新回測」或在終端機執行 python backtest.py。"}
+        session = json.loads(latest.read_text())["session"]
+        f = backtest_dir / session / "backtest.json"
+        if not f.exists():
+            return {"available": False, "reason": f"找不到 {session} 的回測檔案。"}
+        res = json.loads(f.read_text(encoding="utf-8"))
+        keep = ("n", "win_rate", "avg_r", "t_stat", "profit_factor", "target_rate", "stop_rate", "avg_days")
+        res["grid"] = [{**{k: g[k] for k in ("stop", "target", "horizon", "side")},
+                        "is": {k: g["is"].get(k) for k in keep}, "oos": {k: g["oos"].get(k) for k in keep}} for g in res.get("grid", [])]
+        res.pop("method", None)
+        return res
+
+    @app.get("/api/backtest/status")
+    def api_backtest_status() -> dict[str, Any]:
+        return {k: (v[-30:] if k == "log" else v) for k, v in bt_state.items()}
+
+    @app.post("/api/backtest/run")
+    def api_backtest_run() -> dict[str, Any]:
+        import subprocess
+        import sys
+        with lock:
+            if bt_state["running"]:
+                raise HTTPException(409, "回測正在運行。")
+            bt_state.update(running=True, started_at=datetime.now(timezone.utc).isoformat(), finished_at=None, status="running", log=[])
+
+        def work() -> None:
+            root = Path(__file__).resolve().parents[2]
+            try:
+                proc = subprocess.Popen([sys.executable, "backtest.py"], cwd=root, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True, bufsize=1)
+                for line in proc.stdout or []:
+                    bt_state["log"].append(line.rstrip())
+                bt_state["status"] = "success" if proc.wait() == 0 else "failed"
+            except Exception as exc:  # noqa: BLE001
+                bt_state.update(status="failed")
+                bt_state["log"].append(f"{type(exc).__name__}: {exc}")
+            finally:
+                bt_state.update(running=False, finished_at=datetime.now(timezone.utc).isoformat())
+
+        threading.Thread(target=work, daemon=True).start()
+        return {"started": True}
 
     @app.get("/api/run/status")
     def api_run_status() -> dict[str, Any]:
