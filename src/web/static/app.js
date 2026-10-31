@@ -26,6 +26,7 @@ const tier = (t) => `<span class="tier tier-${esc(t)}">${esc(t === "Watch" ? "�
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 async function api(path, opts) {
+  if (window.__PREVIEW__) return window.__PREVIEW__(path, opts);   // static preview build (scripts/export_preview.py)
   const r = await fetch(path, opts);
   if (!r.ok) {
     let msg = `${r.status}`;
@@ -113,6 +114,7 @@ function applyTheme(t) { document.documentElement.dataset.theme = t; localStorag
 $("#theme-btn").onclick = () => { applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); route(); };
 $("#jump").onsubmit = (e) => { e.preventDefault(); const v = $("#jump-input").value.trim().toUpperCase(); if (v) location.hash = `#/ticker/${v}`; };
 $("#run-btn").onclick = async () => {
+  if (window.__PREVIEW__) { const b = $("#banner"); b.classList.remove("hidden"); b.textContent = "這是預覽版，只能瀏覽 2026-10-30 的分析結果，不能更新數據。在 Mac 上用 Dock 的 Swing Terminal 才可以更新。"; return; }
   if (!confirm("現在運行每日分析？會下載市場數據，需時數分鐘。")) return;
   try { await api("/api/run", { method: "POST" }); watchRun(false); } catch (err) { alert(err.message); }
 };

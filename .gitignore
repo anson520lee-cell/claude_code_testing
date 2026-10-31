@@ -24,3 +24,6 @@ reports/daily/
 .env
 data/server.pid
 data/.daily_run.lock
+
+# Static preview build output (scripts/export_preview.py)
+preview/
