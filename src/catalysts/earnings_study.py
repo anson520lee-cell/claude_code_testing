@@ -96,7 +96,7 @@ def implied_earnings_move(chains: list[dict[str, Any]] | None, spot: float, reac
                "move_pct": (cm + pm) / spot, "days": int(c["days"]), "method": "straddle"}
         gap = calendar.trading_days_between(reaction, date.fromisoformat(str(c["expiry"])))
         before = [b for b in chains if date.fromisoformat(str(b["expiry"])) < reaction and b["days"] >= 2]
-        if gap > 2 and before:
+        if c["days"] > 3 and before:
             # isolate the event: total variance to the post-earnings expiry minus the "normal" variance
             # implied by the last pre-earnings expiry; expected absolute move = sqrt(2/pi) x event sigma
             try:
@@ -145,11 +145,11 @@ def earnings_study(dates: pd.DataFrame | None, prices: pd.DataFrame, session: da
         ratio = imp["move_pct"] / out["median_abs_move"] if out["median_abs_move"] else None
         out["implied_vs_history"] = ratio
         if imp["method"] == "event_variance":
-            extra = (f"（{imp['expiry']} 到期的跨式為 ±{imp['straddle_pct'] * 100:.1f}%，但比財報晚 {imp['expiry_gap_sessions']} 個交易日；"
+            extra = (f"（{imp['expiry']} 到期的跨式為 ±{imp['straddle_pct'] * 100:.1f}%，覆蓋 {imp['days']} 個曆日；"
                      f"已扣除財報前到期日 {imp['expiry_before']} 引伸波幅 {imp['iv_before'] * 100:.0f}% 所代表的平日波動，只保留財報當日的部分）")
-        elif imp.get("expiry_gap_sessions", 0) > 2:
-            extra = (f"（期權到期日 {imp['expiry']} 比財報晚 {imp['expiry_gap_sessions']} 個交易日，又沒有財報前的到期日可作扣減，"
-                     "跨式價格包含財報以外的日子，隱含的財報波幅會被高估）")
+        elif imp.get("days", 0) > 5:
+            extra = (f"（{imp['expiry']} 到期的跨式覆蓋 {imp['days']} 個曆日，又沒有財報前的到期日可作扣減，"
+                     "包含財報以外的日子，隱含的財報波幅會被高估）")
         else:
             extra = ""
         out["note"] = (f"期權隱含財報波幅 ±{imp['move_pct'] * 100:.1f}%，過去 {len(hist)} 次財報實際波幅中位數 ±{out['median_abs_move'] * 100:.1f}%"
