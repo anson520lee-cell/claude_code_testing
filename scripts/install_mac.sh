@@ -41,11 +41,10 @@ echo "Using $PYTHON ($("$PYTHON" --version))"
 # 2. virtual environment + dependencies
 if [ ! -x .venv/bin/python ]; then "$PYTHON" -m venv .venv; fi
 echo
-echo "Installing dependencies (pandas, numpy, yfinance, FastAPI ...). This takes 1-5 minutes on the first run;"
-echo "progress is shown below."
-.venv/bin/python -m pip install --upgrade pip --progress-bar on 2>&1 | grep -E "^(Collecting|Successfully)" || true
-.venv/bin/python -m pip install -r requirements.txt --progress-bar on 2>&1 \
-  | grep --line-buffered -E "^(Collecting|Downloading|Installing|Successfully|ERROR)" || true
+echo "Installing dependencies (pandas, numpy, yfinance, FastAPI ... about 150 MB on the first run)."
+echo "On a slow connection this can take 10 minutes - the progress bars below keep moving while it downloads."
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -c "import pandas, numpy, yfinance, fastapi, uvicorn, matplotlib, yaml" \
   || { echo "Dependency installation failed - scroll up for the ERROR lines and re-run this script."; exit 1; }
 echo "Dependencies installed."
