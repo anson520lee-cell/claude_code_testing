@@ -85,11 +85,20 @@ def run_lock(lock_dir: Path):
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+LAB_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "strategy_lab.default.json"
+
+
 def load_strategy_lab(backtest_dir: Path) -> dict[str, Any] | None:
-    """The newest strategy_lab.json (chosen exits per setup, adopted indicator model), or None."""
+    """The newest strategy_lab.json (chosen exits per setup, adopted indicator model). Until this machine has run
+    the lab itself (monthly), the copy shipped with the code (config/strategy_lab.default.json) is used."""
     try:
         files = sorted(backtest_dir.glob("*/strategy_lab.json"))
-        return json.loads(files[-1].read_text(encoding="utf-8")) if files else None
+        if files:
+            return json.loads(files[-1].read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    try:
+        return json.loads(LAB_DEFAULT.read_text(encoding="utf-8")) if LAB_DEFAULT.exists() else None
     except (OSError, ValueError):
         return None
 

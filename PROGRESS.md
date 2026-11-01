@@ -166,3 +166,7 @@
     every run; alert / journal symbols stopped updating after leaving the universe; duplicate headlines.
   - Added: yfinance self-upgrade when downloads fail broadly, daily journal / alert export with `--restore-user-data`,
     delisted-symbol warning, bundled chart library. See docs/TERMINAL.md section 10.
+* Strategy lab (2026-11-01): exits per setup and all 183 indicators tested walk-forward on 34,195 setup trades + 21,328
+  random entries. New exits (1.5 ATR stop + 3-ATR trailing stop, 20 sessions; squeeze 2 ATR + 3R) raise the
+  out-of-sample result from +0.05R to about +0.29R per trade; no indicator model passed (score buckets earn the same),
+  so ranking uses each setup's tested edge over random entries. See docs/TERMINAL.md 7e.

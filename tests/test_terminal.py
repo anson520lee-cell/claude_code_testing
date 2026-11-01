@@ -1510,3 +1510,13 @@ def test_setup_bonus_from_strategy_lab_edge():
                                    "baseline_is": {"n": 3000, "avg_r": 0.20}, "baseline_oos": {"n": 2000, "avg_r": 0.20}}}}
     bonus, src = backtest_setup_bonus({"by_setup": {"_": {}}, "session": "2026-10-30", "lab": lab}, cfg)
     assert src.startswith("strategy lab") and bonus["breakout"] == 12.0 and bonus["momentum"] == -1.8
+
+
+def test_strategy_lab_default_copy_is_used_until_a_local_run(tmp_path):
+    from src.daily.pipeline import LAB_DEFAULT, load_strategy_lab
+    shipped = load_strategy_lab(tmp_path / "none")
+    assert LAB_DEFAULT.exists() and shipped["shipped_default"] and shipped["exits"]["chosen"]["all"]["horizon"]
+    local = tmp_path / "2026-12-01"
+    local.mkdir()
+    (local / "strategy_lab.json").write_text(json.dumps({"session": "2026-12-01", "exits": {"chosen": {}}}))
+    assert load_strategy_lab(tmp_path)["session"] == "2026-12-01"

@@ -653,7 +653,8 @@ function keyHTML(a, c) {
   const k = ss && ss.stop.startsWith("atr") ? Number(ss.stop.slice(3)) : null, sg = c && c.direction === "long" ? 1 : -1;
   return `<section class="key">
     ${crash ? `<div class="key-crash"><b>Crash rebound · counter-trend</b> The trend read below is bearish by design - this is a short bounce trade after a crash,
-      not a trend call. 5-year study: buying 0–2 days after such a crash beat random entries by ~+2.5% over 5 days; 2-ATR stop, quick 1.5-ATR target, 10-day time stop.</div>` : ""}
+      not a trend call. 5-year study: buying 0–2 days after such a crash beat random entries by ~+2.5% over 5 days.
+      Exit: ${p && p.exit_rule ? esc(p.exit_rule.name || "") : "2-ATR stop, 1.5-ATR target, 10-day time stop"}.</div>` : ""}
     ${a ? `<div class="key-head"><div class="key-bias ${biasClass(a.bias)}">${esc(a.bias)}<small>${a.bias_score > 0 ? "+" : ""}${a.bias_score.toFixed(0)} / 100 · confidence ${esc(a.confidence)}</small></div>
       <h2 class="key-hl">${esc(String(a.headline || "").replace(new RegExp("^" + a.bias + ":\\s*"), ""))}</h2></div>` : '<div class="key-head"><p class="note">Building the analyst call…</p></div>'}
     ${p ? `<div class="key-plan">

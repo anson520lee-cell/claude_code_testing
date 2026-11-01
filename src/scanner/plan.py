@@ -22,6 +22,11 @@ Long (short is the mirror image with lows <-> highs):
     Target 2 = max(Target 1 + 1 ATR, entry + 2 x risk).
     Reward/risk = (Target 1 - entry) / (entry - stop).
     Time stop = ``plan_horizon_days`` sessions (default 7): exit at that close.
+
+When the strategy lab has run (reports/backtest/<session>/strategy_lab.json), today's long plans use the exit it
+chose for the setup instead (``apply_exit_rule``): an ATR / swing stop, an ATR / R target or a trailing stop
+(highest high since entry - k ATR, no fixed target) and its time stop. The historical simulation above still
+uses the structural rules.
 """
 
 from __future__ import annotations
