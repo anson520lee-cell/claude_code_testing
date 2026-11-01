@@ -42,8 +42,10 @@ the Dock app at the PC). Phone: install the Tailscale app, sign in, open the add
 
 * `python serve.py --set-password` (Windows: `.venv\Scripts\python.exe serve.py --set-password`) asks for
   a password twice. Only a salted PBKDF2 hash is stored, in `data\auth.json` (git-ignored, never uploaded).
-* Each browser signs in once and stays signed in for 90 days (HttpOnly, SameSite=Lax cookie). Visit
-  `/logout` to sign out. Changing the password signs every device out.
+* The password is asked every time you open the dashboard in a new browser session: the login is a
+  session cookie (HttpOnly, SameSite=Lax, no expiry date), so closing the browser signs you out. It also
+  signs out after 30 minutes without activity and after 12 hours at most. Visit `/logout` to sign out
+  sooner. Changing the password signs every device out.
 * Five wrong passwords from one address lock it out for 15 minutes; 30 from all addresses together lock
   the login for everyone for 15 minutes (slows down guessing if the address is ever public).
 * Requests made on the PC itself straight to `http://127.0.0.1:8000` do not need the password (the
