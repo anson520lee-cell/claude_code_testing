@@ -1486,6 +1486,41 @@ function insiderSection(d) {
   </section>`;
 }
 
+function leverageSection(d) {
+  if (!d || !d.available || !d.trades) return "";
+  const r = (v) => `<span class="${cls(v)}">${isNum(v) ? (v > 0 ? "+" : "") + num(v) : "—"}</span>`;
+  const names = { crash_rebound: "Crash rebound", squeeze: "Squeeze", breakout: "Breakout" };
+  const stopRows = [];
+  for (const [k, t] of Object.entries(d.trades)) for (const x of t.stops || []) stopRows.push({ setup: names[k] || k, stop: x.stop, lab: x.stop === t.exit.stop,
+    s_is: x.stock.edge_is, s_oos: x.stock.edge_oos, s_t: x.stock.t_oos, m_t: (x.stock.matched_oos || {}).t, e_is: x.etf.edge_is, e_oos: x.etf.edge_oos, e_t: x.etf.t_oos,
+    gap: x.etf.gap_stop_rate, worst: x.etf.worst_r, pass: x.stock.passes || x.etf.passes });
+  const per = { full: "Whole period", in_sample: "In sample", out_of_sample: "Out of sample" };
+  const portRows = (set) => (d.portfolio[set] || []).filter((x) => x.period === "full" || x.period === "out_of_sample" || x.period === "in_sample")
+    .map((x) => ({ ...x, per: per[x.period] || x.period }));
+  const bench = (d.benchmarks || []).map((b) => `${esc(b.name)} (${esc(per[b.period] || b.period)}): ${pct(b.cagr)} a year, max drawdown ${pct(b.max_dd, 0)}`).join(" · ");
+  const pcols = [{ key: "code", label: "" }, { key: "label", label: "Variant" }, { key: "per", label: "Period" },
+    { key: "cagr", label: "CAGR", n: 1, render: (x) => `<span class="${cls(x.cagr)}">${pct(x.cagr, 0)}</span>` },
+    { key: "max_dd", label: "Max drawdown", n: 1, render: (x) => `<span class="down">${pct(x.max_dd, 0)}</span>` },
+    { key: "sharpe", label: "Sharpe", n: 1, render: (x) => num(x.sharpe) }, { key: "random_cagr", label: "Random, same days", n: 1, render: (x) => pct(x.random_cagr, 0) },
+    { key: "trades", label: "Trades", n: 1, render: (x) => num(x.trades, 0) }];
+  const v = d.validation_summary || {};
+  return `<section class="note-block"><div class="note-head"><div><div class="eyebrow">2x daily ETFs · tighter stops · ${d.n_stocks} stocks · ${esc(d.first)} → ${esc(d.last)} · in sample to ${esc(d.cutoff)}</div>
+      <div class="hl">Do 2x leveraged ETFs or tighter stops make the validated setups better?</div></div>
+      <div class="meta">ETF cost<b>${pct(d.cost_per_year, 0, false)}</b>a year (real ETFs)</div></div>
+    <ul class="list verdict">${(d.verdict || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    <h3 class="sub">Stop size, stock vs 2x ETF <small>edge = average R minus random entries with the same plan · a stop is in UNDERLYING ATR (the ETF's % stop is twice as wide)</small></h3>
+    ${table("levst", [{ key: "setup", label: "Setup" }, { key: "stop", label: "Stop (ATR)", n: 1, render: (x) => (x.lab ? `<b>${num(x.stop)}</b>` : num(x.stop)) },
+      { key: "s_is", label: "Stock edge IS", n: 1, render: (x) => r(x.s_is) }, { key: "s_oos", label: "Stock edge OOS", n: 1, render: (x) => r(x.s_oos) }, { key: "s_t", label: "t", n: 1, render: (x) => num(x.s_t, 1) },
+      { key: "m_t", label: "t vs same-day random", n: 1, render: (x) => num(x.m_t, 1) },
+      { key: "e_is", label: "2x edge IS", n: 1, render: (x) => r(x.e_is) }, { key: "e_oos", label: "2x edge OOS", n: 1, render: (x) => r(x.e_oos) }, { key: "e_t", label: "t", n: 1, render: (x) => num(x.e_t, 1) },
+      { key: "gap", label: "Stops gapped (2x)", n: 1, render: (x) => pct(x.gap, 0, false) }, { key: "worst", label: "Worst trade (2x)", n: 1, render: (x) => r(x.worst) },
+      { key: "pass", label: "Result", render: (x) => (x.pass ? '<b class="up">PASS</b>' : '<span class="muted">fail</span>') }], stopRows)}
+    <h3 class="sub">Account simulation: crash rebound only</h3>${table("levpc", pcols, portRows("crash_rebound"))}
+    <h3 class="sub">Account simulation: crash rebound + squeeze + breakout</h3>${table("levpa", pcols, portRows("all"))}
+    <p class="note">${esc(d.portfolio_note || "")} Benchmarks: ${bench}. Synthetic ETF = 2x each day's move from the previous close, compounded daily, minus ${pct(d.cost_per_year, 0, false)} a year; checked on ${v.n_etfs || 0} real 2x single-stock ETFs (daily correlation ${num(v.corr_median, 3)}). Only ${Object.entries(d.tradable || {}).map(([k, n]) => `${n}/${(d.n_signals || {})[k]} ${names[k] || k}`).join(", ")} signals were on stocks that have a real 2x ETF today, most launched in 2024-2025. ${esc(d.survivorship_note || "")}</p>
+  </section>`;
+}
+
 function regimeSplitTable(rs, names) {
   if (!rs || !rs.setups) return "";
   const r = (v) => `<span class="${cls(v)}">${isNum(v) ? (v > 0 ? "+" : "") + num(v) : "—"}</span>`;
@@ -1773,6 +1808,8 @@ async function research() {
   try { disc = await api("/api/discovery"); } catch (_) { disc = null; }
   let ins = null;
   try { ins = await api("/api/insider"); } catch (_) { ins = null; }
+  let lev = null;
+  try { lev = await api("/api/leverage"); } catch (_) { lev = null; }
   const rows = Object.entries(bt.by_setup || {}).map(([k, v]) => ({ key: k, name: s.setup_names[k] || tr(k), ...v })).filter((r) => r.n);
   const regimes = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
@@ -1781,6 +1818,7 @@ async function research() {
     ${labSection(lab)}
     ${discoverySection(disc)}
     ${insiderSection(ins)}
+    ${leverageSection(lev)}
     ${setupWeighting(s)}
     ${crashSection(crash)}
     ${slTpExplainer(full)}

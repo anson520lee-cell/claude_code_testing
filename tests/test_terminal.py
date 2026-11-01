@@ -1718,3 +1718,78 @@ def test_scale_in_shipped_copy():
     d = json.loads((Path(__file__).resolve().parents[1] / "config" / "scale_in.default.json").read_text())
     assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
     assert all(v["passed"] is False for v in d["setups"].values())
+
+
+# ---------------------------------------------------------------- 2x ETF + scaling-in study
+def _lev_data(n=400, seed=3):
+    """Hand-made forward paths for the leverage engine (no setups needed)."""
+    rng = np.random.default_rng(seed)
+    c0 = np.full(n, 100.0)
+    C = c0[:, None] * np.cumprod(1 + rng.normal(0.002, 0.03, (n, 20)), axis=1)
+    prev = np.concatenate([c0[:, None], C[:, :-1]], axis=1)
+    O = prev * (1 + rng.normal(0, 0.01, (n, 20)))
+    H = np.maximum(O, C) * (1 + np.abs(rng.normal(0, 0.01, (n, 20))))
+    L = np.minimum(O, C) * (1 - np.abs(rng.normal(0, 0.01, (n, 20))))
+    dates = pd.bdate_range("2023-01-02", periods=n)
+    sig = pd.DataFrame({"symbol": "AAA", "setup": np.where(np.arange(n) % 3 == 0, "crash_rebound", "baseline"), "date": dates,
+                        "c0": c0, "ref": c0, "atr": 3.0, "structural": c0 - 4.5, "conditional": False, "cal0": np.arange(n) + 1})
+    return {"signals": sig, "O": O, "H": H, "L": L, "C": C}, pd.bdate_range("2023-01-02", periods=n + 30)
+
+
+def test_leverage_engine_matches_research_simulate_for_one_entry():
+    from src.backtest import leverage as lv
+    from src.backtest.research import simulate
+    d, _ = _lev_data()
+    s = d["signals"].assign(long=True, swing=np.nan, regime=np.nan, score=np.nan, tier=np.nan, planned_rr=np.nan)
+    for stop, ek, ep, tm in ((1.5, "trail", 3.0, "trail3"), (2.0, "r", 3.0, "r3")):
+        old = simulate({"signals": s, **{k: d[k] for k in "OHLC"}}, f"atr{stop}", tm, 20, 0.001)
+        new = lv.simulate_plan(d, stop, ek, ep, 20, slip=0.001, sizing="actual", marks=True)
+        assert len(old) == len(new["trades"])
+        assert np.allclose(old["r"].to_numpy(), new["trades"]["r"].to_numpy(), atol=1e-9)
+        assert np.allclose(new["pnl"][:, -1], new["trades"]["r"].to_numpy())
+
+
+def test_synthetic_etf_is_twice_the_daily_move_and_risk_budget_holds():
+    from src.backtest import leverage as lv
+    d, _ = _lev_data(60)
+    e = lv.to_etf(d, 2.0)                                  # no cost: exact 2x of each day's close-to-close move
+    prev = np.concatenate([d["signals"]["c0"].to_numpy()[:, None], d["C"][:, :-1]], axis=1)
+    eprev = np.concatenate([d["signals"]["c0"].to_numpy()[:, None], e["C"][:, :-1]], axis=1)
+    assert np.allclose(e["C"] / eprev - 1, 2 * (d["C"] / prev - 1))
+    assert np.allclose(e["L"] / eprev - 1, 2 * (d["L"] / prev - 1))
+    assert np.allclose(e["signals"]["atr"], 6.0)
+    # volatility decay: up 10% then down 10% -> the 2x ETF loses more than 2x the stock
+    assert (1.2 * 0.8) - 1 < 2 * ((1.1 * 0.9) - 1)
+    # scaling in: whatever fills, the loss at the initial stop never exceeds the 1R budget (no gaps here)
+    calm = {**d, "O": d["C"] * 0 + 100.0, "H": d["C"] * 0 + 100.5, "L": d["C"] * 0 + 99.5, "C": d["C"] * 0 + 100.0}
+    t = lv.simulate_plan(calm, 0.1, "trail", 3.0, 20, [("now", 0, 0.5), ("down", 0.05, 0.5)], slip=0.0)["trades"]
+    assert (t["r"] >= -1.0 - 1e-9).all() and t["n_fills"].max() == 2
+
+
+def test_dip_add_never_fills_on_the_target_bar():
+    from src.backtest import leverage as lv
+    d, _ = _lev_data(1)
+    one = {"signals": d["signals"], "O": np.full((1, 20), 100.0), "H": np.full((1, 20), 100.5), "L": np.full((1, 20), 99.5),
+           "C": np.full((1, 20), 100.0)}
+    one["H"][0, 2], one["L"][0, 2] = 120.0, 98.0           # day 2 reaches the target AND the dip level
+    t = lv.simulate_plan(one, 1.0, "r", 2.0, 20, [("now", 0, 0.5), ("down", 0.5, 0.5)], slip=0.0)["trades"]
+    assert t["outcome"].iat[0] == "target" and t["n_fills"].iat[0] == 1   # the dip-buy could have come after the target
+
+
+def test_leverage_portfolio_and_study_small():
+    from src.backtest import leverage as lv
+    d, cal = _lev_data()
+    a = lv.simulate_plan(d, 1.5, "trail", 3.0, 20, slip=0.001, marks=True)
+    p = lv.portfolio(a["trades"], a["pnl"], a["cap"], cal, risk=0.01, max_positions=5)
+    assert p["taken"] > 0 and p["max_invested"] <= 1.0 + 1e-9 and np.isfinite(p["cagr"])
+    spy = pd.Series(np.linspace(100, 130, len(cal)), index=cal)
+    res = lv.run_study(d, cal, spy, cost=0.15, seeds=2, max_positions=5)
+    assert res["trades"]["crash_rebound"]["stops"] and res["scale"]["crash_rebound"]["rows"]
+    assert {r["code"] for r in res["portfolio"]["all"]} == set(lv.PORTFOLIO_VARIANTS)
+    assert res["verdict"] and res["benchmarks"]
+
+
+def test_shipped_leverage_study_loads(tmp_path):
+    from src.daily.pipeline import load_leverage
+    d = load_leverage(tmp_path)
+    assert d and d["trades"] and d["verdict"]

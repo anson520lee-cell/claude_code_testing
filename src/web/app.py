@@ -498,6 +498,11 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
         from src.daily.pipeline import load_discovery
         return load_discovery(backtest_dir) or {"available": False}
 
+    @app.get("/api/leverage")
+    def api_leverage() -> dict[str, Any]:
+        from src.daily.pipeline import load_leverage
+        return load_leverage(backtest_dir) or {"available": False}
+
     @app.get("/api/insider")
     def api_insider() -> dict[str, Any]:
         from src.daily.pipeline import load_insider
