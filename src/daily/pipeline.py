@@ -341,7 +341,8 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         row = f.iloc[-1]
         price, dv = float(row["close"]), float(row["dollar_volume20"]) if pd.notna(row["dollar_volume20"]) else 0.0
         allowed = set(sc.get("directions") or ["long", "short"])
-        names = [n for n in active_setups(setups[symbol].iloc[-1]) if SETUP_DIRECTION[n] in allowed]
+        enabled = set(sc.get("enabled_setups") or SETUP_DIRECTION)
+        names = [n for n in active_setups(setups[symbol].iloc[-1]) if SETUP_DIRECTION[n] in allowed and n in enabled]
         if not names:
             continue
         if price < liq["min_price"] or dv < liq["min_avg_dollar_volume"]:
