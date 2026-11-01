@@ -301,6 +301,26 @@ stock) is tested; choices are made on the first 60% of dates and judged on the l
 * Not testable: options positioning (no free option-chain history) and fundamentals over time. Survivorship bias
   applies (today's universe only).
 
+### 7f. Strategy discovery (`python discover.py`, refreshed monthly)
+
+Fourteen trading styles the terminal did not use, taken from published research and common practice (none designed on
+this data): RSI(2) pullbacks, closes at the day's low (internal bar strength), three lower closes, idiosyncratic dips vs
+the sector, VIX spikes and term-structure inversions, breadth washouts and thrusts, turn of the month, pre-holiday,
+post-event drift, gap-down reversals, 52-week-high breakouts and NR7 inside days. Same method as the strategy lab
+(exit chosen in sample, judged out of sample against random entries with the same exit); t-statistics are counted by
+signal date, and a style must beat random entries by >= 0.05R in AND out of sample with t >= 2.5.
+
+* **High-beta stocks (5 years):** none passed. The single-stock versions of the mean-reversion styles earn no more
+  than random entries; market-wide styles fire on too few days in 5 years to be judged.
+* **SPY since 1993 and QQQ since 1999 (out of sample from 2013):** on the index ETFs short-term mean reversion and the
+  turn of the month do hold - QQQ "close at the day's low" passed (+0.07R edge, 225 trades, t 3.9 - but not on SPY);
+  RSI(2) pullbacks beat random entries by about +0.2R on both ETFs in both periods but with only ~60 trades each; the
+  turn of the month earned a small, steady +0.06R (SPY positive in 24 of 33 years).
+* The Market page's **Index timing** card shows which of these fire at today's close on SPY / QQQ, with a plan and the
+  long-history result (passing styles and near passes with >= 0.05R edge in both periods and t >= 2).
+* Fact about these stocks: on average almost all of the return came overnight (close to open), not during the session.
+* The results of the 2026-10-30 run ship as `config/discovery.default.json`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the

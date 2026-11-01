@@ -79,6 +79,19 @@ def run_lock(lock_dir: Path):
 
 
 LAB_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "strategy_lab.default.json"
+DISCOVERY_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "discovery.default.json"
+
+
+def load_discovery(backtest_dir: Path) -> dict[str, Any] | None:
+    """The newest discovery.json (styles not used by the terminal, incl. the index study), else the shipped copy."""
+    for f in [*sorted(backtest_dir.glob("*/discovery.json"))[-1:], DISCOVERY_DEFAULT]:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            if d.get("index"):
+                return d
+        except (OSError, ValueError):
+            continue
+    return None
 
 
 def load_strategy_lab(backtest_dir: Path) -> dict[str, Any] | None:
@@ -230,6 +243,12 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     indices = regime.index_table(prices, [*settings["market"]["indices"], *settings["market"]["volatility"],
                                           *settings["market"]["credit_rates"]], index)
     macro_table = macro_mod.macro_table(prices, settings["market"].get("macro", {}), index)
+    try:
+        from src.backtest.discovery import index_timing_today
+        index_timing = index_timing_today(prices, load_discovery(path(settings, "reports_dir").parent / "backtest"))
+    except Exception as exc:  # noqa: BLE001 - context only
+        logger.warning("index timing failed: %s", exc)
+        index_timing = []
     breadth_ad = macro_mod.advance_decline(prices, usable_stocks, index)
     say(f"Market regime: {reg['label']} ({reg['composite']:+.0f})")
 
@@ -439,6 +458,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         "sectors": sectors,
         "indices": indices,
         "macro": macro_table,
+        "index_timing": index_timing,
         "advance_decline": breadth_ad,
         "industry_groups": groups,
         "portfolio": portfolio,
