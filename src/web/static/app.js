@@ -903,7 +903,7 @@ function candidatePanels(c, deep) {
     ${g ? `<p class="note">Industry group: <b>${esc(g.group)}</b>, RS rank ${g.rank} / ${g.of} ${g.rank_change ? ` (${g.rank_change > 0 ? "up" : "down"} ${Math.abs(g.rank_change)} in 5 days)` : ""}.</p>` : ""}
     <div class="grid g2"><div><h3 class="up">Supporting evidence</h3><ul class="list ev-pos">${c.supporting.map((x) => `<li>${esc(x)}</li>`).join("") || "<li class=muted>none</li>"}</ul></div>
     <div><h3 class="down">Contradicting evidence / risks</h3><ul class="list ev-neg">${c.contradicting.map((x) => `<li>${esc(x)}</li>`).join("") || "<li class=muted>none</li>"}</ul></div></div></div>
-    <div class="card"><h2>Score breakdown <small>raw ${num(c.raw_score, 1)} − penalties ${num(c.penalty_total, 0)}${c.setup_bonus ? ` ${c.setup_bonus > 0 ? "+" : "−"} setup weighting ${num(Math.abs(c.setup_bonus), 1)}` : ""} = ${num(c.score, 1)}</small></h2>${comps}<div style="margin-top:8px">Penalties: ${pens}</div>
+    <div class="card"><h2>Score breakdown <small>raw ${num(c.raw_score, 1)} − penalties ${num(c.penalty_total, 0)}${c.setup_bonus ? ` ${c.setup_bonus > 0 ? "+" : "−"} setup weighting ${num(Math.abs(c.setup_bonus), 1)}` : ""}${c.bonus_total ? ` + ${Object.keys(c.bonuses || {}).map(tr).join(", ")} ${num(c.bonus_total, 0)}` : ""} = ${num(c.score, 1)}</small></h2>${comps}<div style="margin-top:8px">Penalties: ${pens}</div>
     ${c.setup_bonus ? `<p class="note">Setup weighting comes from the backtest: each setup gets 150 points per R of its average result (capped −10 to +20)${(state.snap.setup_bonus || {}).source ? `, source: ${esc(state.snap.setup_bonus.source)}` : ""}.</p>` : ""}</div>
     <div class="card"><h2>Historical simulation of this setup <small>universe-wide, in-sample</small></h2><div class="tw"><table><thead><tr><th>Sample</th><th class="n">N</th><th class="n">Win</th><th class="n">Avg R</th><th class="n">T1 hit</th><th class="n">Stopped</th><th class="n">Days</th></tr></thead>
     <tbody>${hrow(h.setup, "All regimes")}${hrow(h.setup_in_regime, `In ${esc(h.regime)} regimes`)}</tbody></table></div>
@@ -1482,6 +1482,10 @@ function insiderSection(d) {
     ${table("insr", [{ key: "name", label: "Style" }, { key: "exit", label: "Exit" }, { key: "edge_is", label: "Edge in sample", n: 1, render: (x) => r(x.edge_is) },
       { key: "edge_oos", label: "Edge out of sample", n: 1, render: (x) => r(x.edge_oos) }, { key: "t_oos", label: "t (OOS)", n: 1, render: (x) => num(x.t_oos, 1) },
       { key: "n_oos", label: "Trades (OOS)", n: 1 }], rob)}` : ""}
+    ${(d.period_check || {}).rows ? `<h3 class="sub">Independent check: CEO / CFO buys on 2010–2019 filings <small>never used to design the study · ${d.period_check.passes ? '<b class="up">passes in both periods - live score bonus</b>' : "does not pass"}</small></h3>
+    ${table("inspc", [{ key: "period", label: "Period", render: (x) => (x.period === "before" ? `${esc((x.first || "").slice(0, 4))}–2019` : "2020 onwards") }, { key: "exit", label: "Exit" },
+      { key: "n", label: "Trades", n: 1 }, { key: "avg_r", label: "CEO / CFO buys", n: 1, render: (x) => r(x.avg_r) }, { key: "random_r", label: "Random entries", n: 1, render: (x) => r(x.random_r) },
+      { key: "edge", label: "Edge", n: 1, render: (x) => r(x.edge) }, { key: "t", label: "t (by date)", n: 1, render: (x) => num(x.t, 1) }], d.period_check.rows.map((x) => ({ ...x, exit: ex(x) })))}` : ""}
     <p class="note">Signal day = the Form 4 filing date (when the public could know), entry at the next open. Only open-market purchases (code P) by officers and directors worth ≥ $5,000; price ≥ $5 and ≥ $5M median daily dollar volume. Edge = average R minus random entries in the same stocks with the same exit. Delisted companies are missing, which flatters every style. Source: <a href="${esc(d.source || "")}" target="_blank" rel="noopener">SEC insider transactions data sets</a>.</p>
   </section>`;
 }

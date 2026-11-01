@@ -180,6 +180,37 @@ def robustness(data: dict[str, Any], cutoff: pd.Timestamp, slip: float) -> list[
     return out
 
 
+def period_check(data: dict[str, Any], slip: float, style: str = "ins_ceo_100k", split: str = "2020-01-01",
+                 main: tuple[str, str, int] = ("atr1.0", "trail3", 20)) -> dict[str, Any]:
+    """Independent check on another period: the style's edge over random entries before and after ``split`` with the
+    three fixed exits. Used to validate the 2020-2026 study on 2010-2019 filings, which played no part in designing
+    it. ``main`` = the exit the 2020-2026 study chose in sample. Passes (rule fixed before the check) if, with that
+    exit, the earlier period beats random entries by >= 0.05R with t >= 2.5, the later period by >= 0.05R, and every
+    fixed exit is positive in both periods."""
+    from src.backtest.research import simulate
+    sig = data["signals"]
+    cut = pd.Timestamp(split)
+    rows = []
+    for sm, tm, hz in ROBUST_EXITS:
+        for label, m in (("before", (sig["date"] < cut).to_numpy()), ("after", (sig["date"] >= cut).to_numpy())):
+            st = m & (sig["setup"] == style).to_numpy()
+            if st.sum() < 30:
+                continue
+            tr = simulate(dc._subset(data, st), sm, tm, hz, slip)
+            br = simulate(dc._subset(data, m & (sig["setup"] == "baseline").to_numpy()), sm, tm, hz, slip)
+            c = dc.clustered(tr)
+            rows.append({"period": label, "stop": sm, "target": tm, "horizon": hz, "n": c.get("n", 0), "avg_r": c.get("avg_r"),
+                         "random_r": float(br["r"].mean()), "edge": c.get("avg_r", np.nan) - float(br["r"].mean()),
+                         "t": c.get("t_clustered"), "first": tr["date"].min().strftime("%Y-%m-%d") if len(tr) else None,
+                         "last": tr["date"].max().strftime("%Y-%m-%d") if len(tr) else None})
+    edges = [r["edge"] for r in rows]
+    mr = {r["period"]: r for r in rows if (r["stop"], r["target"], r["horizon"]) == tuple(main)}
+    passes = bool(len(mr) == 2 and mr["before"]["edge"] >= 0.05 and (mr["before"]["t"] or 0) >= 2.5
+                  and mr["after"]["edge"] >= 0.05 and edges and min(edges) > 0)
+    return {"style": style, "split": split, "rows": rows, "passes": passes, "main_exit": list(main),
+            "edge_min": min((e for v in edges.values() for e in v), default=None)}
+
+
 def _f(x: Any, d: int = 2) -> str:
     return f"{x:+.{d}f}" if isinstance(x, (int, float)) and math.isfinite(x) else "n/a"
 
@@ -199,5 +230,14 @@ def verdict(res: dict[str, Any]) -> list[str]:
         out.append("Terminal universe only: " + "; ".join(f"{v['name']} edge {_f(v['edge_oos'])}R out of sample over "
                                                           f"{v['oos'].get('n', 0)} trades (t {_f(v['oos'].get('t_clustered'), 1)})"
                                                           for v in uni.values()) + " - too few to judge.")
+    pc = res.get("period_check")
+    if pc and pc.get("rows"):
+        bf = [r for r in pc["rows"] if r["period"] == "before"]
+        af = [r for r in pc["rows"] if r["period"] == "after"]
+        out.append(f"Independent check, {STYLE_NAMES.get(pc['style'], pc['style'])}: filings {bf[0]['first'][:4] if bf else '?'}-2019 "
+                   f"(never used to design the study) edge {', '.join(_f(r['edge']) + 'R' for r in bf)} "
+                   f"(t {', '.join(_f(r['t'], 1) for r in bf)}); 2020 onwards {', '.join(_f(r['edge']) + 'R' for r in af)} "
+                   f"(t {', '.join(_f(r['t'], 1) for r in af)}) with the three fixed exits - "
+                   f"{'PASSES in both periods: used live as a score bonus.' if pc['passes'] else 'does not pass in both periods.'}")
     out.append("Survivorship: companies delisted since are missing (no Yahoo history), which flatters every style.")
     return out
