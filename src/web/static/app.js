@@ -207,7 +207,7 @@ function renderTickerCharts(d, c, p = "c", bucket = undefined, big = 420, sub = 
   line(price, d.ema250, P.ema250, 1.4); line(price, d.ema200, P.ema200, 1.4); line(price, d.ema50, P.ema50, 1.4); line(price, d.ema21, P.ema21, 1.5); line(price, d.ema9, P.ema9, 1.5);
   const recent = new Set(d.markers.slice(-3).map((m) => m.time + m.setup));
   candles.setMarkers(d.markers.map((m) => ({ time: m.time, position: m.direction === "long" ? "belowBar" : "aboveBar", color: m.direction === "long" ? P.up : P.down, shape: m.direction === "long" ? "arrowUp" : "arrowDown", text: recent.has(m.time + m.setup) ? m.setup.replace("_", " ") : "" })));
-  if (d.volume_profile) { price.timeScale().applyOptions({ rightOffset: 9 }); vpOverlay(price, candles, $(`#${p}-price`), d.volume_profile); }
+  if (d.volume_profile) vpOverlay(price, candles, $(`#${p}-price`), d.volume_profile, $(`#${p}-chips`), d.candles.length ? d.candles[d.candles.length - 1].close : null);
   if (c) {
     const pl = (v, color, title, style = 0) => candles.createPriceLine({ price: v, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
     const pp = c.plan;
@@ -574,30 +574,50 @@ const fmtCN = (v) => (!isNum(v) ? "—" : Math.abs(v) >= 1e12 ? (v / 1e12).toFix
   : Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(2) + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(1) + "K" : num(v, 0));
 const clip = (t, n = 120) => { t = String(t || ""); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
 
-function vpOverlay(chart, series, el, vp) {
+function vpOverlay(chart, series, el, vp, panel, close) {
+  // chip distribution (120-session volume profile) in its own column right of the chart, drawn on the chart's
+  // price scale so every bar lines up with the candles; VAH / POC / VAL also get labels on the price axis
   if (!vp || !isNum(vp.poc)) return;
-  el.style.position = "relative";
-  const box = document.createElement("div");
-  box.className = "vp-strip";
-  box.innerHTML = `<i class="va"></i><i class="vah"></i><i class="poc"></i><i class="val"></i>`;
-  el.appendChild(box);
-  const [va, vah, poc, val] = box.querySelectorAll("i");
+  const bins = vp.bins || [];
+  const step = bins.length > 1 ? bins[1].price - bins[0].price : 0;
+  const maxV = Math.max(1, ...bins.map((b) => b.volume));
+  const P = PAL();
+  if (panel) {
+    panel.innerHTML = `<div class="chips-head"><b>Chips</b> ${vp.window || 120}d${isNum(vp.profit_ratio) ? ` · <span class="up">${pct(vp.profit_ratio, 0, false)}</span> in profit` : ""}</div>
+      <div class="chips-plot"><svg width="100%" height="100%"></svg></div>`;
+  }
+  const svg = panel && panel.querySelector("svg"), plot = panel && panel.querySelector(".chips-plot");
   const place = () => {
-    if (chart._gone) return;
+    if (chart._gone || !svg) return;
     const y = (p) => series.priceToCoordinate(p);
-    const yh = y(vp.vah), yl = y(vp.val), yp = y(vp.poc);
-    const w = el.clientWidth - chart.priceScale("right").width();
-    box.style.left = `${Math.max(0, w - 64)}px`;   // in the right-offset gap, clear of the price-line titles
-    const set = (node, top, h) => { if (top === null || !isFinite(top)) { node.style.display = "none"; return; } node.style.display = ""; node.style.top = `${top}px`; node.style.height = `${h}px`; };
-    if (yh !== null && yl !== null) set(va, Math.min(yh, yl), Math.max(2, Math.abs(yl - yh))); else va.style.display = "none";
-    set(vah, yh - 1, 2); set(val, yl - 1, 2); set(poc, yp - 1.5, 3);
+    const top = el.getBoundingClientRect().top - panel.getBoundingClientRect().top;
+    const h = el.clientHeight - chart.timeScale().height();
+    plot.style.top = `${top}px`; plot.style.height = `${Math.max(0, h)}px`;
+    const W = plot.clientWidth;
+    if (!W || !h) return;
+    const inVA = (pr) => pr >= vp.val && pr <= vp.vah;
+    let g = "";
+    for (const b of bins) {
+      const y0 = y(b.price + step / 2), y1 = y(b.price - step / 2);
+      if (y0 === null || y1 === null) continue;
+      const t = Math.min(y0, y1), bh = Math.max(1, Math.abs(y1 - y0) - 1);
+      if (t + bh < 0 || t > h) continue;
+      const w = Math.max(1, (b.volume / maxV) * (W - 4));
+      const poc = Math.abs(b.price - vp.poc) < step / 2;
+      const color = poc ? VPC.poc : (isNum(close) && b.price <= close ? P.up : P.down);
+      g += `<rect x="0" y="${t.toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="${color}" opacity="${poc ? 1 : inVA(b.price) ? 0.78 : 0.38}"/>`;
+    }
+    const lineAt = (pr, color) => { const yy = y(pr); return yy === null || yy < 0 || yy > h ? "" : `<line x1="0" x2="${W}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3 2"/>`; };
+    const yh = y(vp.vah), yl = y(vp.val);
+    const band = yh !== null && yl !== null ? `<rect x="0" y="${Math.min(yh, yl).toFixed(1)}" width="${W}" height="${Math.abs(yl - yh).toFixed(1)}" fill="${VPC.va}" opacity="0.18"/>` : "";
+    svg.innerHTML = band + g + lineAt(vp.vah, VPC.vah) + lineAt(vp.val, VPC.val) + (isNum(close) ? lineAt(close, P.neutral) : "");
   };
   const line = (price, color, title) => series.createPriceLine({ price, color, lineWidth: 1, lineStyle: 3, lineVisible: false, axisLabelVisible: true, title });
   line(vp.vah, VPC.vah, "VAH"); line(vp.poc, VPC.poc, "POC"); line(vp.val, VPC.val, "VAL");
   const tick = () => requestAnimationFrame(place);
   chart.timeScale().subscribeVisibleLogicalRangeChange(tick);
   chart.subscribeCrosshairMove(tick);
-  new ResizeObserver(tick).observe(el);
+  const ro = new ResizeObserver(tick); ro.observe(el); if (panel) ro.observe(panel);
   setTimeout(place, 60);
 }
 
@@ -730,8 +750,9 @@ function stockShell(sym, c, deep, opts = {}) {
         <button class="wide" data-act="full">Full page ↗</button><button data-act="close" aria-label="Close" title="Close (Esc)">✕</button></div>` : ""}</div>
     <div class="sv-top">
       <div class="sv-chart">${chartBlock(p, opts.big || 480)}
-        <div class="vp-legend"><span><i style="background:${VPC.va}"></i>Value area VA (70% of volume)</span><span><i style="background:${VPC.vah}"></i>VAH value-area high</span>
+        <div class="vp-legend"><span><i style="background:var(--up)"></i>Chips below price (in profit)</span><span><i style="background:var(--down)"></i>Chips above price (trapped)</span><span><i style="background:${VPC.va}"></i>Value area VA (70% of volume)</span><span><i style="background:${VPC.vah}"></i>VAH value-area high</span>
           <span><i style="background:${VPC.poc}"></i>POC most traded price</span><span><i style="background:${VPC.val}"></i>VAL value-area low</span><span id="${p}-vp-txt" class="muted"></span></div></div>
+      <div class="sv-chips" id="${p}-chips"></div>
       <aside class="sv-quote" id="${p}-quote"><p class="note">Loading quote…</p></aside>
     </div>
     <div id="${p}-key">${keyHTML(c && c.analyst, c)}</div>
