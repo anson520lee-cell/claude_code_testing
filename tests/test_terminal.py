@@ -1962,6 +1962,11 @@ def test_password_hash_and_cookie_token():
     assert not auth.is_direct_local("127.0.0.1", h(host="swing.tail1234.ts.net"))
     assert not auth.is_direct_local("127.0.0.1", h(host="127.0.0.1", tailscale_user_login="a@b.c"))
     assert not auth.is_direct_local("100.64.0.2", h(host="127.0.0.1:8000"))
+    assert auth.client_address("127.0.0.1", h(x_forwarded_for="1.2.3.4, 100.64.0.9")) == "100.64.0.9"
+    lock = auth.Lockout()
+    for i in range(auth.GLOBAL_MAX_FAILURES):
+        lock.fail(f"10.0.0.{i}", now=100)
+    assert lock.blocked("10.9.9.9", now=101) and not lock.blocked("10.9.9.9", now=100 + auth.LOCKOUT_SECONDS + 1)
 
 
 def test_dashboard_login_guard(tsettings):

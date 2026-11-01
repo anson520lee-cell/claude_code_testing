@@ -12,7 +12,8 @@ When the file exists every page and API call needs a valid login cookie, except:
     therefore must log in.
 
 The cookie is HttpOnly, SameSite=Lax (blocks cross-site form posts) and Secure when the request came over
-HTTPS. Five wrong passwords from one address within 15 minutes lock that address out for 15 minutes.
+HTTPS. Five wrong passwords from one address within 15 minutes lock that address out for 15 minutes; 30
+wrong passwords from all addresses together lock the login for everyone for 15 minutes.
 Changing or clearing the password signs every device out.
 """
 
@@ -38,7 +39,8 @@ SESSION_DAYS = 90
 ITERATIONS = 310_000
 MAX_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
-MIN_PASSWORD_LENGTH = 8
+MIN_PASSWORD_LENGTH = 6
+GLOBAL_MAX_FAILURES = 30          # all addresses together, per LOCKOUT_SECONDS
 PROXY_HEADERS = ("x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip",
                  "cf-connecting-ip", "tailscale-user-login", "tailscale-funnel-request")
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
@@ -139,7 +141,7 @@ def is_direct_local(client_host: str | None, headers: list[tuple[bytes, bytes]])
 def client_address(client_host: str | None, headers: list[tuple[bytes, bytes]]) -> str:
     forwarded = _header(headers, "x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()   # the entry the nearest proxy added (earlier ones are client-supplied)
     return client_host or "unknown"
 
 
@@ -165,7 +167,8 @@ class Lockout:
         with self.lock:
             recent = [t for t in self.failures.get(address, []) if now - t < LOCKOUT_SECONDS]
             self.failures[address] = recent
-            return len(recent) >= MAX_FAILURES
+            total = sum(1 for times in self.failures.values() for t in times if now - t < LOCKOUT_SECONDS)
+            return len(recent) >= MAX_FAILURES or total >= GLOBAL_MAX_FAILURES
 
     def fail(self, address: str, now: float | None = None) -> None:
         with self.lock:

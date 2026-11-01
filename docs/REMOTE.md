@@ -44,7 +44,8 @@ the Dock app at the PC). Phone: install the Tailscale app, sign in, open the add
   a password twice. Only a salted PBKDF2 hash is stored, in `data\auth.json` (git-ignored, never uploaded).
 * Each browser signs in once and stays signed in for 90 days (HttpOnly, SameSite=Lax cookie). Visit
   `/logout` to sign out. Changing the password signs every device out.
-* Five wrong passwords from one address lock it out for 15 minutes.
+* Five wrong passwords from one address lock it out for 15 minutes; 30 from all addresses together lock
+  the login for everyone for 15 minutes (slows down guessing if the address is ever public).
 * Requests made on the PC itself straight to `http://127.0.0.1:8000` do not need the password (the
   launcher uses this). Anything relayed by Tailscale Serve, Funnel or another proxy carries forwarding
   headers and must sign in.
