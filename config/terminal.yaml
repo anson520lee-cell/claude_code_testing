@@ -49,10 +49,10 @@ market:
     ITA: "Aerospace & Defense"
   # cross-asset context (shown on the market page; not part of the regime score)
   macro:
-    "DX-Y.NYB": "美元指數 DXY"
-    "CL=F": "WTI 原油"
-    "GC=F": "黃金"
-    "BTC-USD": "比特幣"
+    "DX-Y.NYB": "US Dollar Index"
+    "CL=F": "WTI crude"
+    "GC=F": "Gold"
+    "BTC-USD": "Bitcoin"
   offensive_sectors: ["XLK", "XLY", "XLC"]
   defensive_sectors: ["XLP", "XLU", "XLV"]
 

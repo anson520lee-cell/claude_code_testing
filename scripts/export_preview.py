@@ -70,16 +70,16 @@ window.__PREVIEW__ = async (path) => {
     const sym = decodeURIComponent(p.slice(13)).toUpperCase();
     const c = [...D["/api/snapshot"].candidates.long, ...D["/api/snapshot"].candidates.short].find((x) => x.symbol === sym);
     if (c && c.analyst) return { note: c.analyst };
-    throw new Error("預覽版只包含候選股的分析師報告");
+    throw new Error("The preview only includes analyst notes for candidates");
   }
-  if (p.startsWith("/api/chart/") && !(p in D)) throw new Error("預覽版只包含候選股的圖表");
+  if (p.startsWith("/api/chart/") && !(p in D)) throw new Error("The preview only includes charts for candidates");
   if (p.startsWith("/api/candidate-history/") && !(p in D)) return { history: [] };
   if (p in D) return D[p];
-  throw new Error("預覽版不提供此功能");
+  throw new Error("Not available in the preview");
 };
 """ % payload
-    html = f"""<title>Swing Terminal 預覽</title>
-<meta name="description" content="高 Beta 波段研究終端的唯讀預覽（{session}）">
+    html = f"""<title>Swing Terminal Preview</title>
+<meta name="description" content="Read-only preview of the high-beta swing research terminal ({session})">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Serif:ital@1&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>{css}

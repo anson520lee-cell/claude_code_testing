@@ -35,7 +35,6 @@ from src.daily.settings import all_symbols, path
 from src.data import market_data, quality
 from src.derivatives.options import analyze_chains
 from src.fundamentals.sec_fundamentals import analyze_fundamentals, facts_from_yahoo
-from src.i18n.zh import tr
 from src.market import calendar, regime
 from src.positioning.positioning import analyze_positioning
 from src.catalysts.earnings_study import earnings_study
@@ -53,8 +52,8 @@ from src.scanner.setups import SETUP_DIRECTION, SETUP_NAMES, active_setups, dete
 
 logger = logging.getLogger(__name__)
 MACRO_PATH = Path(__file__).resolve().parents[2] / "config" / "macro_events.yaml"
-DISCLAIMER = ("只供研究和決策參考，不構成投資建議，也不是交易信號。系統不會下單。"
-              "所有統計都是歷史及樣本內結果，市場會變。")
+DISCLAIMER = ("Research and decision-support output only - not investment advice, not a trade signal. "
+              "No orders are placed. All statistics are historical and in-sample; markets change.")
 
 
 class DailyRunError(Exception):
@@ -108,7 +107,7 @@ def _run_daily(settings, now, session, offline, downloader, enrichment, fred_get
     t0 = time.time()
     warnings: list[str] = []
     target = session or calendar.latest_completed_session(now, settings["data"].get("settle_minutes", 30))
-    say(f"目標交易日：{target}")
+    say(f"Target session: {target} ({target:%A})")
     conn = store.connect(path(settings, "database"), path(settings, "backups_dir"))
     run_id = store.start_run(conn, target)
     try:
@@ -125,7 +124,7 @@ def _run_daily(settings, now, session, offline, downloader, enrichment, fred_get
                          report_path=str(out_dir), warnings=warnings)
         result["status"] = status
         result["output_dir"] = str(out_dir)
-        say(f"完成，用時 {result['elapsed_seconds']} 秒 → {out_dir}")
+        say(f"Done in {result['elapsed_seconds']}s -> {out_dir}")
         return result
     except Exception as exc:
         store.finish_run(conn, run_id, "failed", error=f"{type(exc).__name__}: {exc}", warnings=warnings)
@@ -141,22 +140,22 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     sc = settings["scanner"]
 
     # 2. data update
-    say(f"更新 {len(symbols)} 個代號的價格{'（離線：略過）' if offline else ''}")
+    say(f"Updating prices for {len(symbols)} symbols{' (offline: skipped)' if offline else ''}")
     update = market_data.update_prices(conn, symbols, target, settings, downloader=downloader, offline=offline,
                                        progress=say)
     if update["failed"]:
-        warnings.append(f"{len(update['failed'])} 個代號沒有取得新數據：{', '.join(update['failed'][:15])}")
+        warnings.append(f"No fresh data for {len(update['failed'])} symbol(s): {', '.join(update['failed'][:15])}")
     if update["readjusted"]:
-        warnings.append(f"偵測到公司行動（拆股／派息），已重新下載歷史：{', '.join(update['readjusted'])}")
+        warnings.append(f"Corporate action detected (history re-downloaded): {', '.join(update['readjusted'])}")
     prices = market_data.load_universe_prices(conn, symbols, target)
 
     # provider check: has SPY published the target session?
     if not quality.provider_has_session(prices, "SPY", target):
         spy = prices.get("SPY")
         if spy is None or spy.empty:
-            raise DailyRunError("沒有 SPY 數據，無法分析市場（請檢查網絡連線）。")
+            raise DailyRunError("No SPY data - cannot analyse the market (check the internet connection).")
         latest = spy.index[-1].date()
-        warnings.append(f"數據商尚未發布 {target} 的數據，本次分析使用最新可用的交易日 {latest}。")
+        warnings.append(f"The provider has not published {target} yet; using the latest available session {latest}.")
         target = latest
         prices = {s: f[f.index <= pd.Timestamp(target)] for s, f in prices.items()}
 
@@ -169,15 +168,15 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     usable_stocks = [s for s in universe if status_by_symbol.get(s) != "excluded"]
     excluded = [r for r in q["symbols"] if r["status"] == "excluded"]
     if excluded:
-        warnings.append(f"{len(excluded)} 個代號因數據品質問題被排除："
+        warnings.append(f"{len(excluded)} symbol(s) excluded by data-quality checks: "
                         + ", ".join(r["symbol"] for r in excluded[:15]))
-    say(f"數據品質：正常 {q['counts']['ok']}，警告 {q['counts']['warning']}，排除 {q['counts']['excluded']}")
+    say(f"Data quality: {q['counts']}")
 
     # 4. regime
     yields = market_data.fetch_fred(settings["market"].get("yields_fred", []), target, getter=fred_getter) \
         if not offline else pd.DataFrame()
     if not offline and yields.empty:
-        warnings.append("無法取得國債收益率（FRED），市場狀態暫不計入利率一項。")
+        warnings.append("Treasury yields (FRED) unavailable - the rates component is excluded from the regime.")
     history = regime.compute_regime_history(prices, usable_stocks, settings, yields)
     reg = regime.summarize(history)
     store.save_regime(conn, history, list(regime.COMPONENT_WEIGHTS))
@@ -189,7 +188,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
                                           *settings["market"]["credit_rates"]], index)
     macro_table = macro_mod.macro_table(prices, settings["market"].get("macro", {}), index)
     breadth_ad = macro_mod.advance_decline(prices, usable_stocks, index)
-    say(f"市場狀態：{tr(reg['label'])}（{reg['composite']:+.0f}）")
+    say(f"Market regime: {reg['label']} ({reg['composite']:+.0f})")
 
     # 5. features, setups, history
     spy_close = prices["SPY"]["adj_close"]
@@ -202,7 +201,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             f = build_features(prices[symbol], spy_close, sector_close)
             features[symbol], setups[symbol] = f, detect_setups(f)
         except Exception as exc:  # noqa: BLE001
-            warnings.append(f"{symbol}：指標計算失敗（{type(exc).__name__}: {exc}）")
+            warnings.append(f"{symbol}: indicator calculation failed ({type(exc).__name__}: {exc})")
     # 5b. focus filter: high beta / high volatility / market cap / dollar volume
     uf_cfg = settings.get("universe_filter") or {}
     caps = (market_caps(list(features), path(settings, "cache_dir"), target,
@@ -212,21 +211,20 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     features = {s: features[s] for s in universe_filter["kept"]}
     setups = {s: setups[s] for s in universe_filter["kept"]}
     if not features:
-        raise DailyRunError("沒有股票通過高 Beta／高波動篩選，請檢查 config/terminal.yaml 的 universe_filter 設定。")
-    say(f"高 Beta／高波動篩選：保留 {len(features)} 檔，排除 {len(universe_filter['excluded'])} 檔")
+        raise DailyRunError("No stock passed the high-beta / high-volatility filter - check universe_filter in config/terminal.yaml.")
+    say(f"Focus filter: kept {len(features)}, excluded {len(universe_filter['excluded'])}")
     try:
         from src.market.universe_builder import load_auto
         seed = (load_auto() or {}).get("details") or {}
         inds = industries(list(features), path(settings, "cache_dir"), target, seed=seed, offline=offline)
     except Exception as exc:  # noqa: BLE001
         inds = {}
-        warnings.append(f"行業分類讀取失敗（{type(exc).__name__}），行業組排名改用板塊 ETF。")
-    from src.i18n.zh import industry_zh
+        warnings.append(f"Industry lookup failed ({type(exc).__name__}); industry groups fall back to sector ETFs.")
     lev = set(settings.get("leveraged_etfs") or [])
-    inds = {s: ("槓桿／反向 ETF" if s in lev else industry_zh(v)) for s, v in {**inds, **{x: None for x in lev if x in features}}.items()}
+    inds = {s: ("Leveraged / inverse ETFs" if s in lev else v) for s, v in {**inds, **{x: None for x in lev if x in features}}.items()}
     groups = macro_mod.industry_groups(features, inds, {s: universe[s] for s in features})
     group_of = macro_mod.group_lookup(groups)
-    say(f"已計算 {len(features)} 檔股票的指標，正在回測形態歷史")
+    say(f"Indicators computed for {len(features)} stocks; simulating setup history")
     bt = run_backtest(features, setups, sc, history["label"])
     trades_frame = bt.pop("trades_frame", None)
 
@@ -243,7 +241,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         if not names:
             continue
         if price < liq["min_price"] or dv < liq["min_avg_dollar_volume"]:
-            filtered.append({"symbol": symbol, "reason": f"流動性不足（股價 {price:.2f}，日均成交額 {dv / 1e6:.1f}M）"})
+            filtered.append({"symbol": symbol, "reason": f"illiquid (price {price:.2f}, $vol {dv / 1e6:.1f}M)"})
             continue
         best: dict[str, dict] = {}
         for name in names:
@@ -257,7 +255,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             if d not in best or cand["score"] > best[d]["score"]:
                 best[d] = cand
         candidates.extend(best.values())
-    say(f"第一階段：{len(candidates)} 個出現形態的候選")
+    say(f"Stage 1: {len(candidates)} (stock, direction) candidates with an active setup")
 
     # 7. stage 2
     per_side = max(1, int(sc["shortlist_size"]) // 2)
@@ -272,7 +270,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             enrichment = YahooSecEnrichment(settings["data"]["sec_user_agent"], path(settings, "cache_dir"), target,
                                             offline=offline)
         symbols_deep = list(dict.fromkeys(c["symbol"] for c in shortlist))
-        say(f"第二階段：深入分析 {len(symbols_deep)} 檔股票")
+        say(f"Stage 2: deep dive on {len(symbols_deep)} symbols")
         finra = getattr(enrichment, "finra", None)
         with ThreadPoolExecutor(max_workers=6) as pool:
             raws = dict(zip(symbols_deep, pool.map(enrichment.fetch, symbols_deep)))
@@ -282,7 +280,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             try:
                 ftd = load_ftd(sec, target)
             except Exception as exc:  # noqa: BLE001
-                warnings.append(f"SEC 交收失敗（FTD）數據讀取失敗：{type(exc).__name__}")
+                warnings.append(f"SEC fails-to-deliver data failed to load: {type(exc).__name__}")
         for symbol in symbols_deep:
             deep[symbol] = enrich(symbol, raws[symbol], features[symbol], target, settings, conn, finra, ftd)
         for c in shortlist:
@@ -290,13 +288,13 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             c["deep_dive"] = True
         sec_states = {d.get("sec_status") for d in deep.values()}
         if "not_configured" in sec_states:
-            warnings.append("未使用 SEC EDGAR：請在 .env 設定 SEC_USER_AGENT=\"你的名字 你的電郵\"（SEC 使用規定）。"
-                            "基本面暫用 Yahoo 數據，SEC 文件和股權稀釋檢查缺失。")
+            warnings.append("SEC EDGAR not used: set SEC_USER_AGENT=\"Your Name your@email\" (SEC fair-access policy). "
+                            "Yahoo statements; SEC filings / dilution checks are missing.")
         elif "blocked" in sec_states:
-            warnings.append("SEC EDGAR 拒絕了請求（HTTP 403），請檢查 SEC_USER_AGENT。"
-                            "基本面暫用 Yahoo 數據，SEC 文件和股權稀釋檢查缺失。")
+            warnings.append("SEC EDGAR refused requests (HTTP 403) - check SEC_USER_AGENT. Fundamentals fell back to "
+                            "Yahoo statements; SEC filings / dilution checks are missing.")
     elif skip_deep:
-        warnings.append("已略過深入分析（--skip-deep）：沒有基本面、期權、持倉和催化劑數據。")
+        warnings.append("Deep dive skipped (--skip-deep): no fundamentals / options / positioning / catalysts.")
 
     # 8. final ranking (+ analyst note for every listed candidate)
     sector_by_etf = {x["symbol"]: x for x in sectors}
@@ -319,7 +317,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
                                        sector_by_etf.get(universe[c["symbol"]]), spy_close,
                                        float(ranks.loc[c["symbol"], "rs_pct"]), [SETUP_NAMES[x] for x in [c["setup"], *c["other_setups"]]])
             except Exception as exc:  # noqa: BLE001 - the note is optional
-                warnings.append(f"{c['symbol']}：分析師報告生成失敗（{type(exc).__name__}: {exc}）")
+                warnings.append(f"{c['symbol']}: analyst note failed ({type(exc).__name__}: {exc})")
         final[d] = side
     store.save_candidates(conn, target, final["long"] + final["short"])
     pcfg = settings.get("portfolio") or {}
@@ -332,8 +330,8 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     fired = journal.check_alerts(conn)
     alerts_recent = journal.recent_triggers(conn, target - timedelta(days=7))
     for a in fired:
-        warnings.append(f"價格提醒：{a['symbol']} {journal.ALERT_KINDS.get(a['kind'], a['kind'])} {a['level']:g}"
-                        f"（{a['triggered_session']}，{a['triggered_price']:.2f}）" + (f" — {a['note']}" if a.get("note") else ""))
+        warnings.append(f"Price alert: {a['symbol']} {journal.ALERT_KINDS.get(a['kind'], a['kind']).lower()} {a['level']:g}"
+                        f" ({a['triggered_session']}, {a['triggered_price']:.2f})" + (f" - {a['note']}" if a.get("note") else ""))
 
     universe_table = []
     for symbol, f in features.items():
@@ -399,18 +397,18 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
     price = float(row["close"])
     out: dict[str, Any] = {}
     try:
-        facts, source = raw.get("sec_facts"), "SEC EDGAR XBRL 財務數據"
+        facts, source = raw.get("sec_facts"), "SEC EDGAR XBRL company facts"
         if facts is None and raw.get("yahoo_statements"):
             info = raw.get("info") or {}
             facts = facts_from_yahoo(raw["yahoo_statements"], info.get("sharesOutstanding"), session)
-            source = "Yahoo Finance 季度報表（SEC 不可用時的後備）。公布日期以季末 + 45 日估算。"
+            source = "Yahoo Finance quarterly statements (fallback when SEC is unavailable). Publication dates estimated as quarter end + 45 days."
         out["fundamentals"] = analyze_fundamentals(facts, session, price)
         if out["fundamentals"].get("available"):
             out["fundamentals"]["source"] = source
         elif raw.get("sec_status") != "ok":
-            out["fundamentals"]["reason"] = "SEC EDGAR 未啟用或不可用，Yahoo 也沒有可用的季度報表。"
+            out["fundamentals"]["reason"] = "SEC EDGAR is not configured or unavailable, and Yahoo has no usable quarterly statements."
     except Exception as exc:  # noqa: BLE001
-        out["fundamentals"] = {"available": False, "reason": f"基本面分析失敗：{exc}"}
+        out["fundamentals"] = {"available": False, "reason": f"Fundamental analysis failed: {exc}"}
     out["sec_status"] = raw.get("sec_status", "ok")
     try:
         out["catalysts"] = build_catalysts(symbol, session, raw.get("earnings_dates"), raw.get("calendar"),
@@ -427,9 +425,9 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
                                             store.iv_history(conn, symbol, session), session)
             store.save_options(conn, symbol, session, out["options"])
         except Exception as exc:  # noqa: BLE001
-            out["options"] = {"available": False, "reason": f"期權分析失敗：{exc}"}
+            out["options"] = {"available": False, "reason": f"Options analysis failed: {exc}"}
     else:
-        out["options"] = {"available": False, "reason": "沒有期權數據（沒有上市期權、下載失敗或離線模式）。"}
+        out["options"] = {"available": False, "reason": "No options data (none listed, or download failed / offline)."}
     try:
         volume = f["volume"]
         out["positioning"] = analyze_positioning(raw.get("info"), raw.get("insider"), raw.get("institutions"),
@@ -440,9 +438,9 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
         out["earnings_study"] = earnings_study(raw.get("earnings_dates"), f, session,
                                                (out.get("catalysts") or {}).get("next_earnings"), chains)
     except Exception as exc:  # noqa: BLE001
-        out["earnings_study"] = {"available": False, "reason": f"財報分析失敗：{exc}"}
+        out["earnings_study"] = {"available": False, "reason": f"Earnings study failed: {exc}"}
     out["ftd"] = analyze_ftd(ftd, symbol, f["volume"]) if ftd is not None else {
-        "available": False, "reason": "未取得 SEC 交收失敗（FTD）數據：需要在 .env 設定 SEC_USER_AGENT。"}
+        "available": False, "reason": "No SEC fails-to-deliver data: set SEC_USER_AGENT in .env."}
     info = raw.get("info") or {}
     out["profile"] = {k: info.get(k) for k in ("longName", "sector", "industry", "marketCap", "exchange",
                                                "beta", "fullTimeEmployees", "website", "sharesOutstanding", "floatShares",
@@ -453,20 +451,20 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
 def thesis(c: dict[str, Any]) -> str:
     """One-paragraph, evidence-based summary of the candidate (no advice language)."""
     p, t = c["plan"], c["technical"]
-    side = "做多" if c["direction"] == "long" else "做空"
-    parts = [f"{side}形態：{c['setup_name']}（質素 {c['setup_quality']:.0f}/100）。"]
+    side = "Long" if c["direction"] == "long" else "Short"
+    parts = [f"{side} setup: {c['setup_name']} (quality {c['setup_quality']:.0f}/100)."]
     if p.get("conditional_entry"):
-        parts.append(f"條件進場：價格升穿 {p['entry']:.2f} 才進場。")
-    parts.append(f"計劃：參考價 {p['entry']:.2f}，止損 {p['stop']:.2f}（{p['risk_atr']:.1f} ATR，{p['risk_pct'] * 100:.1f}%），"
-                 f"目標一 {p['target1']:.2f}（{p['reward_risk']:.1f}R），目標二 {p['target2']:.2f}，"
-                 f"{p['horizon_days']} 個交易日時間止損。")
+        parts.append(f"Conditional entry on a move through {p['entry']:.2f}.")
+    parts.append(f"Plan: reference {p['entry']:.2f}, stop {p['stop']:.2f} ({p['risk_atr']:.1f} ATR, "
+                 f"{p['risk_pct'] * 100:.1f}%), T1 {p['target1']:.2f} ({p['reward_risk']:.1f}R), "
+                 f"T2 {p['target2']:.2f}, time stop {p['horizon_days']} sessions.")
     if t.get("rs_percentile") is not None:
-        parts.append(f"相對強弱第 {t['rs_percentile']:.0f} 百分位；趨勢「{tr(t.get('trend'))}」，"
-                     f"結構「{tr(t.get('swing_structure'))}」。")
+        parts.append(f"RS percentile {t['rs_percentile']:.0f}; trend '{t.get('trend')}', structure "
+                     f"{t.get('swing_structure')}.")
     h = (c.get("history") or {}).get("setup")
     if h and h.get("n"):
-        parts.append(f"此形態的歷史表現（股票池，{h['n']} 筆）：勝率 {h['win_rate'] * 100:.0f}%，平均 {h['avg_r']:+.2f}R。")
-    parts.append(f"支持證據 {len(c['supporting'])} 項，反對證據 {len(c['contradicting'])} 項。")
+        parts.append(f"Setup history (universe, {h['n']} trades): win rate {h['win_rate'] * 100:.0f}%, average {h['avg_r']:+.2f}R.")
+    parts.append(f"{len(c['supporting'])} supporting and {len(c['contradicting'])} contradicting points.")
     return "".join(parts)
 
 

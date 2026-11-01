@@ -225,7 +225,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         finally:
             conn.close()
         if prices.empty or len(prices) < 120:
-            raise HTTPException(404, f"{symbol} 沒有足夠的已儲存價格（需要至少 120 個交易日）")
+            raise HTTPException(404, f"Not enough stored prices for {symbol} (needs at least 120 sessions)")
         if chosen:
             cut = pd.Timestamp(chosen)
             prices, spy = prices[prices.index <= cut], spy[spy.index <= cut]
@@ -300,8 +300,8 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
 
     @app.get("/api/methodology")
     def api_methodology() -> dict[str, Any]:
-        from src.i18n.zh import METHODOLOGY
-        return {**METHODOLOGY,
+        from src.i18n.zh import methodology
+        return {**methodology(),
                 "weights": settings["weights"], "penalties": settings["penalties"], "tiers": settings["tiers"]}
 
     def tconn() -> sqlite3.Connection:
@@ -353,7 +353,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         try:
             level = float(data.get("level"))
         except (TypeError, ValueError) as exc:
-            raise HTTPException(400, "價位必須是數字") from exc
+            raise HTTPException(400, "level must be a number") from exc
         return {"id": guarded(journal.add_alert, str(data.get("symbol") or ""), str(data.get("kind") or ""), level, data.get("note"))}
 
     @app.delete("/api/alerts/{alert_id}")
@@ -375,11 +375,11 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
     def api_backtest() -> dict[str, Any]:
         latest = backtest_dir / "latest.json"
         if not latest.exists():
-            return {"available": False, "reason": "還沒有回測結果：請按「重新回測」或在終端機執行 python backtest.py。"}
+            return {"available": False, "reason": "No backtest yet: press Re-run backtest or run python backtest.py in a terminal."}
         session = json.loads(latest.read_text())["session"]
         f = backtest_dir / session / "backtest.json"
         if not f.exists():
-            return {"available": False, "reason": f"找不到 {session} 的回測檔案。"}
+            return {"available": False, "reason": f"Backtest file for {session} not found."}
         res = json.loads(f.read_text(encoding="utf-8"))
         keep = ("n", "win_rate", "avg_r", "t_stat", "profit_factor", "target_rate", "stop_rate", "avg_days")
         res["grid"] = [{**{k: g[k] for k in ("stop", "target", "horizon", "side")},
@@ -397,7 +397,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         import sys
         with lock:
             if bt_state["running"]:
-                raise HTTPException(409, "回測正在運行。")
+                raise HTTPException(409, "A backtest is already running.")
             bt_state.update(running=True, started_at=datetime.now(timezone.utc).isoformat(), finished_at=None, status="running", log=[])
 
         def work() -> None:

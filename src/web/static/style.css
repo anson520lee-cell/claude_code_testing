@@ -131,8 +131,8 @@ td.wrap { white-space: normal; min-width: 240px; }
 .gauge .needle { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--fg); }
 .gauge-labels { display: flex; justify-content: space-between; color: var(--dim); font-family: var(--font-mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; margin-top: 10px; }
 .list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
-.list li { display: flex; align-items: baseline; gap: 10px; }
-.list li::before { content: "+"; flex: none; font: 400 12px/1 var(--font-mono); color: var(--muted); }
+.list li { display: block; position: relative; padding-left: 20px; }
+.list li::before { content: "+"; position: absolute; left: 0; top: .2em; font: 400 12px/1 var(--font-mono); color: var(--muted); }
 .ev-pos li::before { content: "+"; color: var(--up); }
 .ev-neg li::before { content: "−"; color: var(--down); }
 .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px dashed var(--line2); }
@@ -168,7 +168,7 @@ pre.doc { white-space: pre-wrap; font: 12px/1.6 var(--font-mono); color: var(--f
 /* ---------------------------------------------------------------- candidate grid (ruled cells) */
 .wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
 .wall > div { border-right: 1px solid var(--line2); border-bottom: 1px solid var(--line2); position: relative; }
-.wall > div::before { content: "+"; position: absolute; top: -9px; left: -6px; font: 300 15px/1 var(--font-mono); color: var(--mark); z-index: 1; }
+.wall > div::before { content: none; }
 .scard { position: relative; padding: 16px 18px 14px; cursor: pointer; outline: none; transition: background .2s var(--ease); }
 .scard:hover { background: var(--chip); }
 .scard:focus-visible { outline: 1px solid var(--fg); outline-offset: -1px; }
@@ -365,3 +365,4 @@ table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
 .fold-body .note-block { border-top: 0; margin-top: 0; padding-top: 0; }
 @media (max-width: 700px) { .fold > summary { grid-template-columns: minmax(0, 1fr) 20px; } .fold .fs { grid-column: 1; } }
 .sv .chart.small { height: auto; }
+

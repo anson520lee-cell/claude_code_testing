@@ -45,10 +45,10 @@ H_MAX = 10
 STOPS = ["structural", "atr1.0", "atr1.5", "atr2.0", "atr2.5", "atr3.0", "swing", "chip"]
 TARGETS = ["resistance", "atr2", "atr3", "atr4", "r2", "r3", "chip", "trail"]
 HORIZONS = [5, 7, 10]
-STOP_NAMES = {"structural": "現行結構止損", "atr1.0": "1.0 ATR", "atr1.5": "1.5 ATR", "atr2.0": "2.0 ATR", "atr2.5": "2.5 ATR",
-              "atr3.0": "3.0 ATR", "swing": "最近波段低點", "chip": "籌碼密集區／價值區下沿"}
-TARGET_NAMES = {"resistance": "現行阻力目標", "atr2": "2 ATR", "atr3": "3 ATR", "atr4": "4 ATR", "r2": "2R", "r3": "3R",
-                "chip": "上方籌碼密集區／真空區頂部", "trail": "3 ATR 移動止損（不設目標）"}
+STOP_NAMES = {"structural": "Live structural stop", "atr1.0": "1.0 ATR", "atr1.5": "1.5 ATR", "atr2.0": "2.0 ATR", "atr2.5": "2.5 ATR",
+              "atr3.0": "3.0 ATR", "swing": "Last swing low", "chip": "Volume node / value-area low"}
+TARGET_NAMES = {"resistance": "Live resistance target", "atr2": "2 ATR", "atr3": "3 ATR", "atr4": "4 ATR", "r2": "2R", "r3": "3R",
+                "chip": "Volume node / vacuum top above", "trail": "3-ATR trailing stop (no target)"}
 
 
 # ====================================================================== signal collection
@@ -84,14 +84,14 @@ def _chip_levels(f: pd.DataFrame, t: int, entry: float, atr: float, long: bool) 
 RAW_FACTORS = ["rsi14", "rsi6", "extension_atr", "volume_ratio", "rel_20d", "rel_60d", "rel_sector_20d", "adx",
                "bb_width_percentile", "atr_pct_percentile", "hv20", "beta120", "from_52w_high", "updown_vol_ratio", "clv",
                "gap_atr", "return_5d", "return_20d", "macd_hist_3d", "obv_slope20", "vol3_vs_mavol"]
-FACTOR_NAMES = {"c_trend": "趨勢分項", "c_momentum": "動量分項", "c_relative_strength": "相對強弱分項", "c_volume": "成交量分項",
-                "c_setup_quality": "形態質素分項", "c_reward_risk": "風險報酬分項", "c_liquidity": "流動性分項",
-                "c_regime_alignment": "市場配合度分項", "x_rsi14": "RSI14", "x_rsi6": "RSI6", "x_extension_atr": "距 EMA21（ATR）",
-                "x_volume_ratio": "量比", "x_rel_20d": "相對 SPY 20 日", "x_rel_60d": "相對 SPY 60 日", "x_rel_sector_20d": "相對板塊 20 日",
-                "x_adx": "ADX", "x_bb_width_percentile": "布林帶寬百分位", "x_atr_pct_percentile": "ATR 百分位", "x_hv20": "20 日波動率",
-                "x_beta120": "Beta", "x_from_52w_high": "距 52 週高位", "x_updown_vol_ratio": "上漲／下跌成交量比", "x_clv": "收市位置 CLV",
-                "x_gap_atr": "跳空（ATR）", "x_return_5d": "5 日回報", "x_return_20d": "20 日回報", "x_macd_hist_3d": "MACD 柱 3 日變化",
-                "x_obv_slope20": "OBV 斜率", "x_vol3_vs_mavol": "3 日量比", "x_regime_composite": "市場狀態分數"}
+FACTOR_NAMES = {"c_trend": "Trend sub-score", "c_momentum": "Momentum sub-score", "c_relative_strength": "Relative-strength sub-score", "c_volume": "Volume sub-score",
+                "c_setup_quality": "Setup-quality sub-score", "c_reward_risk": "Reward/risk sub-score", "c_liquidity": "Liquidity sub-score",
+                "c_regime_alignment": "Regime-alignment sub-score", "x_rsi14": "RSI14", "x_rsi6": "RSI6", "x_extension_atr": "Distance to EMA21 (ATR)",
+                "x_volume_ratio": "Volume ratio", "x_rel_20d": "vs SPY 20d", "x_rel_60d": "vs SPY 60d", "x_rel_sector_20d": "vs sector 20d",
+                "x_adx": "ADX", "x_bb_width_percentile": "Bollinger width pctile", "x_atr_pct_percentile": "ATR pctile", "x_hv20": "20d volatility",
+                "x_beta120": "Beta", "x_from_52w_high": "From 52w high", "x_updown_vol_ratio": "Up/down volume", "x_clv": "Close location (CLV)",
+                "x_gap_atr": "Gap (ATR)", "x_return_5d": "5d return", "x_return_20d": "20d return", "x_macd_hist_3d": "MACD hist 3d change",
+                "x_obv_slope20": "OBV slope", "x_vol3_vs_mavol": "3d volume ratio", "x_regime_composite": "Regime score"}
 
 
 def collect_signals(features: dict[str, pd.DataFrame], setups: dict[str, pd.DataFrame], settings: dict[str, Any],
@@ -147,7 +147,7 @@ def collect_signals(features: dict[str, pd.DataFrame], setups: dict[str, pd.Data
                 L.append(lo[t + 1: t + 1 + H_MAX])
                 C.append(c[t + 1: t + 1 + H_MAX])
         if progress and (n_sym + 1) % 50 == 0:
-            progress(f"已收集 {n_sym + 1}/{len(features)} 檔股票的歷史信號")
+            progress(f"Collected historical signals for {n_sym + 1}/{len(features)} stocks")
     sig = pd.DataFrame(rows)
     return {"signals": sig, "O": np.array(O), "H": np.array(Hh), "L": np.array(L), "C": np.array(C)}
 
@@ -201,7 +201,7 @@ def baseline_compare(res: dict[str, Any], base: dict[str, Any], slip: float, cut
                 "edge_is": (sig_row["is"]["avg_r"] - b_is["avg_r"]) if sig_row and b_is.get("n") else None,
                 "edge_oos": (sig_row["oos"]["avg_r"] - b_oos["avg_r"]) if sig_row and b_oos.get("n") else None}
     live_base = simulate(base, "atr1.5", "atr2", 7, slip)
-    out["_note"] = "基準 = 同一批股票每 5 個交易日隨機進場一次（不看任何形態），用同一套止損／目標規則。"
+    out["_note"] = "Baseline = enter the same stocks every 5th session regardless of setup, with the same stop / target rules."
     out["_baseline_n"] = int(len(live_base))
     return out
 
@@ -325,7 +325,7 @@ def run_research(data: dict[str, Any], settings: dict[str, Any], is_fraction: fl
     slip = float(settings["scanner"].get("slippage_bps", 10)) / 10_000
     sig = data["signals"]
     if sig.empty:
-        return {"available": False, "reason": "沒有歷史信號。"}
+        return {"available": False, "reason": "No historical signals."}
     cutoff = sig["date"].quantile(is_fraction)
     res: dict[str, Any] = {"available": True, "n_signals": int(len(sig)), "n_symbols": int(sig["symbol"].nunique()),
                            "first": sig["date"].min().strftime("%Y-%m-%d"), "last": sig["date"].max().strftime("%Y-%m-%d"),
@@ -418,7 +418,7 @@ def score_calibration(t: pd.DataFrame) -> dict[str, Any]:
     s = t.dropna(subset=["score"])
     if len(s) < 50:
         return {}
-    q = pd.qcut(s["score"].rank(method="first"), 5, labels=["最低 20%", "20–40%", "40–60%", "60–80%", "最高 20%"])
+    q = pd.qcut(s["score"].rank(method="first"), 5, labels=["Bottom 20%", "20–40%", "40–60%", "60–80%", "Top 20%"])
     by_q = [{"bucket": str(k), "score_range": f"{g['score'].min():.0f}–{g['score'].max():.0f}", **summary(g)} for k, g in s.groupby(q, observed=True)]
     by_tier = [{"tier": k, **summary(g)} for k, g in s.groupby("tier")]
     rho = float(s["score"].rank().corr(s["r"].rank()))
@@ -430,41 +430,41 @@ def verdict(res: dict[str, Any]) -> list[str]:
     live = res["live"]
     d = res["diagnostics"]
     o = live["oos"]
-    out.append(f"現行 SL/TP（結構止損 + 阻力目標 + 7 日）共 {live['all']['n']} 筆模擬交易：勝率 {live['all']['win_rate'] * 100:.0f}%，"
-               f"平均 {live['all']['avg_r']:+.2f}R；樣本外 {o.get('n', 0)} 筆平均 {o.get('avg_r', float('nan')):+.2f}R"
-               f"（t 值 {o.get('t_stat', float('nan')):.1f}，|t| < 2 代表與零沒有顯著分別）。")
+    out.append(f"Live SL/TP (structural stop + resistance target + 7 days): {live['all']['n']} simulated trades, win rate {live['all']['win_rate'] * 100:.0f}%, "
+               f"average {live['all']['avg_r']:+.2f}R; out of sample {o.get('n', 0)} trades averaging {o.get('avg_r', float('nan')):+.2f}R "
+               f"(t {o.get('t_stat', float('nan')):.1f}; |t| < 2 means not distinguishable from zero).")
     if d.get("stopped_then_target") is not None:
-        out.append(f"被止損的交易中，有 {d['stopped_then_target'] * 100:.0f}% 之後在持倉期內仍然到達目標：比例越高代表止損越可能太緊。")
+        out.append(f"{d['stopped_then_target'] * 100:.0f}% of stopped-out trades still reached the target within the holding period (the higher, the tighter the stop).")
     if d.get("winner_mae_atr"):
-        out.append(f"最終達標的交易，途中最大浮虧的中位數是 {d['winner_mae_atr']['p50']:.2f} ATR，90% 不超過 {d['winner_mae_atr']['p90']:.2f} ATR；"
-                   f"現行平均止損距離 {d['avg_risk_atr']:.2f} ATR。")
+        out.append(f"Trades that hit the target took a median heat of {d['winner_mae_atr']['p50']:.2f} ATR on the way (90% under {d['winner_mae_atr']['p90']:.2f} ATR); "
+                   f"the live stop averages {d['avg_risk_atr']:.2f} ATR.")
     if d.get("mfe_r"):
-        out.append(f"所有交易在持倉期內最遠走到的盈利（MFE）中位數是 {d['mfe_r']['p50']:.2f}R；{d['mfe_r']['ge2'] * 100:.0f}% 曾經到達 2R，"
-                   f"{d['mfe_r']['ge3'] * 100:.0f}% 曾經到達 3R。")
+        out.append(f"Median best open profit (MFE) {d['mfe_r']['p50']:.2f}R; {d['mfe_r']['ge2'] * 100:.0f}% ever reached 2R, "
+                   f"{d['mfe_r']['ge3'] * 100:.0f}% reached 3R.")
     sel = res.get("selected")
     if sel:
-        out.append(f"樣本內表現最好的組合是「{STOP_NAMES[sel['stop']]} ＋ {TARGET_NAMES[sel['target']]} ＋ {sel['horizon']} 日」："
-                   f"樣本內 {sel['is']['avg_r']:+.2f}R，樣本外 {sel['oos'].get('avg_r', float('nan')):+.2f}R"
-                   f"（{sel['oos'].get('n', 0)} 筆）。" + ("樣本外仍然優於現行方案。" if sel["oos"].get("avg_r", -9) > o.get("avg_r", -9)
-                                                        else "但樣本外沒有勝過現行方案，屬於過度擬合，不建議採用。"))
-    for side, zh in (("long", "做多"), ("short", "做空")):
+        out.append(f"Best in-sample combination: {STOP_NAMES[sel['stop']]} + {TARGET_NAMES[sel['target']]} + {sel['horizon']} days: "
+                   f"in sample {sel['is']['avg_r']:+.2f}R, out of sample {sel['oos'].get('avg_r', float('nan')):+.2f}R "
+                   f"({sel['oos'].get('n', 0)} trades). " + ("Still better than the live plan out of sample." if sel["oos"].get("avg_r", -9) > o.get("avg_r", -9)
+                                                        else "Not better than the live plan out of sample - overfitted, not recommended."))
+    for side, zh in (("long", "Long"), ("short", "Short")):
         ss = (res.get("selected_side") or {}).get(side)
         if not ss:
             continue
-        line = (f"{zh}最佳組合「{STOP_NAMES[ss['stop']]} ＋ {TARGET_NAMES[ss['target']]} ＋ {ss['horizon']} 日」：樣本內 {ss['is']['avg_r']:+.2f}R，"
-                f"樣本外 {ss['oos'].get('avg_r', float('nan')):+.2f}R（t {ss['oos'].get('t_stat', float('nan')):.1f}），"
-                f"{(ss.get('positive_quarters') or 0) * 100:.0f}% 季度為正。")
+        line = (f"{zh} best: {STOP_NAMES[ss['stop']]} + {TARGET_NAMES[ss['target']]} + {ss['horizon']} days: in sample {ss['is']['avg_r']:+.2f}R, "
+                f"out of sample {ss['oos'].get('avg_r', float('nan')):+.2f}R (t {ss['oos'].get('t_stat', float('nan')):.1f}), "
+                f"{(ss.get('positive_quarters') or 0) * 100:.0f}% of quarters positive. ")
         b_ = (res.get("baseline") or {}).get(f"{side}|{ss['stop']}|{ss['target']}|{ss['horizon']}")
         if b_ and b_.get("edge_oos") is not None:
-            line += (f"同一規則用在隨機進場：樣本外 {b_['baseline_oos']['avg_r']:+.2f}R，所以形態本身的額外優勢只有 {b_['edge_oos']:+.2f}R"
-                     + ("。" if b_["edge_oos"] > 0.03 else "，主要來自市場趨勢和出場規則，而不是形態。"))
+            line += (f"Random entries with the same exits: {b_['baseline_oos']['avg_r']:+.2f}R out of sample, so the setups add only {b_['edge_oos']:+.2f}R"
+                     + ("." if b_["edge_oos"] > 0.03 else " - the result comes from market drift and the exit rule, not the setups."))
         out.append(line)
     sc = res.get("score_calibration") or {}
     if sc.get("quintiles"):
         lo, hi = sc["quintiles"][0], sc["quintiles"][-1]
-        out.append(f"評分校準：分數最低 20% 的信號平均 {lo['avg_r']:+.2f}R，最高 20% 平均 {hi['avg_r']:+.2f}R，"
-                   f"等級相關係數 {sc['spearman']:+.2f}。" + ("分數越高結果越好，評分有預測力。" if hi["avg_r"] > lo["avg_r"] + 0.1 and sc["spearman"] > 0.03
-                                                       else "分數高低與結果關係很弱，現行評分的預測力有限。"))
+        out.append(f"Score calibration: bottom-20% signals average {lo['avg_r']:+.2f}R, top 20% {hi['avg_r']:+.2f}R, "
+                   f"rank correlation {sc['spearman']:+.2f}. " + ("Higher scores do better - the score has predictive power." if hi["avg_r"] > lo["avg_r"] + 0.1 and sc["spearman"] > 0.03
+                                                       else "Scores barely relate to outcomes - the live score has little predictive power."))
     return out
 
 

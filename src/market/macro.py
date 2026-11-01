@@ -23,7 +23,7 @@ from typing import Any
 
 import pandas as pd
 
-MACRO_DEFAULT = {"DX-Y.NYB": "美元指數 DXY", "CL=F": "WTI 原油", "GC=F": "黃金", "BTC-USD": "比特幣"}
+MACRO_DEFAULT = {"DX-Y.NYB": "US Dollar Index", "CL=F": "WTI crude", "GC=F": "Gold", "BTC-USD": "Bitcoin"}
 
 
 def _aligned_close(prices: dict[str, pd.DataFrame], symbol: str, index: pd.DatetimeIndex) -> pd.Series | None:
@@ -64,19 +64,19 @@ def _macro_comment(sym: str, ch20: float, z: float | None, corr: float | None) -
     strong = z is not None and abs(z) >= 1.5
     up = ch20 > 0
     if sym == "DX-Y.NYB":
-        txt = "美元走強，通常收緊金融條件，對高估值成長股不利。" if up else "美元走弱，金融條件較寬鬆，對成長股和商品較有利。"
+        txt = "A stronger dollar tightens financial conditions - a headwind for richly valued growth." if up else "A weaker dollar eases financial conditions - supportive for growth and commodities."
     elif sym == "CL=F":
-        txt = "油價上升推高通脹預期，可能令減息預期降溫。" if up else "油價回落，通脹壓力減輕。"
+        txt = "Rising oil lifts inflation expectations and can cool rate-cut hopes." if up else "Falling oil eases inflation pressure."
     elif sym == "GC=F":
-        txt = "金價上升，避險或實際利率下降的需求增加。" if up else "金價回落，避險需求減少。"
+        txt = "Rising gold: more demand for safety or falling real yields." if up else "Falling gold: less demand for safety."
     elif sym == "BTC-USD":
-        txt = "比特幣上升，投機風險胃納較強，常與高 Beta 股同步。" if up else "比特幣回落，投機風險胃納轉弱，留意高 Beta 股。"
+        txt = "Bitcoin rising: speculative risk appetite is strong, often in step with high-beta stocks." if up else "Bitcoin falling: speculative appetite is fading - watch high-beta names."
     else:
         txt = ""
     if strong:
-        txt = f"20 日變化屬一年內的極端（z = {z:+.1f}）：" + txt
+        txt = f"20-day change is extreme for the past year (z = {z:+.1f}): " + txt
     if corr is not None and abs(corr) >= 0.4:
-        txt += f" 近 60 日與 QQQ 的相關係數 {corr:+.2f}，{'同向' if corr > 0 else '反向'}關係明顯。"
+        txt += f" 60-day correlation with QQQ {corr:+.2f} - a clear {'positive' if corr > 0 else 'inverse'} link."
     return txt
 
 
@@ -108,13 +108,13 @@ def advance_decline(prices: dict[str, pd.DataFrame], symbols: list[str], index: 
         spy_high = spy.iloc[-1] >= spy.tail(60).max() * 0.99
         ad_high = ad_tail >= hi - 1e-9
         if spy_high and not ad_high:
-            divergence = "SPY 接近 60 日高位，但股票池的 A/D 線沒有創新高：上升由少數股票帶動（負背離）。"
+            divergence = "SPY is near its 60-day high but the universe A/D line is not: a narrow advance (negative divergence)."
         elif not spy_high and ad_high:
-            divergence = "股票池的 A/D 線創 60 日新高而 SPY 未有：高 Beta 股普遍走強（正背離）。"
+            divergence = "The universe A/D line made a 60-day high while SPY did not: broad high-beta strength (positive divergence)."
     mcv = last["mcclellan"]
-    last["comment"] = (("McClellan 振盪指標 " + f"{mcv:+.0f}：" + ("廣度動量強，升市參與面廣。" if mcv > 50 else "廣度動量偏弱，跌市參與面廣。"
-                       if mcv < -50 else "廣度動量中性。")) + (" " + divergence if divergence else ""))
-    return {"available": True, "scope": f"股票池 {closes.shape[1]} 檔（非全市場）", **last,
+    last["comment"] = (("McClellan oscillator " + f"{mcv:+.0f}: " + ("strong breadth momentum, broad participation." if mcv > 50 else "weak breadth momentum, broad selling."
+                       if mcv < -50 else "neutral breadth momentum.")) + (" " + divergence if divergence else ""))
+    return {"available": True, "scope": f"Universe, {closes.shape[1]} stocks (not market-wide)", **last,
             "series": {"dates": [d.strftime("%Y-%m-%d") for d in adv.index[tail]], "ad_line": [int(x) for x in ad_line.iloc[tail]],
                        "net": [int(x) for x in net.iloc[tail]], "mcclellan": [float(x) for x in mcc.iloc[tail]]}}
 
@@ -128,7 +128,7 @@ def industry_groups(features: dict[str, pd.DataFrame], industries: dict[str, str
     """Industry groups ranked by the median RS score of their members, now and ``lookback`` sessions ago."""
     rows = []
     for sym, f in features.items():
-        g = industries.get(sym) or f"{fallback.get(sym, '其他')}（行業未知）"
+        g = industries.get(sym) or f"{fallback.get(sym, 'Other')} (industry unknown)"
         rs = _rs_score(f)
         if rs.dropna().size < lookback + 1:
             continue

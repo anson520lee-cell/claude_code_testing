@@ -133,7 +133,7 @@
   - `backtest.py` + `src/backtest/research.py`: 5 years, 233 focus stocks, 54,086 signals; 8 stops x 8 targets x 3 time
     stops, long / short; in-sample (first 60% of dates) selection, out-of-sample judgement; random-entry baseline with
     the same exits; live-plan accuracy diagnostics; factor IC study and an in-sample-fitted score checked out-of-sample.
-  - Research page: "SL／TP 是怎樣定的" explainer, verdicts, stop x target heat map (side / horizon / period toggles),
+  - Research page: "How SL/TP are set" explainer, verdicts, stop x target heat map (side / horizon / period toggles),
     best combinations with baseline and setup edge, R:R calibration, MAE / MFE, score quintiles, factor IC, by setup /
     regime / quarter, re-run button (`/api/backtest`, `/api/backtest/run`). Every plan now states why its stop and
     targets sit where they do (`stop_basis` / `target_basis`) and shows the backtest's preferred alternative.

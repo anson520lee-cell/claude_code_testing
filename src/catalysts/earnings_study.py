@@ -122,7 +122,7 @@ def earnings_study(dates: pd.DataFrame | None, prices: pd.DataFrame, session: da
     hist = reactions(dates, prices, session)
     out: dict[str, Any] = {"available": bool(hist), "events": hist[:16], "n": len(hist)}
     if not hist:
-        out["reason"] = "沒有足夠的歷史財報日期。"
+        out["reason"] = "Not enough past earnings dates."
         return out
     mv = np.array([h["move"] for h in hist], dtype=float)
     gp = np.array([h["gap"] for h in hist], dtype=float)
@@ -145,26 +145,26 @@ def earnings_study(dates: pd.DataFrame | None, prices: pd.DataFrame, session: da
     out["implied"] = imp
     if imp and imp["method"] == "no_event_premium":
         out["implied_vs_history"] = None
-        out["note"] = (f"財報後到期日 {imp['expiry']} 的引伸波幅（{imp['iv_after'] * 100:.0f}%）不高於財報前到期日 {imp['expiry_before']}"
-                       f"（{imp['iv_before'] * 100:.0f}%），期權暫時沒有為財報定出額外波幅；過去 {len(hist)} 次財報實際波幅中位數 ±{out['median_abs_move'] * 100:.1f}%。")
+        out["note"] = (f"The post-earnings expiry {imp['expiry']} (IV {imp['iv_after'] * 100:.0f}%) is not priced above the pre-earnings expiry {imp['expiry_before']} "
+                       f"(IV {imp['iv_before'] * 100:.0f}%): options price no extra earnings move yet. Median actual move over the last {len(hist)} reports ±{out['median_abs_move'] * 100:.1f}%.")
     elif imp:
         ratio = imp["move_pct"] / out["median_abs_move"] if out["median_abs_move"] else None
         out["implied_vs_history"] = ratio
         if imp["method"] == "event_variance":
-            extra = (f"（{imp['expiry']} 到期的跨式為 ±{imp['straddle_pct'] * 100:.1f}%，覆蓋 {imp['days']} 個曆日；"
-                     f"已扣除財報前到期日 {imp['expiry_before']} 引伸波幅 {imp['iv_before'] * 100:.0f}% 所代表的平日波動，只保留財報當日的部分）")
+            extra = (f" (The {imp['expiry']} straddle is ±{imp['straddle_pct'] * 100:.1f}% over {imp['days']} calendar days; "
+                     f"normal-day variance implied by the pre-earnings expiry {imp['expiry_before']} (IV {imp['iv_before'] * 100:.0f}%) is removed, leaving the event day.)")
         elif imp.get("days", 0) > 5:
-            extra = (f"（{imp['expiry']} 到期的跨式覆蓋 {imp['days']} 個曆日，又沒有財報前的到期日可作扣減，"
-                     "包含財報以外的日子，隱含的財報波幅會被高估）")
+            extra = (f" (The {imp['expiry']} straddle covers {imp['days']} calendar days and no pre-earnings expiry is available to subtract, "
+                     "so the implied earnings move is overstated.)")
         else:
             extra = ""
-        out["note"] = (f"期權隱含財報波幅 ±{imp['move_pct'] * 100:.1f}%，過去 {len(hist)} 次財報實際波幅中位數 ±{out['median_abs_move'] * 100:.1f}%"
-                       + (f"：期權定價比歷史{'大' if ratio > 1.15 else '小' if ratio < 0.85 else '接近'}（{ratio:.2f} 倍）" if ratio else "") + "。" + extra)
+        out["note"] = (f"Options imply ±{imp['move_pct'] * 100:.1f}% for earnings vs a median actual move of ±{out['median_abs_move'] * 100:.1f}% over the last {len(hist)} reports"
+                       + (f": options price {'a bigger' if ratio > 1.15 else 'a smaller' if ratio < 0.85 else 'about the same'} move than history ({ratio:.2f}x)" if ratio else "") + "." + extra)
     else:
-        out["note"] = f"過去 {len(hist)} 次財報實際波幅中位數 ±{out['median_abs_move'] * 100:.1f}%。" + (
-            "沒有覆蓋財報日的期權到期日，無法比較期權隱含波幅。" if next_earnings else "未有下一次財報日期。")
+        out["note"] = f"Median actual move over the last {len(hist)} reports ±{out['median_abs_move'] * 100:.1f}%. " + (
+            "No option expiry covers the report, so no implied move to compare." if next_earnings else "No next earnings date yet.")
     if "drift5_same_dir" in out:
-        out["drift_note"] = (f"財報後 5 日延續首日方向的比例 {out['drift5_same_dir'] * 100:.0f}%，平均（按首日方向）{out['drift5_signed_mean'] * 100:+.1f}%："
-                             + ("有財報後漂移（PEAD）傾向。" if out["drift5_same_dir"] >= 0.6 and out["drift5_signed_mean"] > 0
-                                else "首日反應之後傾向回吐。" if out["drift5_same_dir"] <= 0.4 and out["drift5_signed_mean"] < 0 else "沒有明顯的延續或回吐傾向。"))
+        out["drift_note"] = (f"The next 5 days continued the first-day direction {out['drift5_same_dir'] * 100:.0f}% of the time, averaging {out['drift5_signed_mean'] * 100:+.1f}% (signed): "
+                             + ("post-earnings drift (PEAD) tendency." if out["drift5_same_dir"] >= 0.6 and out["drift5_signed_mean"] > 0
+                                else "first-day moves tend to fade." if out["drift5_same_dir"] <= 0.4 and out["drift5_signed_mean"] < 0 else "no clear drift or fade tendency."))
     return out

@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
         first = dict(conn.execute("SELECT ticker, MIN(date) FROM price_data GROUP BY ticker").fetchall())
         need = [s for s in symbols if s not in first or pd.Timestamp(first[s]) > cutoff]
         if need:
-            print(f"下載 {len(need)} 個代號的 {args.years} 年歷史（只需一次）…")
+            print(f"Downloading {args.years} years of history for {len(need)} symbols (one time)...")
             frames = market_data.YahooBatchDownloader().download(need, period=f"{args.years}y")
             for sym, frame in frames.items():
                 frame = frame[frame.index <= pd.Timestamp(session)]
@@ -52,14 +52,14 @@ def main(argv: list[str] | None = None) -> int:
                     db.upsert_prices(conn, sym, frame, market_data.SOURCE)
     prices = market_data.load_universe_prices(conn, symbols, session, max_days=300 * args.years)
     if "SPY" not in prices:
-        print("沒有 SPY 數據，無法回測。", file=sys.stderr)
+        print("No SPY data - cannot backtest.", file=sys.stderr)
         return 3
     universe = settings["universe"]
-    print("計算市場狀態歷史…")
+    print("Computing regime history...")
     hist = regime.compute_regime_history(prices, [s for s in universe if s in prices], settings)
     spy = prices["SPY"]["adj_close"]
     features, setups = {}, {}
-    print(f"計算 {len(universe)} 檔股票的指標和形態…")
+    print(f"Computing indicators and setups for {len(universe)} stocks...")
     for sym, etf in universe.items():
         if sym not in prices or len(prices[sym]) < 300:
             continue
@@ -69,21 +69,21 @@ def main(argv: list[str] | None = None) -> int:
     focus = apply_universe_filter(features, settings, {})
     features = {s: features[s] for s in focus["kept"]}
     setups = {s: setups[s] for s in focus["kept"]}
-    print(f"高 Beta／高波動篩選後 {len(features)} 檔；收集歷史信號…")
+    print(f"{len(features)} stocks after the focus filter; collecting historical signals...")
     data = collect_signals(features, setups, settings, hist["label"], progress=print, regime_scores=hist["composite"])
-    print(f"共 {len(data['signals'])} 個信號；模擬 {8 * 8 * 3} 種止損／目標／時間止損組合…")
+    print(f"{len(data['signals'])} signals; simulating {8 * 8 * 3} stop / target / time-stop combinations...")
     base = collect_baseline(features, hist["label"])
-    print(f"隨機進場基準 {len(base['signals'])} 筆；開始模擬…")
+    print(f"Random-entry baseline: {len(base['signals'])} entries; simulating...")
     res = run_research(data, settings, baseline=base)
     res.update({"generated_at": store.utc_now(), "session": session.isoformat(), "years": args.years,
                 "universe_size": len(features), "elapsed_seconds": round(time.time() - t0, 1),
-                "survivorship_note": "回測只用今日仍在股票池的股票（倖存者偏差），結果可能比真實情況好。"})
+                "survivorship_note": "Only stocks in today's universe are tested (survivorship bias), so results may look better than reality."})
     out = path(settings, "reports_dir").parent / "backtest" / session.isoformat()
     out.mkdir(parents=True, exist_ok=True)
     (out / "backtest.json").write_text(json.dumps(store.jsonable(res), ensure_ascii=False, indent=1), encoding="utf-8")
     (out.parent / "latest.json").write_text(json.dumps({"session": session.isoformat()}), encoding="utf-8")
-    print("\n".join(["", "＝ 結論 ＝", *res.get("verdict", [])]))
-    print(f"\n完成，用時 {res['elapsed_seconds']} 秒 → {out}/backtest.json")
+    print("\n".join(["", "= Verdict =", *res.get("verdict", [])]))
+    print(f"\nDone in {res['elapsed_seconds']} s -> {out}/backtest.json")
     return 0
 
 

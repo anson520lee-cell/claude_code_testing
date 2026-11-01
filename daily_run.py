@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
                 except sqlite3.OperationalError:
                     done = None
             if done:
-                print(f"交易日 {target} 已經處理過，不需再運行。")
+                print(f"Session {target} already processed - nothing to do.")
                 return 0
     builder = settings.get("universe_builder") or {}
     if not args.offline and builder.get("enabled", True):
@@ -72,33 +72,32 @@ def main(argv: list[str] | None = None) -> int:
                 build_universe(settings, progress=print)
                 merge_auto_universe(settings)
             except Exception as exc:  # noqa: BLE001 - keep the previous universe
-                print(f"股票池自動更新失敗，沿用現有名單：{type(exc).__name__}: {exc}", file=sys.stderr)
+                print(f"Universe rebuild failed, keeping the current list: {type(exc).__name__}: {exc}", file=sys.stderr)
                 settings = load_terminal_settings(args.config)
     try:
         result = run_daily(settings, session=session, offline=args.offline, skip_deep=args.skip_deep, progress=print)
     except DailyRunError as exc:
-        print(f"運行失敗：{exc}", file=sys.stderr)
+        print(f"Run failed: {exc}", file=sys.stderr)
         return 3
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         return 1
     reg = result["regime"]
-    from src.i18n.zh import tr
-    print(f"\n交易日 {result['session']['date']}：市場狀態 {tr(reg['label'])}（{reg['composite']:+.0f}）")
+    print(f"\nSession {result['session']['date']}: regime {reg['label']} ({reg['composite']:+.0f})")
     for side in ("long", "short"):
         top = result["candidates"][side][:5]
-        print(f"{'做多' if side == 'long' else '做空'}前列：" + ("、".join(f"{c['symbol']}（{c['score']:.0f} 分 {tr(c['tier'])}）" for c in top) or "沒有"))
+        print(f"Top {side}: " + (", ".join(f"{c['symbol']}({c['score']:.0f}{c['tier']})" for c in top) or "none"))
     for w in result["warnings"]:
-        print(f"提示：{w}")
+        print(f"warning: {w}")
     notify_alerts(result.get("alerts_fired") or [])
-    print(f"報告：{result['output_dir']}/report.html  ·  網頁介面：python serve.py")
+    print(f"Report: {result['output_dir']}/report.html  ·  Dashboard: python serve.py")
     if not (args.offline or args.skip_backtest) and backtest_stale(settings):
-        print("\nSL／TP 回測結果超過 30 日（或未有），重新回測（約 5 分鐘）…")
+        print("\nSL/TP backtest is older than 30 days (or missing); re-running it (about 5 minutes)...")
         try:
             import backtest
             backtest.main([])
         except Exception as exc:  # noqa: BLE001 - the daily report is already written
-            print(f"回測失敗（不影響每日報告）：{type(exc).__name__}: {exc}", file=sys.stderr)
+            print(f"Backtest failed (the daily report is unaffected): {type(exc).__name__}: {exc}", file=sys.stderr)
     return 0
 
 
@@ -109,9 +108,9 @@ def notify_alerts(fired: list[dict]) -> None:
     import subprocess
     from src.portfolio.journal import ALERT_KINDS
     for a in fired[:5]:
-        text = f"{a['symbol']} {ALERT_KINDS.get(a['kind'], a['kind'])} {a['level']:g}（{a['triggered_price']:.2f}）"
+        text = f"{a['symbol']} {ALERT_KINDS.get(a['kind'], a['kind']).lower()} {a['level']:g} ({a['triggered_price']:.2f})"
         text = text.replace('"', "").replace("\\", "")
-        script = f'display notification "{text}" with title "Swing Terminal 價格提醒"'
+        script = f'display notification "{text}" with title "Swing Terminal price alert"'
         try:
             subprocess.run(["osascript", "-e", script], check=False, timeout=10)
         except (OSError, subprocess.SubprocessError):

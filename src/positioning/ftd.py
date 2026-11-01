@@ -71,11 +71,11 @@ def load_ftd(sec: Any, today: date, files: int = 2) -> pd.DataFrame:
 
 def analyze_ftd(ftd: pd.DataFrame, symbol: str, volume: pd.Series) -> dict[str, Any]:
     if ftd is None or ftd.empty:
-        return {"available": False, "reason": "未取得 SEC FTD 數據（需要 SEC_USER_AGENT，或數據尚未發布）。"}
+        return {"available": False, "reason": "No SEC FTD data (needs SEC_USER_AGENT, or not yet published)."}
     rows = ftd[ftd["symbol"] == symbol].sort_values("date")
-    period = f"{ftd['date'].min():%Y-%m-%d} 至 {ftd['date'].max():%Y-%m-%d}"
+    period = f"{ftd['date'].min():%Y-%m-%d} to {ftd['date'].max():%Y-%m-%d}"
     if rows.empty:
-        return {"available": True, "period": period, "n": 0, "note": f"{period} 沒有交收失敗紀錄（或低於 SEC 的列表門檻）。"}
+        return {"available": True, "period": period, "n": 0, "note": f"No fails to deliver {period} (or below the SEC listing threshold)."}
     adv = float(volume.loc[:rows["date"].max()].tail(20).mean()) if len(volume) else None
     mx = rows.loc[rows["fails"].idxmax()]
     half = len(rows) // 2
@@ -87,9 +87,9 @@ def analyze_ftd(ftd: pd.DataFrame, symbol: str, volume: pd.Series) -> dict[str, 
            "max_vs_adv": float(mx["fails"] / adv) if adv else None, "sessions_over_half_pct_adv": big, "trend": trend,
            "series": [{"date": f"{d:%Y-%m-%d}", "fails": float(v)} for d, v in zip(rows["date"], rows["fails"])]}
     level = out["max_vs_adv"] or 0
-    out["note"] = (f"{period}：{len(rows)} 個交收日有失敗紀錄，最高 {out['max']:,.0f} 股（{out['max_date']}），"
-                   + (f"相當於 20 日平均成交量的 {level * 100:.1f}%。" if adv else "。")
-                   + ("交收失敗相對成交量偏高，可能代表借券緊張，需留意。" if level >= 0.1
-                      else "數量相對成交量不大，屬正常範圍。" if level < 0.02 else "數量中等。")
-                   + (f" 下半段平均比上半段{'增加' if trend > 0 else '減少'} {abs(trend) * 100:.0f}%。" if trend is not None and abs(trend) >= 0.25 else ""))
+    out["note"] = (f"{period}: fails on {len(rows)} settlement days, peak {out['max']:,.0f} shares ({out['max_date']})"
+                   + (f", {level * 100:.1f}% of 20-day average volume. " if adv else ". ")
+                   + ("High relative to volume - possible borrow stress, worth watching." if level >= 0.1
+                      else "Small relative to volume - normal." if level < 0.02 else "Moderate.")
+                   + (f" Second half {'up' if trend > 0 else 'down'} {abs(trend) * 100:.0f}% vs the first." if trend is not None and abs(trend) >= 0.25 else ""))
     return out

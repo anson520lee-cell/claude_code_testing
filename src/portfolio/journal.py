@@ -22,7 +22,7 @@ import numpy as np
 
 from src.daily.store import utc_now
 
-ALERT_KINDS = {"above": "盤中升穿", "below": "盤中跌穿", "close_above": "收市高於", "close_below": "收市低於"}
+ALERT_KINDS = {"above": "Trades above", "below": "Trades below", "close_above": "Closes above", "close_below": "Closes below"}
 JOURNAL_FIELDS = ("symbol", "direction", "setup", "entry_date", "entry_price", "stop", "target", "shares",
                   "exit_date", "exit_price", "status", "notes")
 
@@ -38,7 +38,7 @@ def _clean(data: dict[str, Any]) -> dict[str, Any]:
     if "symbol" in out and out["symbol"]:
         out["symbol"] = str(out["symbol"]).upper().strip()
     if "direction" in out and out["direction"] not in ("long", "short"):
-        raise ValueError("方向必須是 long 或 short")
+        raise ValueError("direction must be long or short")
     for k in ("entry_price", "stop", "target", "shares", "exit_price"):
         if k in out and out[k] not in (None, ""):
             out[k] = float(out[k])
@@ -53,9 +53,9 @@ def add_trade(conn: sqlite3.Connection, data: dict[str, Any]) -> int:
     d = _clean(data)
     for k in ("symbol", "direction", "entry_price", "stop"):
         if d.get(k) in (None, ""):
-            raise ValueError(f"缺少欄位：{k}")
+            raise ValueError(f"missing field: {k}")
     if d["entry_price"] == d["stop"]:
-        raise ValueError("止損不能等於進場價")
+        raise ValueError("stop cannot equal the entry price")
     d.setdefault("status", "closed" if d.get("exit_price") is not None else "open")
     cols = ["created_at", *d]
     with conn:
@@ -92,15 +92,15 @@ def journal_review(conn: sqlite3.Connection) -> dict[str, Any]:
             t["r"] = s * (t["exit_price"] - t["entry_price"]) / risk if risk else None
             t["pnl"] = s * (t["exit_price"] - t["entry_price"]) * (t["shares"] or 0)
             if t["r"] is not None:
-                closed_r.append((t["r"], t["setup"] or "其他", t["pnl"]))
+                closed_r.append((t["r"], t["setup"] or "other", t["pnl"]))
         else:
             last = _last_close(conn, t["symbol"])
             if last:
                 t["mark_date"], t["mark"] = last
                 t["r_open"] = s * (last[1] - t["entry_price"]) / risk if risk else None
                 t["pnl_open"] = s * (last[1] - t["entry_price"]) * (t["shares"] or 0)
-                t["flag"] = ("收市已穿止損" if s * (last[1] - t["stop"]) <= 0 else
-                             "收市已到目標" if t["target"] and s * (last[1] - t["target"]) >= 0 else None)
+                t["flag"] = ("Closed through stop" if s * (last[1] - t["stop"]) <= 0 else
+                             "Closed at target" if t["target"] and s * (last[1] - t["target"]) >= 0 else None)
     stats: dict[str, Any] = {"n_closed": len(closed_r), "n_open": sum(t["status"] != "closed" for t in trades)}
     if closed_r:
         r = np.array([x[0] for x in closed_r])
@@ -124,9 +124,9 @@ def _group(items: list[tuple]) -> dict[str, list[float]]:
 # ---------------------------------------------------------------- alerts
 def add_alert(conn: sqlite3.Connection, symbol: str, kind: str, level: float, note: str | None = None) -> int:
     if kind not in ALERT_KINDS:
-        raise ValueError(f"提醒類型必須是 {', '.join(ALERT_KINDS)}")
+        raise ValueError(f"alert kind must be one of {', '.join(ALERT_KINDS)}")
     if not symbol or not np.isfinite(float(level)) or float(level) <= 0:
-        raise ValueError("請輸入代號和正數價位")
+        raise ValueError("enter a symbol and a positive price")
     with conn:
         cur = conn.execute("INSERT INTO price_alerts (created_at, symbol, kind, level, note) VALUES (?, ?, ?, ?, ?)",
                            (utc_now(), symbol.upper().strip(), kind, float(level), note))

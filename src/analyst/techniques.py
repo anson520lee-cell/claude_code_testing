@@ -1,22 +1,22 @@
 """Professional analysis toolkit: ~55 techniques run on one stock's daily bars.
 
 Every technique returns a finding:
-    {"id", "group", "name", "signal": -1 | 0 | +1, "strength": 0..1, "text": Traditional Chinese, "stat": {...}}
+    {"id", "group", "name", "signal": -1 | 0 | +1, "strength": 0..1, "text": English, "stat": {...}}
 signal is the directional read for the next 1-10 sessions (+1 constructive, -1 adverse, 0 neutral /
 informational). Stock-specific statistics always report their sample size; fewer than 5 cases are
-reported as "樣本不足" and never produce a signal.
+reported as "insufficient sample" and never produce a signal.
 
 Groups
-    個股習性   how THIS stock has behaved at EMA9 / EMA21 / EMA50 / EMA200, band touches, RSI extremes,
+    Stock behaviour   how THIS stock has behaved at EMA9 / EMA21 / EMA50 / EMA200, band touches, RSI extremes,
                gaps, streaks, breakouts, big-move days, weekdays; autocorrelation and Hurst exponent
-    籌碼分佈   volume profile (POC, value area, high-volume nodes = dense chips, low-volume nodes =
+    Volume profile   volume profile (POC, value area, high-volume nodes = dense chips, low-volume nodes =
                vacuum zones), holder-profit ratio, anchored VWAPs, 20/60-day average holder cost
-    形態       VCP, bull / bear flag, double top / bottom, pocket pivot, climax volume, key reversal,
+    Patterns   VCP, bull / bear flag, double top / bottom, pocket pivot, climax volume, key reversal,
                undercut-and-rally, failed breakout / breakdown, NR7, inside day, 3-weeks-tight,
                regression-channel position, support / resistance touch counts
-    指標共識   Stochastic, Williams %R, CCI, MFI, Chaikin money flow, A/D line, TTM squeeze, Keltner,
+    Indicator consensus   Stochastic, Williams %R, CCI, MFI, Chaikin money flow, A/D line, TTM squeeze, Keltner,
                Supertrend, Ichimoku, Parabolic SAR, Donchian, Heikin-Ashi, Elder ray, Aroon, RSI(2), z-score
-    相對表現   correlation / beta to SPY, up / down capture, idiosyncratic move today, RS line leadership
+    Relative performance   correlation / beta to SPY, up / down capture, idiosyncratic move today, RS line leadership
 All calculations use data up to the analysis date only. Statistics are in-sample descriptions of the
 past, not forecasts.
 """
@@ -54,7 +54,7 @@ def F(id_: str, group: str, name: str, signal: float, strength: float, text: str
             "strength": float(np.clip(strength, 0, 1)) if np.isfinite(strength) else 0.0, "text": text, "stat": stat}
 
 
-# ====================================================================== 個股習性 (stock-specific behaviour)
+# ====================================================================== stock-specific behaviour
 def level_reaction(f: pd.DataFrame, level: pd.Series, name: str, horizon: int = 3) -> dict[str, Any]:
     """Tests of a moving level from below (rejection vs break) and from above (bounce vs break)."""
     c, h, lo = f["close"], f["high"], f["low"]
@@ -90,20 +90,20 @@ def behaviour(f: pd.DataFrame, findings: list) -> None:
         near = np.isfinite(dist) and abs(dist) <= 1.0
         parts, signal, strength = [], 0, 0.0
         if r["n_below"] >= MIN_CASES:
-            parts.append(f"由下方觸及 {r['n_below']} 次，{r['rejected'] * 100:.0f}% 在 3 日內仍被壓在其下（平均 3 日回報 {_pc(r['fwd_below'])}）")
+            parts.append(f"tested from below {r['n_below']} times, rejected within 3 days {r['rejected'] * 100:.0f}% of the time (avg 3-day return {_pc(r['fwd_below'])})")
         if r["n_above"] >= MIN_CASES:
-            parts.append(f"由上方回踩 {r['n_above']} 次，{r['held'] * 100:.0f}% 在 3 日內守住（平均 3 日回報 {_pc(r['fwd_above'])}）")
+            parts.append(f"tested from above {r['n_above']} times, held within 3 days {r['held'] * 100:.0f}% of the time (avg 3-day return {_pc(r['fwd_above'])})")
         if not parts:
-            findings.append(F(f"ema{span}_reaction", "個股習性", f"EMA{span} 反應統計", 0, 0, f"EMA{span}：過去 2 年測試次數樣本不足。"))
+            findings.append(F(f"ema{span}_reaction", "Stock behaviour", f"EMA{span} reaction stats", 0, 0, f"EMA{span}: too few tests in the last 2 years."))
             continue
         if near and dist < 0 and r["n_below"] >= MIN_CASES and r["rejected"] >= 0.65:
             signal, strength = -1, r["rejected"]
-            parts.append(f"目前正位於 EMA{span} 下方 {abs(dist):.1f} ATR，歷史上多數會受壓")
+            parts.append(f"now {abs(dist):.1f} ATR below EMA{span}, where it has usually been rejected")
         elif near and dist >= 0 and r["n_above"] >= MIN_CASES and r["held"] >= 0.65:
             signal, strength = 1, r["held"]
-            parts.append(f"目前在 EMA{span} 上方 {dist:.1f} ATR 附近，歷史上多數守得住")
-        findings.append(F(f"ema{span}_reaction", "個股習性", f"EMA{span} 反應統計", signal, strength,
-                          f"EMA{span}：" + "；".join(parts) + "。", **r, distance_atr=dist))
+            parts.append(f"now {dist:.1f} ATR above EMA{span}, which has usually held")
+        findings.append(F(f"ema{span}_reaction", "Stock behaviour", f"EMA{span} reaction stats", signal, strength,
+                          f"EMA{span}: " + "; ".join(parts) + ".", **r, distance_atr=dist))
 
     # Bollinger band touches: walk or revert
     up_touch = (f["close"] >= f["bb_upper"]) & f["bb_upper"].notna()
@@ -112,15 +112,15 @@ def behaviour(f: pd.DataFrame, findings: list) -> None:
     dt = (f["close"] <= f["bb_lower"]) & f["bb_lower"].notna() & fwd5.notna()
     if ut.sum() >= MIN_CASES or dt.sum() >= MIN_CASES:
         u_m, d_m = float(fwd5[ut].mean()) if ut.sum() else float("nan"), float(fwd5[dt].mean()) if dt.sum() else float("nan")
-        state = "上軌" if last.close >= last.bb_upper else "下軌" if last.close <= last.bb_lower else None
+        state = "upper band" if last.close >= last.bb_upper else "lower band" if last.close <= last.bb_lower else None
         sig = 0
-        if state == "上軌" and ut.sum() >= MIN_CASES:
+        if state == "upper band" and ut.sum() >= MIN_CASES:
             sig = 1 if u_m > 0.01 else -1 if u_m < -0.005 else 0
-        if state == "下軌" and dt.sum() >= MIN_CASES:
+        if state == "lower band" and dt.sum() >= MIN_CASES:
             sig = 1 if d_m > 0.01 else -1 if d_m < -0.005 else 0
-        findings.append(F("bb_touch", "個股習性", "布林帶觸及後表現", sig, 0.5,
-                          f"收市觸及上軌 {int(ut.sum())} 次，其後 5 日平均 {_pc(u_m)}；觸及下軌 {int(dt.sum())} 次，其後 5 日平均 {_pc(d_m)}。"
-                          + (f"今日收在{state}，" + ("此股傾向沿軌道延續。" if (u_m > 0.01 if state == '上軌' else d_m < -0.005) else "此股傾向回歸中軌。") if state else ""),
+        findings.append(F("bb_touch", "Stock behaviour", "After Bollinger band touches", sig, 0.5,
+                          f"Closed at the upper band {int(ut.sum())} times, next 5 days avg {_pc(u_m)}; at the lower band {int(dt.sum())} times, next 5 days avg {_pc(d_m)}. "
+                          + (f"Closed at the {state} today; " + ("this stock tends to ride the band." if (u_m > 0.01 if state == 'upper band' else d_m < -0.005) else "this stock tends to revert to the middle band.") if state else ""),
                           up_n=int(ut.sum()), up_fwd5=u_m, down_n=int(dt.sum()), down_fwd5=d_m))
 
     # RSI14 extremes
@@ -131,9 +131,9 @@ def behaviour(f: pd.DataFrame, findings: list) -> None:
         os_m = float(fwd5[os_].mean()) if os_.sum() else float("nan")
         cur = _f(last.rsi14)
         sig = (1 if ob_m > 0 else -1) if cur >= 70 and ob.sum() >= MIN_CASES else (1 if os_m > 0 else -1) if cur <= 30 and os_.sum() >= MIN_CASES else 0
-        findings.append(F("rsi_extreme", "個股習性", "RSI 超買／超賣後表現", sig, 0.5,
-                          f"RSI14 ≥ 70 共 {int(ob.sum())} 日，其後 5 日平均 {_pc(ob_m)}（{'強者恆強型' if ob_m > 0 else '超買易回吐型'}）；"
-                          f"RSI14 ≤ 30 共 {int(os_.sum())} 日，其後 5 日平均 {_pc(os_m)}。", ob_n=int(ob.sum()), ob_fwd5=ob_m, os_n=int(os_.sum()), os_fwd5=os_m))
+        findings.append(F("rsi_extreme", "Stock behaviour", "After RSI extremes", sig, 0.5,
+                          f"RSI14 ≥ 70 on {int(ob.sum())} days, next 5 days avg {_pc(ob_m)} ({'strength begets strength' if ob_m > 0 else 'overbought tends to fade'}); "
+                          f"RSI14 ≤ 30 on {int(os_.sum())} days, next 5 days avg {_pc(os_m)}.", ob_n=int(ob.sum()), ob_fwd5=ob_m, os_n=int(os_.sum()), os_fwd5=os_m))
 
     # Gap fill tendency
     prev_c = c.shift(1)
@@ -158,9 +158,9 @@ def behaviour(f: pd.DataFrame, findings: list) -> None:
             sig = -1 if rate_up >= 0.65 else 1 if rate_up <= 0.35 else 0
         if today_gap < -0.01 and n_dn >= MIN_CASES:
             sig = 1 if rate_dn >= 0.65 else -1 if rate_dn <= 0.35 else 0
-        findings.append(F("gap_fill", "個股習性", "缺口回補傾向", sig, 0.5,
-                          f"跳空高開 > 1% 共 {n_up} 次，{_n(rate_up * 100, 0)}% 在 5 日內回補；跳空低開 > 1% 共 {n_dn} 次，"
-                          f"{_n(rate_dn * 100, 0)}% 在 5 日內回補。" + (f"今日跳空 {_pc(today_gap)}。" if abs(today_gap) > 0.01 else ""),
+        findings.append(F("gap_fill", "Stock behaviour", "Gap-fill tendency", sig, 0.5,
+                          f"{n_up} gaps up > 1%, {_n(rate_up * 100, 0)}% filled within 5 days; {n_dn} gaps down > 1%, "
+                          f"{_n(rate_dn * 100, 0)}% filled within 5 days." + (f" Today's gap {_pc(today_gap)}." if abs(today_gap) > 0.01 else ""),
                           up_n=n_up, up_fill=rate_up, down_n=n_dn, down_fill=rate_dn))
 
     # streaks
@@ -177,18 +177,18 @@ def behaviour(f: pd.DataFrame, findings: list) -> None:
         cur_up, cur_dn = int(run.iloc[-1]), int(run_dn.iloc[-1])
         sig = (1 if p_up_after_up > 0.58 else -1 if p_up_after_up < 0.42 else 0) if cur_up >= 3 else \
               (1 if p_up_after_dn > 0.58 else -1 if p_up_after_dn < 0.42 else 0) if cur_dn >= 3 else 0
-        findings.append(F("streaks", "個股習性", "連升／連跌後表現", sig, 0.4,
-                          f"連升 3 日以上後，翌日再升的機率 {p_up_after_up * 100:.0f}%（{int(a3.sum())} 次）；連跌 3 日以上後，翌日反彈機率 "
-                          f"{p_up_after_dn * 100:.0f}%（{int(d3.sum())} 次）。目前" + (f"已連升 {cur_up} 日。" if cur_up else f"已連跌 {cur_dn} 日。" if cur_dn else "沒有連續走勢。"),
+        findings.append(F("streaks", "Stock behaviour", "After winning / losing streaks", sig, 0.4,
+                          f"After 3+ up days the next day rose {p_up_after_up * 100:.0f}% of the time ({int(a3.sum())} cases); after 3+ down days it bounced "
+                          f"{p_up_after_dn * 100:.0f}% ({int(d3.sum())} cases). Now " + (f"up {cur_up} days in a row." if cur_up else f"down {cur_dn} days in a row." if cur_dn else "no streak."),
                           p_up_after_3up=p_up_after_up, p_up_after_3down=p_up_after_dn))
 
     # 20D breakout follow-through for THIS stock
     brk = (c > f["prior_high20"]) & ~(c.shift(1) > f["prior_high20"].shift(1)) & fwd5.notna()
     if brk.sum() >= MIN_CASES:
         ft = float((fwd5[brk] > 0).mean())
-        findings.append(F("breakout_ft", "個股習性", "突破 20 日高位後的延續率",
+        findings.append(F("breakout_ft", "Stock behaviour", "Follow-through after 20-day-high breakouts",
                           1 if (c.iloc[-1] > f["prior_high20"].iloc[-1] and ft >= 0.6) else -1 if (c.iloc[-1] > f["prior_high20"].iloc[-1] and ft <= 0.4) else 0,
-                          0.5, f"此股突破 20 日高位共 {int(brk.sum())} 次，5 日後仍上升的佔 {ft * 100:.0f}%，平均 5 日回報 {_pc(float(fwd5[brk].mean()))}。",
+                          0.5, f"{int(brk.sum())} breakouts to 20-day highs; {ft * 100:.0f}% were still higher 5 days later, avg 5-day return {_pc(float(fwd5[brk].mean()))}.",
                           n=int(brk.sum()), follow_through=ft))
 
     # after big moves (> 2 sigma)
@@ -200,27 +200,27 @@ def behaviour(f: pd.DataFrame, findings: list) -> None:
         bu, bd = float(fwd5[big_up].mean()) if big_up.sum() else float("nan"), float(fwd5[big_dn].mean()) if big_dn.sum() else float("nan")
         today = _f(ret.iloc[-1]) / _f(sig_d.iloc[-1]) if _f(sig_d.iloc[-1]) > 0 else float("nan")
         sig = (1 if bu > 0.01 else -1 if bu < -0.01 else 0) if today > 2 else (1 if bd > 0.01 else -1 if bd < -0.01 else 0) if today < -2 else 0
-        findings.append(F("big_moves", "個股習性", "大升／大跌日後表現", sig, 0.45,
-                          f"單日升幅超過 2 個標準差共 {int(big_up.sum())} 次，其後 5 日平均 {_pc(bu)}；跌幅超過 2 個標準差共 {int(big_dn.sum())} 次，其後 5 日平均 {_pc(bd)}。"
-                          + (f"今日變動是 {today:+.1f} 個標準差。" if np.isfinite(today) and abs(today) > 2 else ""), up_n=int(big_up.sum()), up_fwd5=bu, down_n=int(big_dn.sum()), down_fwd5=bd))
+        findings.append(F("big_moves", "Stock behaviour", "After big up / down days", sig, 0.45,
+                          f"{int(big_up.sum())} up days beyond 2σ, next 5 days avg {_pc(bu)}; {int(big_dn.sum())} down days beyond 2σ, next 5 days avg {_pc(bd)}."
+                          + (f" Today's move is {today:+.1f}σ." if np.isfinite(today) and abs(today) > 2 else ""), up_n=int(big_up.sum()), up_fwd5=bu, down_n=int(big_dn.sum()), down_fwd5=bd))
 
     # weekday seasonality (informational)
     wd = ret.groupby(ret.index.dayofweek).mean().tail(5)
     if len(wd) == 5:
-        names = ["一", "二", "三", "四", "五"]
+        names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
         best, worst = int(wd.idxmax()), int(wd.idxmin())
-        findings.append(F("weekday", "個股習性", "星期效應", 0, 0, f"過去數據中星期{names[best]}平均表現最好（{_pc(wd[best], 2)}），"
-                          f"星期{names[worst]}最差（{_pc(wd[worst], 2)}）。差異通常不顯著，只作參考。"))
+        findings.append(F("weekday", "Stock behaviour", "Day-of-week effect", 0, 0, f"Historically {names[best]} has been the best day ({_pc(wd[best], 2)}), "
+                          f"{names[worst]} the worst ({_pc(wd[worst], 2)}). Differences are usually not significant."))
 
     # autocorrelation & Hurst: trending vs mean-reverting character
     r250 = ret.dropna().tail(250)
     if len(r250) >= 200:
         ac1 = float(r250.autocorr(1))
         hurst = _hurst(np.log(c.dropna().tail(250).to_numpy()))
-        character = "趨勢延續型" if hurst > 0.55 else "均值回歸型" if hurst < 0.45 else "隨機漫步型"
-        findings.append(F("character", "個股習性", "走勢性格（Hurst／自相關）", 0, 0,
-                          f"Hurst 指數 {hurst:.2f}、日回報一階自相關 {ac1:+.2f}，屬於{character}："
-                          + ("突破和順勢策略較適合。" if hurst > 0.55 else "回調買入、高位減持較適合。" if hurst < 0.45 else "沒有明顯的統計優勢。"),
+        character = "trend-persistent" if hurst > 0.55 else "mean-reverting" if hurst < 0.45 else "random-walk-like"
+        findings.append(F("character", "Stock behaviour", "Price character (Hurst / autocorrelation)", 0, 0,
+                          f"Hurst exponent {hurst:.2f}, lag-1 autocorrelation of daily returns {ac1:+.2f}: {character}. "
+                          + ("Breakout and trend-following suit it." if hurst > 0.55 else "Buying dips and trimming strength suit it." if hurst < 0.45 else "No clear statistical edge."),
                           hurst=hurst, autocorr1=ac1))
 
 
@@ -247,7 +247,7 @@ def _hurst(logp: np.ndarray) -> float:
     return float(np.polyfit(x, y, 1)[0])
 
 
-# ====================================================================== 籌碼分佈 (volume profile / cost)
+# ====================================================================== volume profile / cost
 def volume_profile(f: pd.DataFrame, n: int = 120, bins: int = 48, decay: float = 0.985) -> dict[str, Any]:
     v = f.tail(n)
     lo, hi = float(v["low"].min()), float(v["high"].max())
@@ -313,57 +313,57 @@ def chips(f: pd.DataFrame, findings: list) -> dict[str, Any]:
     vp = volume_profile(f)
     close, atr = float(f["close"].iloc[-1]), _f(f["atr"].iloc[-1])
     if vp.get("available"):
-        pos = "價值區上方" if close > vp["vah"] else "價值區下方" if close < vp["val"] else "價值區之內"
+        pos = "above the value area" if close > vp["vah"] else "below the value area" if close < vp["val"] else "inside the value area"
         sig = 1 if close > vp["vah"] else -1 if close < vp["val"] else 0
-        findings.append(F("vp_value_area", "籌碼分佈", "成交量分佈：控制點與價值區", sig, 0.6,
-                          f"近 {vp['window']} 日成交最密集的價位（控制點 POC）在 {_n(vp['poc'])}，70% 成交集中在 {_n(vp['val'])}–{_n(vp['vah'])}（價值區）。"
-                          f"現價 {_n(close)} 位於{pos}" + ("，市場接受較高價格，屬強勢。" if sig > 0 else "，市場拒絕較高價格，屬弱勢。" if sig < 0 else "，處於均衡區。"),
+        findings.append(F("vp_value_area", "Volume profile", "Volume profile: POC and value area", sig, 0.6,
+                          f"Over {vp['window']} days the most traded price (POC) is {_n(vp['poc'])}; 70% of volume traded {_n(vp['val'])}–{_n(vp['vah'])} (value area). "
+                          f"Price {_n(close)} is {pos}" + (": higher prices are being accepted - strength." if sig > 0 else ": higher prices are being rejected - weakness." if sig < 0 else ": in balance."),
                           poc=vp["poc"], val=vp["val"], vah=vp["vah"]))
         above = sorted([x for x in vp["hvn"] if x > close * 1.005])
         below = sorted([x for x in vp["hvn"] if x < close * 0.995], reverse=True)
-        txt = "籌碼密集區（高成交量節點）：" + (f"上方 {', '.join(_n(x) for x in above[:2])}（容易成為阻力）" if above else "上方沒有")
-        txt += "；" + (f"下方 {', '.join(_n(x) for x in below[:2])}（容易成為支持）" if below else "下方沒有") + "。"
+        txt = "High-volume nodes (dense supply / demand): " + (f"above {', '.join(_n(x) for x in above[:2])} (likely resistance)" if above else "none above")
+        txt += "; " + (f"below {', '.join(_n(x) for x in below[:2])} (likely support)" if below else "none below") + "."
         near_res = above and np.isfinite(atr) and (above[0] - close) <= 1.0 * atr
-        findings.append(F("vp_hvn", "籌碼分佈", "籌碼密集區", -1 if near_res else 0, 0.5 if near_res else 0, txt, above=above[:3], below=below[:3]))
+        findings.append(F("vp_hvn", "Volume profile", "High-volume nodes", -1 if near_res else 0, 0.5 if near_res else 0, txt, above=above[:3], below=below[:3]))
         vac_up = [z for z in vp["vacuum"] if z["low"] >= close * 0.995]
         vac_dn = [z for z in vp["vacuum"] if z["high"] <= close * 1.005]
-        vtxt = "籌碼真空區（低成交量，價格容易快速穿過）：" + (
-            "上方 " + "、".join(f"{_n(z['low'])}–{_n(z['high'])}" for z in vac_up[:2]) if vac_up else "上方沒有") + "；" + (
-            "下方 " + "、".join(f"{_n(z['low'])}–{_n(z['high'])}" for z in vac_dn[-2:]) if vac_dn else "下方沒有") + "。"
+        vtxt = "Volume vacuums (thin volume, price moves through quickly): " + (
+            "above " + ", ".join(f"{_n(z['low'])}–{_n(z['high'])}" for z in vac_up[:2]) if vac_up else "none above") + "; " + (
+            "below " + ", ".join(f"{_n(z['low'])}–{_n(z['high'])}" for z in vac_dn[-2:]) if vac_dn else "none below") + ". "
         vsig = 0
         if vac_up and np.isfinite(atr) and vac_up[0]["low"] - close <= 1.0 * atr:
             vsig = 1
-            vtxt += "上方真空區就在附近，突破後可能加速上升。"
+            vtxt += "A vacuum sits just above - a breakout could accelerate."
         elif vac_dn and np.isfinite(atr) and close - vac_dn[-1]["high"] <= 1.0 * atr:
             vsig = -1
-            vtxt += "下方真空區就在附近，跌穿後可能加速下跌。"
-        findings.append(F("vp_vacuum", "籌碼分佈", "籌碼真空區", vsig, 0.5, vtxt, up=vac_up[:2], down=vac_dn[-2:]))
+            vtxt += "A vacuum sits just below - a breakdown could accelerate."
+        findings.append(F("vp_vacuum", "Volume profile", "Volume vacuums", vsig, 0.5, vtxt, up=vac_up[:2], down=vac_dn[-2:]))
         pr = vp["profit_ratio"]
-        findings.append(F("profit_ratio", "籌碼分佈", "獲利盤比例", 1 if pr >= 0.85 else -1 if pr <= 0.15 else 0, 0.4,
-                          f"按近 120 日成交量（較近期權重較高）估算，約 {pr * 100:.0f}% 的籌碼成本低於現價（處於獲利）。"
-                          + ("幾乎所有持有人都在賺錢，上方套牢盤少。" if pr >= 0.85 else "大部分持有人處於虧損，反彈時容易遇到解套沽壓。" if pr <= 0.15 else ""),
+        findings.append(F("profit_ratio", "Volume profile", "Share of holders in profit", 1 if pr >= 0.85 else -1 if pr <= 0.15 else 0, 0.4,
+                          f"From 120 days of volume (recent days weighted more), about {pr * 100:.0f}% of shares were bought below the current price (in profit). "
+                          + ("Nearly every holder is in profit - little trapped supply overhead." if pr >= 0.85 else "Most holders are under water - rallies may meet break-even selling." if pr <= 0.15 else ""),
                           profit_ratio=pr))
     # anchored VWAPs
     window = f.tail(250)
-    anchors = {"52 週高位": window["high"].idxmax(), "52 週低位": window["low"].idxmin()}
+    anchors = {"52-week high": window["high"].idxmax(), "52-week low": window["low"].idxmin()}
     gaps = f.tail(60)
     big_gap = gaps[gaps["gap_atr"].abs() >= 1]
     if not big_gap.empty:
-        anchors["最近大缺口"] = big_gap.index[-1]
+        anchors["last big gap"] = big_gap.index[-1]
     av = {k: anchored_vwap(f, d) for k, d in anchors.items()}
     above = [k for k, v in av.items() if np.isfinite(v) and close > v]
-    findings.append(F("avwap", "籌碼分佈", "錨定 VWAP", 1 if len(above) == len(av) else -1 if not above else 0, 0.5,
-                      "錨定 VWAP（由該日起所有成交的平均成本）：" + "；".join(f"{k}（{d:%Y-%m-%d}）起 {_n(av[k])}，現價{'高於' if close > av[k] else '低於'}"
-                                                                    for k, d in anchors.items()) + "。"
-                      + ("所有主要群組的持有人都處於獲利。" if len(above) == len(av) else "所有主要群組的持有人都處於虧損。" if not above else ""),
+    findings.append(F("avwap", "Volume profile", "Anchored VWAP", 1 if len(above) == len(av) else -1 if not above else 0, 0.5,
+                      "Anchored VWAP (average cost of all volume since the anchor): " + "; ".join(f"from the {k} ({d:%Y-%m-%d}) {_n(av[k])}, price {'above' if close > av[k] else 'below'}"
+                                                                    for k, d in anchors.items()) + ". "
+                      + ("Every major holder cohort is in profit." if len(above) == len(av) else "Every major holder cohort is under water." if not above else ""),
                       **{k: v for k, v in av.items()}))
     cost20, cost60 = _f(f["vwap20"].iloc[-1]), anchored_vwap(f, f.index[-60]) if len(f) >= 60 else float("nan")
-    findings.append(F("holder_cost", "籌碼分佈", "短中期持有人平均成本", 1 if close > cost20 and close > cost60 else -1 if close < cost20 and close < cost60 else 0, 0.4,
-                      f"20 日成交量加權平均成本 {_n(cost20)}、60 日 {_n(cost60)}；現價相對 20 日成本 {_pc(close / cost20 - 1)}。", cost20=cost20, cost60=cost60))
+    findings.append(F("holder_cost", "Volume profile", "Short / medium-term holder cost", 1 if close > cost20 and close > cost60 else -1 if close < cost20 and close < cost60 else 0, 0.4,
+                      f"Volume-weighted average cost 20d {_n(cost20)}, 60d {_n(cost60)}; price vs 20-day cost {_pc(close / cost20 - 1)}.", cost20=cost20, cost60=cost60))
     return vp
 
 
-# ====================================================================== 形態 (patterns)
+# ====================================================================== patterns
 def patterns(f: pd.DataFrame, findings: list) -> None:
     c, h, lo, v = f["close"], f["high"], f["low"], f["volume"]
     t, y = f.iloc[-1], f.iloc[-2]
@@ -380,9 +380,9 @@ def patterns(f: pd.DataFrame, findings: list) -> None:
             depths.append(1 - float(after.min()) / p)
     vcp = len(depths) >= 3 and all(depths[i] > depths[i + 1] for i in range(len(depths) - 3, len(depths) - 1)) and depths[-1] < 0.12 \
         and t.close > _f(t.ema50)
-    findings.append(F("vcp", "形態", "波動收縮形態（VCP）", 1 if vcp else 0, 0.7 if vcp else 0,
-                      ("近期每次回調幅度遞減（" + " → ".join(f"{x * 100:.0f}%" for x in depths[-3:]) + "），賣壓逐步被吸收，"
-                       "典型的突破前形態。" if vcp else "沒有偵測到波動收縮形態。"), depths=depths[-3:]))
+    findings.append(F("vcp", "Patterns", "Volatility contraction pattern (VCP)", 1 if vcp else 0, 0.7 if vcp else 0,
+                      ("Each recent pullback is shallower (" + " → ".join(f"{x * 100:.0f}%" for x in depths[-3:]) + "): supply is being absorbed, "
+                       "a classic pre-breakout pattern." if vcp else "No volatility contraction pattern."), depths=depths[-3:]))
 
     # flags
     ret10 = c / c.shift(10) - 1
@@ -403,74 +403,74 @@ def patterns(f: pd.DataFrame, findings: list) -> None:
             bounce = float(cons["high"].max() - lo[pole_end_d])
             if bounce <= 0.5 * pole:
                 flag = "bear"
-    findings.append(F("flag", "形態", "旗形整理", 1 if flag == "bull" else -1 if flag == "bear" else 0, 0.6 if flag else 0,
-                      "偵測到上升旗形：急升（旗桿）後縮量窄幅整理，突破整理區高位可能延續升勢。" if flag == "bull" else
-                      "偵測到下跌旗形：急跌後弱勢反彈整理，跌穿整理區低位可能延續跌勢。" if flag == "bear" else "沒有偵測到旗形整理。"))
+    findings.append(F("flag", "Patterns", "Flag", 1 if flag == "bull" else -1 if flag == "bear" else 0, 0.6 if flag else 0,
+                      "Bull flag: a sharp rise (pole) then a tight, quiet consolidation; a break above it may resume the advance." if flag == "bull" else
+                      "Bear flag: a sharp drop then a weak bounce; a break below it may resume the decline." if flag == "bear" else "No flag."))
 
     # double top / bottom
-    dt_txt, dt_sig = "沒有偵測到雙頂或雙底。", 0
+    dt_txt, dt_sig = "No double top or bottom.", 0
     if len(ph) >= 2:
         (d1, p1), (d2, p2) = ph[-2], ph[-1]
         gap_bars = f.index.get_loc(d2) - f.index.get_loc(d1)
         trough = float(lo[d1:d2].min())
         if abs(p2 / p1 - 1) <= 0.02 and gap_bars >= 8 and trough <= min(p1, p2) * 0.95 and f.index.get_loc(f.index[-1]) - f.index.get_loc(d2) <= 30:
             dt_sig = -1 if t.close < trough else 0
-            dt_txt = (f"雙頂：{d1:%m-%d} 高位 {_n(p1)} 與 {d2:%m-%d} 高位 {_n(p2)} 接近，頸線 {_n(trough)}。"
-                      + ("已跌穿頸線，形態確認。" if t.close < trough else "未跌穿頸線，形態未確認。"))
+            dt_txt = (f"Double top: highs {_n(p1)} ({d1:%m-%d}) and {_n(p2)} ({d2:%m-%d}), neckline {_n(trough)}. "
+                      + ("Neckline broken - confirmed." if t.close < trough else "Neckline intact - not confirmed."))
     if dt_sig == 0 and len(pl) >= 2:
         (d1, p1), (d2, p2) = pl[-2], pl[-1]
         gap_bars = f.index.get_loc(d2) - f.index.get_loc(d1)
         peak = float(h[d1:d2].max())
         if abs(p2 / p1 - 1) <= 0.02 and gap_bars >= 8 and peak >= max(p1, p2) * 1.05 and f.index.get_loc(f.index[-1]) - f.index.get_loc(d2) <= 30:
             dt_sig = 1 if t.close > peak else 0
-            dt_txt = (f"雙底：{d1:%m-%d} 低位 {_n(p1)} 與 {d2:%m-%d} 低位 {_n(p2)} 接近，頸線 {_n(peak)}。"
-                      + ("已升穿頸線，形態確認。" if t.close > peak else "未升穿頸線，形態未確認。"))
-    findings.append(F("double", "形態", "雙頂／雙底", dt_sig, 0.6, dt_txt))
+            dt_txt = (f"Double bottom: lows {_n(p1)} ({d1:%m-%d}) and {_n(p2)} ({d2:%m-%d}), neckline {_n(peak)}. "
+                      + ("Neckline cleared - confirmed." if t.close > peak else "Neckline not cleared - not confirmed."))
+    findings.append(F("double", "Patterns", "Double top / bottom", dt_sig, 0.6, dt_txt))
 
     # pocket pivot (O'Neil): up day volume > max down-day volume of prior 10 sessions
     prev10 = f.iloc[-11:-1]
     max_down_vol = float(prev10.loc[prev10["close"] < prev10["close"].shift(1), "volume"].max()) if len(prev10) else float("nan")
     pp = t.close > y.close and np.isfinite(max_down_vol) and t.volume > max_down_vol and t.close > _f(t.ema21)
-    findings.append(F("pocket_pivot", "形態", "口袋支點（Pocket Pivot）", 1 if pp else 0, 0.6 if pp else 0,
-                      "今日上漲成交量大於過去 10 日任何下跌日的成交量，而且在 EMA21 之上：機構買入的痕跡。" if pp else "今日沒有口袋支點。"))
+    findings.append(F("pocket_pivot", "Patterns", "Pocket pivot", 1 if pp else 0, 0.6 if pp else 0,
+                      "Up-day volume above any down day of the last 10, above EMA21: a footprint of institutional buying." if pp else "No pocket pivot today."))
 
     # climax volume / exhaustion
     vmax60 = float(v.tail(60).max())
     climax = t.volume >= vmax60 and (t.high - t.low) > 1.5 * atr
     cl_sig = -1 if climax and t.close > _f(t.ema21) and _f(t.clv) < 0.4 else 1 if climax and t.close < _f(t.ema21) and _f(t.clv) > 0.6 else 0
-    findings.append(F("climax", "形態", "高潮成交量", cl_sig, 0.6 if cl_sig else 0,
-                      ("今日成交量為 60 日最高且波幅巨大，" + ("在升勢中收在低位：可能是買盤高潮／見頂。" if cl_sig < 0 else
-                                                     "在跌勢中收在高位：可能是恐慌拋售見底。" if cl_sig > 0 else "需要觀察之後的走勢確認。"))
-                      if climax else "沒有高潮成交量。"))
+    findings.append(F("climax", "Patterns", "Climax volume", cl_sig, 0.6 if cl_sig else 0,
+                      ("60-day-high volume on a huge range, " + ("closing weak in an uptrend: possible buying climax / top." if cl_sig < 0 else
+                                                     "closing strong in a downtrend: possible capitulation low." if cl_sig > 0 else "needs follow-through to confirm."))
+                      if climax else "No climax volume."))
 
     # key reversal / undercut & rally / failed breakout / failed breakdown
     kr = t.high > _f(f["high"].iloc[-21:-1].max()) and t.close < y.close
-    findings.append(F("key_reversal", "形態", "關鍵反轉日", -1 if kr else 0, 0.6 if kr else 0,
-                      "今日創 20 日新高後收市低於昨日收市（頂部關鍵反轉）。" if kr else "沒有關鍵反轉日。"))
+    findings.append(F("key_reversal", "Patterns", "Key reversal day", -1 if kr else 0, 0.6 if kr else 0,
+                      "New 20-day high, then a close below yesterday's close (bearish key reversal)." if kr else "No key reversal."))
     low10 = float(f["low"].iloc[-11:-1].min())
     uc = t.low < low10 and t.close > low10
-    findings.append(F("undercut_rally", "形態", "跌穿後收復（Undercut & Rally）", 1 if uc else 0, 0.6 if uc else 0,
-                      f"今日盤中跌穿近 10 日低位 {_n(low10)} 後收回其上，洗走止損盤後回升。" if uc else "沒有跌穿後收復的訊號。"))
+    findings.append(F("undercut_rally", "Patterns", "Undercut & rally", 1 if uc else 0, 0.6 if uc else 0,
+                      f"Undercut the 10-day low {_n(low10)} intraday and closed back above it - stops shaken out, then a recovery." if uc else "No undercut & rally."))
     recent = f.tail(6)
     fb = bool(((recent["close"] > recent["prior_high20"]).iloc[:-1]).any()) and t.close < _f(f["prior_high20"].iloc[-6])
     fd = bool(((recent["close"] < recent["prior_low20"]).iloc[:-1]).any()) and t.close > _f(f["prior_low20"].iloc[-6])
-    findings.append(F("failed_break", "形態", "假突破／假跌破", -1 if fb else 1 if fd else 0, 0.7 if (fb or fd) else 0,
-                      "過去 5 日曾突破 20 日高位，但已跌回突破位之下（假突破、多頭陷阱）。" if fb else
-                      "過去 5 日曾跌穿 20 日低位，但已重回其上（假跌破、空頭陷阱）。" if fd else "沒有假突破或假跌破。"))
+    findings.append(F("failed_break", "Patterns", "Failed breakout / breakdown", -1 if fb else 1 if fd else 0, 0.7 if (fb or fd) else 0,
+                      "Broke the 20-day high within 5 days but is back below it (failed breakout, bull trap)." if fb else
+                      "Broke the 20-day low within 5 days but is back above it (failed breakdown, bear trap)." if fd else "No failed breakout or breakdown."))
 
     # NR7 / inside day
     rng = h - lo
     nr7 = rng.iloc[-1] <= rng.tail(7).min()
     inside = t.high < y.high and t.low > y.low
-    findings.append(F("nr7", "形態", "窄幅日（NR7／內包日）", 0, 0,
-                      ("今日是 7 日內波幅最窄的一天（NR7）" + ("，同時是內包日" if inside else "") + "：波動壓縮，常在大波動之前出現。")
-                      if nr7 or inside else "今日不是窄幅日。", nr7=bool(nr7), inside=bool(inside)))
+    findings.append(F("nr7", "Patterns", "Narrow range (NR7 / inside day)", 0, 0,
+                      ("Narrowest range in 7 days (NR7)" + (" and an inside day" if inside else "") + ": volatility compression often precedes a big move.")
+                      if nr7 or inside else "Not a narrow-range day.", nr7=bool(nr7), inside=bool(inside)))
 
     # 3 weeks tight (weekly closes within 1.5%)
     wc = c.resample("W-FRI").last().dropna().tail(3)
     tight = len(wc) == 3 and (wc.max() / wc.min() - 1) <= 0.015
-    findings.append(F("three_weeks_tight", "形態", "三週緊密收市", 1 if tight and t.close > _f(t.ema50) else 0, 0.5 if tight else 0,
-                      "最近 3 個週收市價相差不足 1.5%，籌碼穩定，常見於強勢股突破前。" if tight else "沒有三週緊密收市。"))
+    findings.append(F("three_weeks_tight", "Patterns", "Three weeks tight", 1 if tight and t.close > _f(t.ema50) else 0, 0.5 if tight else 0,
+                      "The last 3 weekly closes are within 1.5%: stable holders, common before breakouts in leaders." if tight else "Not three weeks tight."))
 
     # regression channel position
     y60 = c.tail(60).to_numpy()
@@ -479,20 +479,20 @@ def patterns(f: pd.DataFrame, findings: list) -> None:
         slope, icpt = np.polyfit(x, y60, 1)
         resid = y60 - (slope * x + icpt)
         z = resid[-1] / resid.std(ddof=1)
-        findings.append(F("reg_channel", "形態", "60 日回歸通道", -1 if z > 1.8 else 1 if z < -1.8 else 0, 0.4,
-                          f"60 日回歸線斜率每日 {slope / y60.mean() * 100:+.2f}%；現價在通道中的位置 {z:+.1f} 個標準差"
-                          + ("（貼近上緣，短線偏高）" if z > 1.8 else "（貼近下緣，短線偏低）" if z < -1.8 else "") + "。", z=float(z)))
+        findings.append(F("reg_channel", "Patterns", "60-day regression channel", -1 if z > 1.8 else 1 if z < -1.8 else 0, 0.4,
+                          f"60-day regression slope {slope / y60.mean() * 100:+.2f}% per day; price sits {z:+.1f}σ within the channel"
+                          + (" (near the top - stretched)" if z > 1.8 else " (near the bottom - depressed)" if z < -1.8 else "") + ".", z=float(z)))
 
     # support / resistance touches
     lvl_txt = []
-    for name, series, cmp in (("阻力", h, 1), ("支持", lo, -1)):
+    for name, series, cmp in (("resistance", h, 1), ("support", lo, -1)):
         ref = float(f["high"].tail(60).max()) if cmp > 0 else float(f["low"].tail(60).min())
         touches = int(((series.tail(120) - ref).abs() <= 0.5 * atr).sum()) if np.isfinite(atr) else 0
-        lvl_txt.append(f"60 日{'高位' if cmp > 0 else '低位'} {_n(ref)} 作為{name}，近 120 日被測試 {touches} 次")
-    findings.append(F("sr_touches", "形態", "支持／阻力測試次數", 0, 0, "；".join(lvl_txt) + "。測試越多次的價位越重要，一旦失守往往觸發較大的走勢。"))
+        lvl_txt.append(f"60-day {'high' if cmp > 0 else 'low'} {_n(ref)} as {name}, tested {touches} times in 120 days")
+    findings.append(F("sr_touches", "Patterns", "Support / resistance tests", 0, 0, "; ".join(lvl_txt) + ". The more a level is tested, the more it matters - a break often triggers a bigger move."))
 
 
-# ====================================================================== 指標共識 (indicator consensus)
+# ====================================================================== indicator consensus
 def indicators(f: pd.DataFrame, findings: list) -> None:
     h, lo, c, v = f["high"], f["low"], f["close"], f["volume"]
     t = f.iloc[-1]
@@ -503,32 +503,32 @@ def indicators(f: pd.DataFrame, findings: list) -> None:
     dd = kd.rolling(3).mean()
     st_sig = 1 if kd.iloc[-1] > dd.iloc[-1] and kd.iloc[-2] <= dd.iloc[-2] and kd.iloc[-1] < 40 else \
         -1 if kd.iloc[-1] < dd.iloc[-1] and kd.iloc[-2] >= dd.iloc[-2] and kd.iloc[-1] > 60 else 0
-    findings.append(F("stoch", "指標共識", "隨機指標 KD(14,3,3)", st_sig, 0.4, f"%K {_n(kd.iloc[-1], 0)}、%D {_n(dd.iloc[-1], 0)}"
-                      + ("，低位金叉。" if st_sig > 0 else "，高位死叉。" if st_sig < 0 else "。")))
+    findings.append(F("stoch", "Indicator consensus", "Stochastic (14,3,3)", st_sig, 0.4, f"%K {_n(kd.iloc[-1], 0)}, %D {_n(dd.iloc[-1], 0)}"
+                      + (": bullish cross from oversold." if st_sig > 0 else ": bearish cross from overbought." if st_sig < 0 else ".")))
     # Williams %R
     wr = -100 * (hh - c) / (hh - ll).replace(0, np.nan)
-    findings.append(F("williams", "指標共識", "威廉指標 %R(14)", 1 if wr.iloc[-1] < -80 and wr.iloc[-1] > wr.iloc[-2] else -1 if wr.iloc[-1] > -20 and wr.iloc[-1] < wr.iloc[-2] else 0,
-                      0.3, f"%R {_n(wr.iloc[-1], 0)}（低於 -80 為超賣，高於 -20 為超買）。"))
+    findings.append(F("williams", "Indicator consensus", "Williams %R (14)", 1 if wr.iloc[-1] < -80 and wr.iloc[-1] > wr.iloc[-2] else -1 if wr.iloc[-1] > -20 and wr.iloc[-1] < wr.iloc[-2] else 0,
+                      0.3, f"%R {_n(wr.iloc[-1], 0)} (below -80 oversold, above -20 overbought)."))
     # CCI 20
     tp = (h + lo + c) / 3
     md = tp.rolling(20).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=True)
     cci = (tp - tp.rolling(20).mean()) / (0.015 * md)
-    findings.append(F("cci", "指標共識", "順勢指標 CCI(20)", 1 if cci.iloc[-1] > 100 else -1 if cci.iloc[-1] < -100 else 0, 0.3,
-                      f"CCI {_n(cci.iloc[-1], 0)}（> 100 強勢，< -100 弱勢）。"))
+    findings.append(F("cci", "Indicator consensus", "CCI (20)", 1 if cci.iloc[-1] > 100 else -1 if cci.iloc[-1] < -100 else 0, 0.3,
+                      f"CCI {_n(cci.iloc[-1], 0)} (> 100 strong, < -100 weak)."))
     # MFI 14
     mf = tp * v
     pos = mf.where(tp > tp.shift(1), 0).rolling(14).sum()
     neg = mf.where(tp < tp.shift(1), 0).rolling(14).sum()
     mfi = 100 - 100 / (1 + pos / neg.replace(0, np.nan))
-    findings.append(F("mfi", "指標共識", "資金流量指標 MFI(14)", -1 if mfi.iloc[-1] > 80 else 1 if mfi.iloc[-1] < 20 else (1 if mfi.iloc[-1] > 50 else -1), 0.3,
-                      f"MFI {_n(mfi.iloc[-1], 0)}（成交量加權的 RSI；> 80 資金過熱，< 20 資金枯竭）。"))
+    findings.append(F("mfi", "Indicator consensus", "Money Flow Index (14)", -1 if mfi.iloc[-1] > 80 else 1 if mfi.iloc[-1] < 20 else (1 if mfi.iloc[-1] > 50 else -1), 0.3,
+                      f"MFI {_n(mfi.iloc[-1], 0)} (volume-weighted RSI; > 80 overheated, < 20 exhausted)."))
     # Chaikin money flow 20 & A/D line
     clv = ((c - lo) - (h - c)) / (h - lo).replace(0, np.nan)
     cmf = (clv * v).rolling(20).sum() / v.rolling(20).sum()
     ad = (clv.fillna(0) * v).cumsum()
     ad_up = ad.iloc[-1] > ad.iloc[-21]
-    findings.append(F("cmf", "指標共識", "蔡金資金流 CMF(20)／A/D 線", 1 if cmf.iloc[-1] > 0.05 and ad_up else -1 if cmf.iloc[-1] < -0.05 and not ad_up else 0, 0.4,
-                      f"CMF {_n(cmf.iloc[-1])}，累積／派發線 20 日{'上升' if ad_up else '下降'}（收市位置加權的資金流）。"))
+    findings.append(F("cmf", "Indicator consensus", "Chaikin Money Flow (20) / A/D line", 1 if cmf.iloc[-1] > 0.05 and ad_up else -1 if cmf.iloc[-1] < -0.05 and not ad_up else 0, 0.4,
+                      f"CMF {_n(cmf.iloc[-1])}, accumulation/distribution line {'rising' if ad_up else 'falling'} over 20 days (close-location-weighted money flow)."))
     # TTM squeeze & Keltner
     mid = sma(c, 20)
     sd = c.rolling(20).std(ddof=0)
@@ -537,17 +537,17 @@ def indicators(f: pd.DataFrame, findings: list) -> None:
     squeeze_on = (mid + 2 * sd < kc_up) & (mid - 2 * sd > kc_dn)
     mom = c - ((hh + ll) / 2 + mid) / 2
     fired = bool(squeeze_on.iloc[-2]) and not bool(squeeze_on.iloc[-1])
-    findings.append(F("ttm_squeeze", "指標共識", "TTM 擠壓", (1 if mom.iloc[-1] > 0 else -1) if fired else 0, 0.6 if fired else 0,
-                      ("擠壓剛釋放（布林帶由 Keltner 通道內擴張出來），動量" + ("向上。" if mom.iloc[-1] > 0 else "向下。")) if fired else
-                      f"擠壓{'進行中（布林帶在 Keltner 通道內，能量累積）' if squeeze_on.iloc[-1] else '未出現'}，動量{'向上' if mom.iloc[-1] > 0 else '向下'}。"))
-    findings.append(F("keltner", "指標共識", "Keltner 通道", 1 if c.iloc[-1] > kc_up.iloc[-1] else -1 if c.iloc[-1] < kc_dn.iloc[-1] else 0, 0.3,
-                      f"Keltner 通道（EMA20 ± 1.5 ATR）：{_n(kc_dn.iloc[-1])}–{_n(kc_up.iloc[-1])}，現價"
-                      + ("在上軌之上（強勢）。" if c.iloc[-1] > kc_up.iloc[-1] else "在下軌之下（弱勢）。" if c.iloc[-1] < kc_dn.iloc[-1] else "在通道內。")))
+    findings.append(F("ttm_squeeze", "Indicator consensus", "TTM squeeze", (1 if mom.iloc[-1] > 0 else -1) if fired else 0, 0.6 if fired else 0,
+                      ("Squeeze just fired (Bollinger bands expanding out of the Keltner channel), momentum " + ("up." if mom.iloc[-1] > 0 else "down.")) if fired else
+                      f"Squeeze {'on (Bollinger bands inside the Keltner channel, energy building)' if squeeze_on.iloc[-1] else 'off'}, momentum {'up' if mom.iloc[-1] > 0 else 'down'}."))
+    findings.append(F("keltner", "Indicator consensus", "Keltner channel", 1 if c.iloc[-1] > kc_up.iloc[-1] else -1 if c.iloc[-1] < kc_dn.iloc[-1] else 0, 0.3,
+                      f"Keltner channel (EMA20 ± 1.5 ATR): {_n(kc_dn.iloc[-1])}–{_n(kc_up.iloc[-1])}, price "
+                      + ("above the upper band (strong)." if c.iloc[-1] > kc_up.iloc[-1] else "below the lower band (weak)." if c.iloc[-1] < kc_dn.iloc[-1] else "inside the channel.")))
     # Supertrend (10, 3)
     st_dir = _supertrend(h, lo, c, 10, 3.0)
-    findings.append(F("supertrend", "指標共識", "超級趨勢 Supertrend(10,3)", st_dir["dir"], 0.5,
-                      f"Supertrend 方向{'向上' if st_dir['dir'] > 0 else '向下'}，線位 {_n(st_dir['line'])}，已維持 {st_dir['age']} 日"
-                      + ("（剛翻轉）。" if st_dir["age"] <= 2 else "。"), line=st_dir["line"]))
+    findings.append(F("supertrend", "Indicator consensus", "Supertrend (10,3)", st_dir["dir"], 0.5,
+                      f"Supertrend {'up' if st_dir['dir'] > 0 else 'down'}, line {_n(st_dir['line'])}, for {st_dir['age']} days"
+                      + (" (just flipped)." if st_dir["age"] <= 2 else "."), line=st_dir["line"]))
     # Ichimoku
     tenkan = (h.rolling(9).max() + lo.rolling(9).min()) / 2
     kijun = (h.rolling(26).max() + lo.rolling(26).min()) / 2
@@ -555,19 +555,19 @@ def indicators(f: pd.DataFrame, findings: list) -> None:
     span_b = ((h.rolling(52).max() + lo.rolling(52).min()) / 2).shift(26)
     top, bot = max(_f(span_a.iloc[-1]), _f(span_b.iloc[-1])), min(_f(span_a.iloc[-1]), _f(span_b.iloc[-1]))
     ich = 1 if c.iloc[-1] > top and tenkan.iloc[-1] > kijun.iloc[-1] else -1 if c.iloc[-1] < bot and tenkan.iloc[-1] < kijun.iloc[-1] else 0
-    findings.append(F("ichimoku", "指標共識", "一目均衡表", ich, 0.5,
-                      f"雲帶 {_n(bot)}–{_n(top)}，現價" + ("在雲上" if c.iloc[-1] > top else "在雲下" if c.iloc[-1] < bot else "在雲中")
-                      + f"；轉換線 {_n(tenkan.iloc[-1])} {'高於' if tenkan.iloc[-1] > kijun.iloc[-1] else '低於'}基準線 {_n(kijun.iloc[-1])}。"))
+    findings.append(F("ichimoku", "Indicator consensus", "Ichimoku", ich, 0.5,
+                      f"Cloud {_n(bot)}–{_n(top)}, price " + ("above the cloud" if c.iloc[-1] > top else "below the cloud" if c.iloc[-1] < bot else "inside the cloud")
+                      + f"; Tenkan {_n(tenkan.iloc[-1])} {'above' if tenkan.iloc[-1] > kijun.iloc[-1] else 'below'} Kijun {_n(kijun.iloc[-1])}."))
     # Parabolic SAR
     sar_dir, sar = _psar(h, lo)
-    findings.append(F("psar", "指標共識", "拋物線 SAR", sar_dir, 0.3, f"SAR {_n(sar)}，在價格{'下方（升勢）' if sar_dir > 0 else '上方（跌勢）'}。"))
+    findings.append(F("psar", "Indicator consensus", "Parabolic SAR", sar_dir, 0.3, f"SAR {_n(sar)}, {'below price (uptrend)' if sar_dir > 0 else 'above price (downtrend)'}."))
     # Donchian
     d20h, d20l = h.iloc[-21:-1].max(), lo.iloc[-21:-1].min()
     d55h, d55l = h.iloc[-56:-1].max(), lo.iloc[-56:-1].min()
     don = 1 if c.iloc[-1] > d55h else -1 if c.iloc[-1] < d55l else (1 if c.iloc[-1] > d20h else -1 if c.iloc[-1] < d20l else 0)
-    findings.append(F("donchian", "指標共識", "唐奇安通道（海龜 20/55）", don, 0.4,
-                      f"20 日通道 {_n(d20l)}–{_n(d20h)}，55 日通道 {_n(d55l)}–{_n(d55h)}"
-                      + ("；突破 55 日高位（海龜長線入場訊號）。" if c.iloc[-1] > d55h else "；跌穿 55 日低位。" if c.iloc[-1] < d55l else "。")))
+    findings.append(F("donchian", "Indicator consensus", "Donchian channels (Turtle 20/55)", don, 0.4,
+                      f"20-day channel {_n(d20l)}–{_n(d20h)}, 55-day {_n(d55l)}–{_n(d55h)}"
+                      + ("; above the 55-day high (Turtle long-term entry)." if c.iloc[-1] > d55h else "; below the 55-day low." if c.iloc[-1] < d55l else ".")))
     # Heikin-Ashi
     ha_c = (f["open"] + h + lo + c) / 4
     ha_o = ha_c.copy()
@@ -579,28 +579,28 @@ def indicators(f: pd.DataFrame, findings: list) -> None:
     streak = 1
     while streak < len(color) and color[-1 - streak] == color[-1]:
         streak += 1
-    findings.append(F("heikin_ashi", "指標共識", "平均 K 線（Heikin-Ashi）", int(color[-1]), 0.3,
-                      f"平均 K 線連續 {streak} 根{'陽燭' if color[-1] > 0 else '陰燭'}（過濾雜訊後的趨勢方向）。"))
+    findings.append(F("heikin_ashi", "Indicator consensus", "Heikin-Ashi", int(color[-1]), 0.3,
+                      f"{streak} consecutive {'up' if color[-1] > 0 else 'down'} Heikin-Ashi candles (noise-filtered trend direction)."))
     # Elder ray
     e13 = ema(c, 13)
     bull, bear = h - e13, lo - e13
     er = 1 if e13.iloc[-1] > e13.iloc[-2] and bear.iloc[-1] < 0 and bear.iloc[-1] > bear.iloc[-2] else \
         -1 if e13.iloc[-1] < e13.iloc[-2] and bull.iloc[-1] > 0 and bull.iloc[-1] < bull.iloc[-2] else 0
-    findings.append(F("elder_ray", "指標共識", "艾達透視（Elder Ray）", er, 0.4, f"多頭力量 {_n(bull.iloc[-1])}、空頭力量 {_n(bear.iloc[-1])}，EMA13 {'上升' if e13.iloc[-1] > e13.iloc[-2] else '下降'}"
-                      + ("：升勢中空頭力量減弱，是 Elder 的買入條件。" if er > 0 else "：跌勢中多頭力量減弱，是 Elder 的沽出條件。" if er < 0 else "。")))
+    findings.append(F("elder_ray", "Indicator consensus", "Elder Ray", er, 0.4, f"Bull power {_n(bull.iloc[-1])}, bear power {_n(bear.iloc[-1])}, EMA13 {'rising' if e13.iloc[-1] > e13.iloc[-2] else 'falling'}"
+                      + (": bear power fading in an uptrend - Elder's buy condition." if er > 0 else ": bull power fading in a downtrend - Elder's sell condition." if er < 0 else ".")))
     # Aroon 25
     au = 100 * (25 - (h.tail(26).to_numpy()[::-1].argmax())) / 25
     ad_ = 100 * (25 - (lo.tail(26).to_numpy()[::-1].argmin())) / 25
-    findings.append(F("aroon", "指標共識", "阿隆指標 Aroon(25)", 1 if au > 70 and ad_ < 30 else -1 if ad_ > 70 and au < 30 else 0, 0.3,
-                      f"Aroon 上 {au:.0f}、下 {ad_:.0f}（衡量距離最近高／低位的時間）。"))
+    findings.append(F("aroon", "Indicator consensus", "Aroon (25)", 1 if au > 70 and ad_ < 30 else -1 if ad_ > 70 and au < 30 else 0, 0.3,
+                      f"Aroon up {au:.0f}, down {ad_:.0f} (time since the latest high / low)."))
     # RSI(2) short-term mean reversion (Connors)
     r2 = rsi(c, 2)
     r2s = 1 if r2.iloc[-1] < 10 and c.iloc[-1] > _f(t.ema200) else -1 if r2.iloc[-1] > 90 and c.iloc[-1] < _f(t.ema200) else 0
-    findings.append(F("rsi2", "指標共識", "RSI(2) 短線均值回歸", r2s, 0.4, f"RSI(2) {_n(r2.iloc[-1], 0)}"
-                      + ("：長線升勢中的短線極度超賣（Connors 買入條件）。" if r2s > 0 else "：長線跌勢中的短線極度超買（Connors 沽出條件）。" if r2s < 0 else "。")))
+    findings.append(F("rsi2", "Indicator consensus", "RSI(2) short-term mean reversion", r2s, 0.4, f"RSI(2) {_n(r2.iloc[-1], 0)}"
+                      + (": deeply oversold within a long-term uptrend (Connors buy condition)." if r2s > 0 else ": deeply overbought within a long-term downtrend (Connors sell condition)." if r2s < 0 else ".")))
     # z-score vs 20-day mean
     z = (c.iloc[-1] - mid.iloc[-1]) / sd.iloc[-1] if sd.iloc[-1] > 0 else float("nan")
-    findings.append(F("zscore", "指標共識", "20 日 Z 分數", -1 if z > 2.2 else 1 if z < -2.2 else 0, 0.3, f"現價偏離 20 日均線 {z:+.1f} 個標準差。"))
+    findings.append(F("zscore", "Indicator consensus", "20-day z-score", -1 if z > 2.2 else 1 if z < -2.2 else 0, 0.3, f"Price is {z:+.1f}σ from its 20-day mean."))
 
 
 def _supertrend(h: pd.Series, lo: pd.Series, c: pd.Series, n: int, mult: float) -> dict[str, Any]:
@@ -642,7 +642,7 @@ def _psar(h: pd.Series, lo: pd.Series, step: float = 0.02, cap: float = 0.2) -> 
     return (1 if up else -1), float(sar)
 
 
-# ====================================================================== 相對表現 (relative behaviour)
+# ====================================================================== relative behaviour
 def relative(f: pd.DataFrame, spy: pd.Series | None, findings: list) -> None:
     if spy is None:
         return
@@ -658,22 +658,22 @@ def relative(f: pd.DataFrame, spy: pd.Series | None, findings: list) -> None:
     dncap = float(dn_days.iloc[:, 0].mean() / dn_days.iloc[:, 1].mean()) if len(dn_days) else float("nan")
     meaningful = beta > 0.3 and upcap > 0 and dncap > 0
     cap_sig = (1 if upcap > dncap * 1.15 else -1 if dncap > upcap * 1.15 else 0) if meaningful else 0
-    findings.append(F("capture", "相對表現", "上漲／下跌捕捉率", cap_sig, 0.5,
-                      f"近 120 日與 SPY 相關係數 {corr:.2f}、Beta {beta:.2f}；"
-                      + (f"大市上升日的平均升幅是大市的 {upcap:.1f} 倍，大市下跌日的平均跌幅是大市的 {dncap:.1f} 倍"
-                         + ("（升市時更強、跌市時相對抗跌，領導股特徵）。" if cap_sig > 0 else "（跌市時跌得更多，屬弱勢高 Beta）。" if cap_sig < 0 else "。")
-                         if meaningful else "與大市走勢關係很弱或相反，捕捉率沒有參考價值。"),
+    findings.append(F("capture", "Relative performance", "Up / down capture", cap_sig, 0.5,
+                      f"120-day correlation with SPY {corr:.2f}, beta {beta:.2f}; "
+                      + (f"on up days it moves {upcap:.1f}x the market, on down days {dncap:.1f}x"
+                         + (" (stronger up, more resilient down - a leader trait)." if cap_sig > 0 else " (falls more on down days - weak high beta)." if cap_sig < 0 else ".")
+                         if meaningful else "weak or inverse link to the market, so capture ratios mean little."),
                       corr=corr, beta=beta, up_capture=upcap, down_capture=dncap))
     resid = j.iloc[:, 0] - beta * j.iloc[:, 1]
     today = float(r.iloc[-1] - beta * m.iloc[-1]) if np.isfinite(r.iloc[-1]) and np.isfinite(m.iloc[-1]) else float("nan")
     zt = today / float(resid.std(ddof=1)) if resid.std(ddof=1) > 0 else float("nan")
-    findings.append(F("idio", "相對表現", "今日個股獨立走勢", 1 if zt > 2 else -1 if zt < -2 else 0, 0.5 if abs(_f(zt)) > 2 else 0,
-                      f"扣除大市影響（Beta × SPY）後，今日個股獨立回報 {_pc(today, 2)}，約 {zt:+.1f} 個標準差"
-                      + ("，有個股消息或資金推動的可能。" if abs(_f(zt)) > 2 else "。")))
+    findings.append(F("idio", "Relative performance", "Idiosyncratic move today", 1 if zt > 2 else -1 if zt < -2 else 0, 0.5 if abs(_f(zt)) > 2 else 0,
+                      f"After removing the market (beta × SPY), today's stock-specific return is {_pc(today, 2)}, about {zt:+.1f}σ"
+                      + (" - possibly news or flow driven." if abs(_f(zt)) > 2 else ".")))
     rs = (f["close"] / s).dropna()
     lead = len(rs) >= 60 and rs.iloc[-1] >= rs.tail(60).max() * 0.995 and f["close"].iloc[-1] < f["close"].tail(60).max() * 0.98
-    findings.append(F("rs_lead", "相對表現", "相對強弱線領先", 1 if lead else 0, 0.6 if lead else 0,
-                      "相對強弱線已創 60 日新高，但股價仍未創新高：資金領先流入的典型訊號。" if lead else "相對強弱線沒有領先股價創新高。"))
+    findings.append(F("rs_lead", "Relative performance", "RS line leading", 1 if lead else 0, 0.6 if lead else 0,
+                      "The RS line made a 60-day high before price did: a classic sign of money flowing in early." if lead else "The RS line is not leading price to new highs."))
 
 
 # ====================================================================== entry point
@@ -685,11 +685,11 @@ def run_all(f: pd.DataFrame, spy: pd.Series | None = None) -> dict[str, Any]:
         try:
             step()
         except Exception as exc:  # noqa: BLE001 - one broken technique must not kill the note
-            findings.append(F("error", "系統", "計算錯誤", 0, 0, f"部分技術計算失敗：{type(exc).__name__}"))
+            findings.append(F("error", "System", "Calculation error", 0, 0, f"Some technical calculations failed: {type(exc).__name__}"))
     try:
         vp = chips(f, findings)
     except Exception as exc:  # noqa: BLE001
-        findings.append(F("error_vp", "系統", "計算錯誤", 0, 0, f"籌碼分佈計算失敗：{type(exc).__name__}"))
+        findings.append(F("error_vp", "System", "Calculation error", 0, 0, f"Volume-profile calculation failed: {type(exc).__name__}"))
     groups: dict[str, dict[str, Any]] = {}
     for x in findings:
         g = groups.setdefault(x["group"], {"group": x["group"], "bull": 0, "bear": 0, "score": 0.0, "n": 0})

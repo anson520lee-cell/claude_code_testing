@@ -382,7 +382,7 @@ def test_candidate_scoring_and_enrichment_penalties(breakout_features, tsettings
     apply_enrichment(c, enrichment, tsettings)
     assert {"earnings_in_window", "dilution_filing", "financial_distress"} <= set(c["penalties"])
     assert c["score"] < before
-    assert any("財報" in x for x in c["contradicting"])
+    assert any("Earnings" in x for x in c["contradicting"])
 
 
 # ======================================================================= fundamentals
@@ -402,7 +402,7 @@ def test_fundamentals_point_in_time_and_ytd_derivation():
     assert m["revenue_yoy"] == pytest.approx(165 / 110 - 1)
     assert m["revenue_ttm"] == 120 + 130 + 150 + 165
     assert m["shares_yoy"] == pytest.approx(0.15)
-    assert any("稀釋" in f["text"] for f in r["flags"])
+    assert any("dilution" in f["text"] for f in r["flags"])
     early = analyze_fundamentals(facts, date(2025, 8, 15), price=10.0)
     assert early["metrics"]["latest_quarter_end"] == "2025-06-30"
 
@@ -451,8 +451,8 @@ def test_macro_events_rules():
     ev = macro_events(SESSION, [{"date": "2026-11-12", "event": "CPI"}], days=30)
     names = [(e["event_date"], e["event_type"]) for e in ev]
     assert ("2026-11-12", "CPI") in names
-    assert ("2026-11-20", "每月期權到期日") in names
-    assert any(e["event_type"].startswith("美國非農") and e["status"] == "Estimated" for e in ev)
+    assert ("2026-11-20", "Monthly options expiration") in names
+    assert any(e["event_type"].startswith("Employment") and e["status"] == "Estimated" for e in ev)
 
 
 # ======================================================================= options
@@ -462,7 +462,7 @@ def test_options_analysis():
     assert o["available"] and o["pcr_volume"] == pytest.approx(1.0)
     assert o["atm_iv"] == pytest.approx(0.35) and o["iv_hv_ratio"] == pytest.approx(1.4)
     assert o["expected_move"] == pytest.approx(6.0, rel=0.01)   # call mid + put mid at 100 = 3 + 3
-    assert o["iv_rank"] is None and "不足" in o["iv_rank_note"]
+    assert o["iv_rank"] is None and "Insufficient" in o["iv_rank_note"]
     sym = pd.DataFrame({"strike": [90.0, 95, 100, 105, 110], "openInterest": [1000.0] * 5})
     assert max_pain({"calls": sym, "puts": sym}) == pytest.approx(100.0)   # symmetric OI -> middle strike
     assert not analyze_chains([], 100, 0.2)["available"]
@@ -487,7 +487,7 @@ def test_daily_pipeline_end_to_end(tsettings, tmp_path):
     assert aaa["deep_dive"] and "earnings_in_window" in aaa["penalties"] and "dilution_filing" in aaa["penalties"]
     assert aaa["history"]["setup"] is not None and aaa["thesis"]
     report = (out / "report.md").read_text()
-    assert "市場狀態" in report and "AAA" in report and "不構成投資建議" in report
+    assert "Market regime" in report and "AAA" in report and "not investment advice" in report
     conn = sqlite3.connect(tsettings["paths"]["database"])
     assert conn.execute("SELECT status FROM terminal_runs").fetchone()[0].startswith("success")
     assert conn.execute("SELECT COUNT(*) FROM scan_candidates").fetchone()[0] >= 1
@@ -508,7 +508,7 @@ def test_pipeline_uses_latest_published_session(tsettings):
     result = run_daily(tsettings, session=SESSION, downloader=FakeDownloader(frames), skip_deep=True,
                        fred_getter=fake_fred, progress=lambda m: None)
     assert result["session"]["date"] == "2026-10-29"
-    assert any("尚未發布" in w for w in result["warnings"])
+    assert any("has not published" in w for w in result["warnings"])
 
 
 def test_existing_database_is_backed_up_before_upgrade(tsettings, tmp_path):
@@ -532,7 +532,7 @@ def test_build_catalysts_events(tmp_path):
     raw = FakeEnrichment().fetch("AAA")
     cat = build_catalysts("AAA", SESSION, raw["earnings_dates"], {}, raw["filings"], None)
     assert cat["next_earnings"]["sessions_until"] == 3          # after close Tue -> reacts Wed
-    assert any(e["event_type"] == "財報公布" for e in cat["events"])
+    assert any(e["event_type"] == "Earnings release" for e in cat["events"])
     assert cat["filings"][0]["dilution_risk"]
 
 
@@ -559,8 +559,8 @@ def test_web_api(tsettings):
     assert client.get("/api/regime/history").json()["history"]
     assert client.get("/api/runs").json()["runs"][0]["status"].startswith("success")
     assert client.get("/api/candidate-history/AAA").json()["history"]
-    assert "綜合分數" in client.get("/api/methodology").json()["regime"]
-    assert client.get("/api/i18n").json()["Bearish"] == "看空"
+    assert "composite" in client.get("/api/methodology").json()["regime"].lower()
+    assert client.get("/api/i18n").json()["wide_stop"] == "Wide stop"
     assert client.get("/api/minicharts?symbols=AAA,BBB&days=30").json()["AAA"]["c"]
     assert client.get("/reports/2026-10-30/report.html").status_code == 200
     assert client.get("/api/snapshot?session=1999-01-01").status_code == 404
@@ -611,8 +611,8 @@ def test_universe_filter_rules(tsettings):
     assert wild_f["beta120"].iloc[-1] > 1.6 and wild_f["hv60"].iloc[-1] > 0.35
     assert sorted(out["kept"]) == ["LEV", "WILD"]
     reasons = {x["symbol"]: x["reason"] for x in out["excluded"]}
-    assert "Beta" in reasons["CALM"] and "波動率" in reasons["CALM"]
-    assert "市值" in reasons["SMALL"]
+    assert "beta" in reasons["CALM"] and "volatility" in reasons["CALM"]
+    assert "market cap" in reasons["SMALL"]
 
 
 def test_market_cap_cache(tmp_path):
@@ -648,20 +648,20 @@ def test_techniques_and_analyst_note():
     spy = bars(520, seed=11)["adj_close"]
     f = build_features(bars(520, seed=2, drift=0.0012, breakout_last=True), spy, spy)
     tk = run_all(f, spy)
-    assert tk["count"] >= 45 and not [x for x in tk["findings"] if x["group"] == "系統"]
+    assert tk["count"] >= 45 and not [x for x in tk["findings"] if x["group"] == "System"]
     groups = {x["group"] for x in tk["findings"]}
-    assert {"個股習性", "籌碼分佈", "形態", "指標共識", "相對表現"} <= groups
+    assert {"Stock behaviour", "Volume profile", "Patterns", "Indicator consensus", "Relative performance"} <= groups
     for x in tk["findings"]:
         assert x["signal"] in (-1, 0, 1) and 0 <= x["strength"] <= 1 and x["text"]
     vp = volume_profile(f)
     assert vp["val"] <= vp["poc"] <= vp["vah"] and 0 <= vp["profit_ratio"] <= 1
     assert abs(sum(b["volume"] for b in vp["bins"]) - f["volume"].tail(120).sum()) / f["volume"].tail(120).sum() < 1e-6
     note = analyze("AAA", f, None, None, {"label": "Bullish"}, {"symbol": "XLK", "name": "Technology", "quadrant": "Leading"}, spy, 80.0)
-    assert note["bias"] in ("強烈偏多", "偏多", "中性偏多", "中性", "中性偏空", "偏空", "強烈偏空")
-    assert note["confidence"] in ("高", "中", "低") and -100 <= note["bias_score"] <= 100
+    assert note["bias"] in ("Strongly bullish", "Bullish", "Leaning bullish", "Neutral", "Leaning bearish", "Bearish", "Strongly bearish")
+    assert note["confidence"] in ("high", "medium", "low") and -100 <= note["bias_score"] <= 100
     assert len(note["scorecard"]) == 14 and sum(x["weight"] for x in note["scorecard"]) == 100
     assert note["summary"] and len(note["scenarios"]) == 3 and note["watch"]
-    assert any(sec["title"].startswith("籌碼分佈") for sec in note["sections"])
+    assert any(sec["title"].startswith("Volume profile") for sec in note["sections"])
 
 
 def test_level_reaction_counts_rejections():
@@ -771,7 +771,7 @@ def test_earnings_study_reactions_and_implied_move():
     assert moves["after close"]["gap"] == pytest.approx(0.08)
     k = min([95.0, 100.0, 105.0], key=lambda x: abs(x - px["close"].iat[-1]))
     straddle = {95.0: 7.0, 100.0: 6.0, 105.0: 7.0}[k]
-    assert res["implied"]["move_pct"] == pytest.approx(straddle / px["close"].iat[-1]) and res["implied_vs_history"] > 0 and "期權隱含" in res["note"]
+    assert res["implied"]["move_pct"] == pytest.approx(straddle / px["close"].iat[-1]) and res["implied_vs_history"] > 0 and "Options imply" in res["note"]
 
 
 def test_ftd_parse_and_analysis():
@@ -799,7 +799,7 @@ def test_ftd_parse_and_analysis():
     assert candidate_files(date(2026, 1, 5))[2][1] == "cnsfails202512b.zip"
     vol = pd.Series(2e6, index=pd.bdate_range("2026-09-01", "2026-10-30"))
     a = analyze_ftd(frame, "AAA", vol)
-    assert a["max"] == 400000 and a["max_vs_adv"] == pytest.approx(0.2) and "借券" in a["note"]
+    assert a["max"] == 400000 and a["max_vs_adv"] == pytest.approx(0.2) and "borrow" in a["note"]
     assert analyze_ftd(frame, "ZZZ", vol)["n"] == 0
     assert analyze_ftd(None, "AAA", vol)["available"] is False
 
@@ -819,7 +819,7 @@ def test_portfolio_report_sizing_correlation_and_heat():
                            {"account_size": 100_000, "risk_per_trade": 0.01, "max_heat": 0.02}, {"long": 1.0, "short": 0.5})
     assert rep["total_heat"] == pytest.approx(3 * 1000) and rep["total_heat_pct"] > 0.02
     assert ["AAA", "BBB"] in rep["clusters"] and rep["effective_bets"] < 3
-    assert any("超過上限" in n for n in rep["notes"])
+    assert any("above the" in n and "cap" in n for n in rep["notes"])
     hedge = portfolio_report(feats, {"long": [cand("AAA", "long")], "short": [cand("BBB", "short")]}, {}, {"long": 1, "short": 1})
     assert hedge["correlation"][0][1] < -0.9   # long AAA vs short of its twin = hedge
 
@@ -838,7 +838,7 @@ def test_industry_groups_breadth_and_macro():
     btc = bars(560, seed=5)
     btc.index = pd.date_range(end=pd.Timestamp(SESSION), periods=560, freq="D")
     prices["BTC-USD"] = btc
-    m = macro_table(prices, {"BTC-USD": "比特幣", "NOPE": "無"}, prices["SPY"].index)
+    m = macro_table(prices, {"BTC-USD": "Bitcoin", "NOPE": "None"}, prices["SPY"].index)
     assert m[0]["available"] and m[0]["corr_qqq_60d"] is not None and m[0]["comment"] and m[1]["available"] is False
 
 
@@ -861,7 +861,7 @@ def test_journal_and_alerts(tsettings):
     assert rev["stats"]["n_closed"] == 1 and rev["stats"]["n_open"] == 1
     assert any(t.get("mark") is not None for t in rev["trades"] if t["status"] == "open")
     # alerts trigger only on bars after creation: back-date the alert so the stored bars count
-    aid = journal.add_alert(conn, "AAA", "above", float(frame["high"].iloc[-5:].max()) - 0.01, "測試")
+    aid = journal.add_alert(conn, "AAA", "above", float(frame["high"].iloc[-5:].max()) - 0.01, "test")
     conn.execute("UPDATE price_alerts SET created_at = ? WHERE id = ?", (f"{frame.index[-6]:%Y-%m-%d}T00:00:00Z", aid))
     conn.commit()
     far = journal.add_alert(conn, "AAA", "below", 0.01)

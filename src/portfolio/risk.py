@@ -69,7 +69,7 @@ def portfolio_report(features: dict[str, pd.DataFrame], candidates: dict[str, li
     out: dict[str, Any] = {"account_size": account, "risk_per_trade": risk_pct, "max_position_pct": max_pos,
                            "max_heat": max_heat, "budgets": budgets, "positions": rows}
     syms = [r["symbol"] for r in rows]
-    rets = pd.DataFrame({r["symbol"] + ("" if r["direction"] == "long" else " (空)"):
+    rets = pd.DataFrame({r["symbol"] + ("" if r["direction"] == "long" else " (S)"):
                          features[r["symbol"]]["close"].pct_change().tail(window) * (1 if r["direction"] == "long" else -1)
                          for r in rows if r["symbol"] in features})
     if rets.shape[1] >= 2:
@@ -88,12 +88,12 @@ def portfolio_report(features: dict[str, pd.DataFrame], candidates: dict[str, li
                 "net_exposure": float(sum(r["value"] * (1 if r["direction"] == "long" else -1) for r in rows))})
     notes = []
     if out["total_heat_pct"] and out["total_heat_pct"] > max_heat:
-        notes.append(f"如果全部 {len(rows)} 個候選都建倉，總風險 {out['total_heat_pct'] * 100:.1f}% 超過上限 {max_heat * 100:.1f}%："
-                     f"最多約 {int(max_heat / (risk_pct or 1))} 個標準倉位，請按分數和相關性挑選。")
+        notes.append(f"Taking all {len(rows)} candidates would put {out['total_heat_pct'] * 100:.1f}% at risk, above the {max_heat * 100:.1f}% cap: "
+                     f"about {int(max_heat / (risk_pct or 1))} standard positions fit - pick by score and correlation.")
     if out.get("effective_bets") is not None:
-        notes.append(f"{len(rows)} 個倉位的平均兩兩相關 {out['avg_pair_corr']:+.2f}，相當於約 {out['effective_bets']:.1f} 個獨立的注碼。")
+        notes.append(f"Average pairwise correlation of the {len(rows)} positions {out['avg_pair_corr']:+.2f}: about {out['effective_bets']:.1f} independent bets.")
     for cl in out.get("clusters", []):
-        notes.append(f"高度相關（≥ 0.7）會一起觸發止損：{'、'.join(cl)}。只揀其中一兩隻。")
+        notes.append(f"Highly correlated (≥ 0.7), likely to stop out together: {', '.join(cl)}. Pick one or two.")
     out["notes"] = notes
     out["symbols"] = syms
     return out

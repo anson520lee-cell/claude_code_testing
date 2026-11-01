@@ -82,8 +82,8 @@ Exit codes: 0 success, 2 settings error, 3 no market data, 1 unexpected error.
 
 ### Interface language and focus
 
-The dashboard and the daily report are in Traditional Chinese (display labels live in `src/i18n/zh.py`;
-internal keys stay English). The universe is focused on AI / semiconductors / high-growth / high-beta names
+The dashboard and the daily report are in English (readable labels for internal keys live in
+`src/i18n/zh.py`; the methodology shown on the Research page comes straight from the module docstrings). The universe is focused on AI / semiconductors / high-growth / high-beta names
 plus leveraged ETFs (SOXL, TQQQ, NVDL, TSLL, LABU). Every run applies a focus filter (`universe_filter` in
 `config/terminal.yaml`): 120-session beta vs SPY ≥ 1.3, 60-session annualised volatility ≥ 35%, market cap
 ≥ US$2B (leveraged ETFs exempt; caps cached weekly) and 20-day average dollar volume ≥ US$100M. Stocks that
@@ -227,7 +227,7 @@ not as expected performance.
 
 A separate, deeper study of whether the stops and targets themselves are any good
 (`src/backtest/research.py`, results on the dashboard's Research page, refreshed monthly by
-`daily_run.py`, or on demand with the "重新回測" button / `python backtest.py`). It downloads 5 years
+`daily_run.py`, or on demand with the "Re-run backtest" button / `python backtest.py`). It downloads 5 years
 of daily bars once.
 
 * **Signals**: every setup episode (first active day) over the focus universe, with the live plan, the

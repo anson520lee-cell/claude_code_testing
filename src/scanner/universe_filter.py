@@ -39,17 +39,17 @@ def apply_universe_filter(features: dict[str, pd.DataFrame], settings: dict[str,
         reasons = []
         if cfg.get("enabled", True):
             if item["beta"] is None or item["beta"] < cfg.get("min_beta", 0):
-                reasons.append(f"Beta {item['beta']:.2f} 低於 {cfg.get('min_beta')}" if item["beta"] is not None else "Beta 無法計算")
+                reasons.append(f"beta {item['beta']:.2f} below {cfg.get('min_beta')}" if item["beta"] is not None else "beta unavailable")
             if item["hv60"] is None or item["hv60"] < cfg.get("min_hv60", 0):
-                reasons.append(f"60 日波動率 {item['hv60'] * 100:.0f}% 低於 {cfg.get('min_hv60', 0) * 100:.0f}%"
-                               if item["hv60"] is not None else "波動率無法計算")
+                reasons.append(f"60-day volatility {item['hv60'] * 100:.0f}% below {cfg.get('min_hv60', 0) * 100:.0f}%"
+                               if item["hv60"] is not None else "volatility unavailable")
             cap = item["market_cap"]
             if not item["leveraged"] and cap is not None and cap < cfg.get("min_market_cap", 0):
-                reasons.append(f"市值 ${cap / 1e9:.2f}B 低於 ${cfg.get('min_market_cap', 0) / 1e9:.0f}B")
+                reasons.append(f"market cap ${cap / 1e9:.2f}B below ${cfg.get('min_market_cap', 0) / 1e9:.0f}B")
             dv = item["dollar_volume20"]
             if dv is None or dv < min_dv:
-                reasons.append(f"日均成交額 ${(dv or 0) / 1e6:.1f}M 低於 ${min_dv / 1e6:.0f}M")
-        item["reason"] = "；".join(reasons)
+                reasons.append(f"dollar volume ${(dv or 0) / 1e6:.1f}M below ${min_dv / 1e6:.0f}M")
+        item["reason"] = "; ".join(reasons)
         (excluded if reasons else kept).append(symbol)
         rows.append(item)
     return {"kept": kept, "excluded": [r for r in rows if r["reason"]], "kept_detail": [r for r in rows if not r["reason"]],
