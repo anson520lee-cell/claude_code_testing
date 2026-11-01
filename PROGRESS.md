@@ -173,3 +173,6 @@
 * Strategy discovery (2026-11-01): 14 new styles tested (stocks 5 years; SPY / QQQ since 1993 / 1999). None passed on
   the high-beta stocks; on the index ETFs QQQ internal-bar-strength passed and RSI(2) / turn of the month were
   consistent. Market page "Index timing" card shows today's index signals. See docs/TERMINAL.md 7f.
+* Setup bonus noise band (2026-11-01): a setup whose edge over random entries is within 0.05R of zero gets bonus 0
+  (`scanner.setup_bonus_from_backtest.min_edge_r`). Breakout (+4.2 before) and reclaim (+3.7) no longer lift
+  candidates, momentum (-6.1) and pullback (-6) no longer sink them; crash rebound +20 and squeeze +8.2 unchanged.

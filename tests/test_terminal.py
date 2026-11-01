@@ -1509,7 +1509,21 @@ def test_setup_bonus_from_strategy_lab_edge():
                       "momentum": {"is": {"n": 300, "avg_r": 0.18}, "oos": {"n": 200, "avg_r": 0.20},
                                    "baseline_is": {"n": 3000, "avg_r": 0.20}, "baseline_oos": {"n": 2000, "avg_r": 0.20}}}}
     bonus, src = backtest_setup_bonus({"by_setup": {"_": {}}, "session": "2026-10-30", "lab": lab}, cfg)
-    assert src.startswith("strategy lab") and bonus["breakout"] == 12.0 and bonus["momentum"] == -1.8
+    # momentum's edge (-0.012R) is inside the 0.05R noise band -> 0
+    assert src.startswith("strategy lab") and bonus["breakout"] == 12.0 and bonus["momentum"] == 0.0
+    bonus, _ = backtest_setup_bonus({"by_setup": {"_": {}}, "session": "x", "lab": lab},
+                                    {"setup_bonus_from_backtest": {**cfg["setup_bonus_from_backtest"], "min_edge_r": 0}})
+    assert bonus["momentum"] == -1.8
+
+
+def test_shipped_strategy_lab_bonus_zeroes_setups_without_edge(tsettings):
+    from src.daily.pipeline import LAB_DEFAULT
+    from src.scanner.scoring import backtest_setup_bonus
+    lab = json.loads(LAB_DEFAULT.read_text())
+    bonus, _ = backtest_setup_bonus({"by_setup": {"_": {}}, "session": "x", "lab": lab["exits"]},
+                                    load_terminal_settings()["scanner"])
+    assert bonus["crash_rebound"] == 20 and bonus["squeeze"] > 5
+    assert all(bonus[s] == 0 for s in ("breakout", "reclaim", "momentum", "pullback"))
 
 
 def test_strategy_lab_default_copy_is_used_until_a_local_run(tmp_path):

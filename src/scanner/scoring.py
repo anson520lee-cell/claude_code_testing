@@ -130,13 +130,18 @@ def liquidity_score(dollar_volume: float, minimum: float, good: float) -> float:
 
 def backtest_setup_bonus(backtest: dict[str, Any] | None, cfg: dict[str, Any]) -> tuple[dict[str, float], str]:
     """Per-setup score bonus from the SL/TP backtest: bonus = clip(k x average R of the setup's live plan, lo, hi),
-    only for setups with at least ``min_trades`` simulated trades. Falls back to the configured bonuses."""
+    only for setups with at least ``min_trades`` simulated trades. Falls back to the configured bonuses.
+
+    With the strategy lab the bonus is based on the setup's edge over random entries; an edge smaller than
+    ``min_edge_r`` either way (default 0.05R, the project's usual threshold) is treated as noise and gives 0,
+    so setups that only track the market neither push candidates up nor down."""
     rule = cfg.get("setup_bonus_from_backtest") or {}
     by = (backtest or {}).get("by_setup") or {}
     if not rule or not by:
         return dict(cfg.get("setup_bonus") or {}), "config"
     k, lo, hi, nmin = (float(rule.get("points_per_r", 150)), float(rule.get("min", -10)), float(rule.get("max", 20)),
                        int(rule.get("min_trades", 200)))
+    min_edge = float(rule.get("min_edge_r", 0.05))
     chosen = ((backtest or {}).get("lab") or {}).get("chosen") or {}
     if chosen:
         # strategy lab: each setup's EDGE = its average R with its chosen exit minus random entries with the
@@ -150,7 +155,8 @@ def backtest_setup_bonus(backtest: dict[str, Any] | None, cfg: dict[str, Any]) -
             base_r, nb = avg(c.get("baseline_is") or {}, c.get("baseline_oos") or {})
             if s == "all" or n < nmin or not nb or SETUP_DIRECTION.get(s) != "long":
                 continue
-            out[s] = round(float(np.clip(k * (setup_r - base_r), lo, hi)), 1)
+            edge = setup_r - base_r
+            out[s] = 0.0 if abs(edge) < min_edge else round(float(np.clip(k * edge, lo, hi)), 1)
         return out, f"strategy lab {backtest.get('session', '')}"
     out = {s: round(float(np.clip(k * v["avg_r"], lo, hi)), 1) for s, v in by.items()
            if v.get("n", 0) >= nmin and v.get("avg_r") is not None and SETUP_DIRECTION.get(s) == "long"}

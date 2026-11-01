@@ -295,7 +295,10 @@ stock) is tested; choices are made on the first 60% of dates and judged on the l
   indicators have consistent rank correlations of 0.10-0.15 (higher volatility, further below the 52-week high, more
   holders under water), but they shift the typical outcome, not the average profit. The candidate score is therefore
   context; the evidence-based part of the ranking is the setup bonus = the setup's edge over random entries with its
-  exit (crash rebound +0.20R, squeeze +0.14R; breakout and reclaim about 0).
+  exit (crash rebound +0.20R, squeeze +0.14R; breakout and reclaim about 0). Over the whole period an edge smaller
+  than 0.05R either way (`setup_bonus_from_backtest.min_edge_r`) counts as noise and gives a bonus of 0: with the
+  2026-10-30 results crash rebound +20, squeeze +8.2, and breakout, reclaim, momentum and pullback 0 (they track the
+  market, so they neither lift nor sink a candidate).
 * The results of the 2026-10-30 run ship as `config/strategy_lab.default.json`, used until this machine's own monthly
   run writes `reports/backtest/<session>/strategy_lab.json`.
 * Not testable: options positioning (no free option-chain history) and fundamentals over time. Survivorship bias

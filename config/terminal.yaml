@@ -218,6 +218,7 @@ scanner:
     min: -10
     max: 20
     min_trades: 200
+    min_edge_r: 0.05          # strategy lab: an edge over random entries smaller than this (either way) = noise -> 0
   setup_horizon:              # time stop per setup (sessions); others use plan_horizon_days
     crash_rebound: 10
 
