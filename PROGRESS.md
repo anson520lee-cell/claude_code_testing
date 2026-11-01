@@ -188,3 +188,9 @@
   pullback, strength, confirming-close adds; shared or own stops) on crash rebound / squeeze / breakout + random
   entries. None beats a single full entry out of sample (best in-sample picks: -0.05R / -0.06R / -0.03R per trade);
   the edge is concentrated at the first open. Plans stay single entry. `config/scale_in.default.json`, docs 7h.
+* 2x ETF + tighter stops + scaling-in study (2026-11-01, `python leverage_study.py`, `src/backtest/leverage.py`):
+  synthetic daily-reset 2x ETF checked on 28 real 2x single-stock ETFs (real cost ~17%/year). Same trades on the ETF
+  -0.06 to -0.09R in sample; nothing passes t >= 2.5 (not even the unleveraged setups with evening-before sizing);
+  tight stops hurt squeeze; no scaling-in plan beats one entry. Crash rebound with half the stop + 2x exposure doubles
+  CAGR in the account simulation but with -64% to -66% drawdowns and no better Sharpe. Not used live. Research page
+  section; `config/leverage.default.json`; docs/TERMINAL.md section 7i.

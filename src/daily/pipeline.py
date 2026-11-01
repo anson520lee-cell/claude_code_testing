@@ -81,6 +81,7 @@ def run_lock(lock_dir: Path):
 LAB_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "strategy_lab.default.json"
 DISCOVERY_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "discovery.default.json"
 INSIDER_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "insider.default.json"
+LEVERAGE_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "leverage.default.json"
 
 
 def load_discovery(backtest_dir: Path) -> dict[str, Any] | None:
@@ -89,6 +90,18 @@ def load_discovery(backtest_dir: Path) -> dict[str, Any] | None:
         try:
             d = json.loads(f.read_text(encoding="utf-8"))
             if d.get("index"):
+                return d
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def load_leverage(backtest_dir: Path) -> dict[str, Any] | None:
+    """The newest leverage.json (2x ETF + scaling-in study), else the shipped copy."""
+    for f in [*sorted(backtest_dir.glob("*/leverage.json"))[-1:], LEVERAGE_DEFAULT]:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            if d.get("trades"):
                 return d
         except (OSError, ValueError):
             continue

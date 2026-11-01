@@ -369,6 +369,47 @@ entry on the same trades and must beat it out of sample with t >= 2.5 (t on per-
   they give up on winners.
 * Not used live: the plan stays a single entry. The 2026-11-01 compact results ship as `config/scale_in.default.json`.
 
+### 7i. 2x leveraged ETFs and tighter stops (`python leverage_study.py`, run by hand)
+
+Would trading the validated setups (crash rebound, squeeze, breakout) through a 2x daily long ETF, with tighter stops,
+or with the entry split into tranches, earn more? Everything is in R with the SAME risk budget per trade, so a 2x ETF
+does not double a trade's R: it halves the cash the position needs. What leverage changes is the path (daily reset:
+volatility decay), the cost, the size of gaps through the stop, and how many positions the cash allows.
+
+* Synthetic 2x ETF = 2x each day's move from the previous close (open, high, low and close), compounded at each close,
+  minus a daily cost. Checked on 28 real 2x single-stock ETFs (NVDL, TSLL, CONL, MSTU, ...): daily correlation 0.999,
+  but the **real cost is ~17% a year** (median; swap financing, far above the ~1% expense ratio). Over 20 sessions a
+  2x ETF returns ~2.6% less than twice the stock (median).
+* Sizing is done the evening before from the plan (entry reference - stop), as in live use. (The strategy lab sized
+  from the actual fill; a fill just above the stop then gives an extreme R - one +142R crash-rebound trade carried a
+  large part of its out-of-sample edge.)
+* Stops 0.5-2 ATR (in UNDERLYING ATR) x 5 exits x 2 horizons on the stock and on the ETF; edge over random entries
+  with the same plan, also against random stocks on the SAME signal dates; pass = edge >= 0.05R in and out of sample
+  and out-of-sample t >= 2.5 by date.
+* Scaling in (a cross-check of section 7h, same conclusion): 36 plans fixed in advance (add on strength +0.5 / +1 / +1.5 ATR, buy dips -0.25 / -0.5 / -1 ATR, next
+  day, 3 or 5 days, after a confirmation close; 2 or 3 tranches, several splits). Each tranche risks its share of
+  the 1R budget to the current stop; an add and a stop on the same bar = add first, then the stop; a dip-buy never
+  fills on a bar that also reached the target (that ordering bias first produced a fake +0.27R for squeeze).
+  Adopted only if it beats one entry by >= 0.05R in and out of sample with t >= 2.5.
+* Account simulation: daily mark-to-market, cash account (or 2x margin where stated), at most 10 positions, each
+  trade risks 1% (or 2%) of equity; medians over 12 random orders of same-day signals; random = a random stock on
+  the same day with the same plan. Also SPY and 2x SPY buy & hold.
+
+Result (2026-11-01, 2021-11 to 2026-10, in sample to 2025-01):
+
+* The same trades on the 2x ETF earn 0.06-0.09R LESS in sample (decay + cost); nothing passes the t >= 2.5 bar -
+  not even the unleveraged setups once sizing is realistic (crash rebound edge +0.13R / +0.08R, t 0.8).
+* Tighter stops ruin squeeze (1 ATR: -0.31R vs random, t -2.8) and do nothing for breakout. Only crash rebound
+  likes a tight stop (0.5-0.75 ATR: +0.19 to +0.31R vs same-day random, t 0.8-2.0, not significant).
+* No scaling-in plan beats one entry in both halves (best in-sample plans: -0.01 to -0.08R out of sample).
+* Accounts, whole period: crash rebound on the stock 37% a year, max drawdown -46%; on a 2x ETF with the same % stop
+  (= half the stop distance) 72%, -66%, Sharpe unchanged (1.10 vs 1.09); the same thing on the stock with 2x margin
+  84%, -64% (no ETF cost, and every stock has one - only ~15% of the signals were on stocks with a real 2x ETF, most
+  launched in 2024-2025). With 5 positions instead of 10 the leveraged versions have the LOWER Sharpe. All three
+  setups together on a 2x ETF: max drawdown -85% or worse. SPY: 10% a year, -25%.
+* Nothing changes in the live scoring. The 2026-11-01 results ship as `config/leverage.default.json`; the Research
+  page shows the newest run.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the
