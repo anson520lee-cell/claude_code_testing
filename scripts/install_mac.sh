@@ -5,12 +5,14 @@
 #   - "Swing Terminal.app" in ~/Applications (one click: start dashboard, update data, open browser)
 #   - optional: add the app to the Dock
 #   - optional: hourly background job that runs the daily analysis once per new US session
+#   - optional: intraday price refresh every 30 minutes in US market hours (display only, no re-scoring)
 #   - optional: first data download now
 # Usage:  bash scripts/install_mac.sh
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$HOME/Applications/Swing Terminal.app"
 AGENT="$HOME/Library/LaunchAgents/com.swingterminal.daily.plist"
+INTRADAY_AGENT="$HOME/Library/LaunchAgents/com.swingterminal.intraday.plist"
 cd "$REPO"
 
 ask() {  # ask "question" default(y/n)
@@ -118,6 +120,28 @@ PLIST
   launchctl unload "$AGENT" >/dev/null 2>&1 || true
   launchctl load "$AGENT"
   echo "Background job installed (log: data/daily_run.log). Remove with: launchctl unload \"$AGENT\" && rm \"$AGENT\""
+fi
+
+# 6b. intraday prices every 30 minutes in market hours (9:30, 10:00, ... 16:00 New York; the script checks
+#     New York time itself, so daylight saving and the Mac's own time zone do not matter)
+if ask "Refresh prices every 30 minutes while the US market is open (display only; signals stay after-close)?" y; then
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$INTRADAY_AGENT" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.swingterminal.intraday</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-c</string>
+    <string>cd '$REPO' &amp;&amp; mkdir -p data &amp;&amp; .venv/bin/python intraday_run.py >> data/intraday.log 2>&amp;1</string>
+  </array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><false/>
+</dict></plist>
+PLIST
+  launchctl unload "$INTRADAY_AGENT" >/dev/null 2>&1 || true
+  launchctl load "$INTRADAY_AGENT"
+  echo "Intraday job installed (log: data/intraday.log). Remove with: launchctl unload \"$INTRADAY_AGENT\" && rm \"$INTRADAY_AGENT\""
 fi
 
 # 7. first data download

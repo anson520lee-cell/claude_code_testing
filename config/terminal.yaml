@@ -179,6 +179,17 @@ news:
   hourly_refresh: true        # the hourly background job refreshes candidates' + market news every hour
   universe_every_hours: 6     # ...and the whole universe at most this often (politeness to the free feeds)
 
+# Intraday prices (intraday_run.py, every 5 minutes from the background job; fetches only when a new
+# half-hour slot has started: 9:30, 10:00, ... 16:00 New York, trading days, 13:00 on early-close days).
+# Display only: the dashboard shows "Live hh:mm ET" prices; scores, setups, plans and alerts still come
+# from the after-close run, because the validated setups are after-close signals entered at the next open.
+intraday:
+  enabled: true
+  every_minutes: 30
+  grace_minutes: 25           # a slot missed while the computer slept is still fetched within this window
+  max_symbols: 80             # candidates + open trades + active alerts + the ETFs below (one small batch)
+  extra_symbols: [SPY, QQQ, IWM]
+
 # Disk housekeeping after every daily run (prices, journal, alerts and history are never touched)
 housekeeping:
   keep_plain_sessions: 30     # older daily snapshots are gzip-compressed (~8x smaller, still viewable)
