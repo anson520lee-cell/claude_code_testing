@@ -7,6 +7,7 @@ from __future__ import annotations
 import copy
 import json
 import sqlite3
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -2001,7 +2002,13 @@ def test_password_hash_and_cookie_token():
     key = "ab" * 32
     token = auth.make_token(key, now=1_000_000)
     assert auth.check_token(key, token, now=1_000_100)
-    assert not auth.check_token(key, token, now=1_000_000 + 91 * 86400)       # expired
+    assert not auth.check_token(key, token, now=1_000_000 + auth.IDLE_SECONDS + 1)   # idle timeout
+    # renewal slides the idle window but never past the 12 h cap measured from login
+    renewed = auth.make_token(key, now=1_000_000 + 25 * 60, started=1_000_000)
+    assert auth.check_token(key, renewed, now=1_000_000 + 50 * 60)
+    late = auth.make_token(key, now=1_000_000 + auth.MAX_SESSION_SECONDS - 60, started=1_000_000)
+    assert not auth.check_token(key, late, now=1_000_000 + auth.MAX_SESSION_SECONDS + 1)
+    assert not auth.check_token(key, "v1.9999999999." + "0" * 64, now=1_000_100)  # old 90-day tokens are dead
     assert not auth.check_token("cd" * 32, token, now=1_000_100)                # other key (password changed)
     assert not auth.check_token(key, token[:-1] + ("0" if token[-1] != "0" else "1"), now=1_000_100)
     assert auth.safe_next("/#/ticker/AAA") == "/#/ticker/AAA"
@@ -2037,8 +2044,16 @@ def test_dashboard_login_guard(tsettings):
     assert client.post("/login", data={"password": "nope"}).status_code == 401
     r = client.post("/login", data={"password": "s3cret-pass", "next": "//evil.example"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/"
-    assert "httponly" in r.headers["set-cookie"].lower() and "samesite=lax" in r.headers["set-cookie"].lower()
-    assert client.get("/api/sessions").status_code == 200
+    cookie = r.headers["set-cookie"].lower()
+    assert "httponly" in cookie and "samesite=lax" in cookie
+    assert "max-age" not in cookie and "expires" not in cookie      # session cookie: not remembered by the browser
+    r = client.get("/api/sessions")
+    assert r.status_code == 200 and "max-age" not in r.headers["set-cookie"].lower()   # renewed, still a session cookie
+    # idle timeout: a cookie that sat unused past the limit is rejected and the password is asked again
+    old = auth.make_token(auth.load(auth_file_for(tsettings))["cookie_key"], now=time.time() - auth.IDLE_SECONDS - 5)
+    stale = TestClient(create_app(tsettings))
+    stale.cookies.set(auth.COOKIE, old)
+    assert stale.get("/api/sessions").status_code == 401
     client.get("/logout")
     assert client.get("/api/sessions").status_code == 401
     # lockout after repeated wrong passwords, even for the right one

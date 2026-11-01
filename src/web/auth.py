@@ -11,6 +11,9 @@ When the file exists every page and API call needs a valid login cookie, except:
     relayed by Tailscale Serve, Cloudflare Tunnel or any other reverse proxy carry forwarding headers and
     therefore must log in.
 
+The login is NOT remembered: the cookie is a browser-session cookie (no Max-Age / Expires), so closing the
+browser signs you out and the password is asked again next time. On top of that the signed token expires after
+30 minutes without any request (idle timeout, renewed on each request) and after 12 hours in any case.
 The cookie is HttpOnly, SameSite=Lax (blocks cross-site form posts) and Secure when the request came over
 HTTPS. Five wrong passwords from one address within 15 minutes lock that address out for 15 minutes; 30
 wrong passwords from all addresses together lock the login for everyone for 15 minutes.
@@ -35,7 +38,8 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 COOKIE = "swing_auth"
-SESSION_DAYS = 90
+IDLE_SECONDS = 30 * 60            # sign out after this long without a request
+MAX_SESSION_SECONDS = 12 * 3600   # hard cap, however active the session is
 ITERATIONS = 310_000
 MAX_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
@@ -98,24 +102,46 @@ def load(file: Path) -> dict[str, Any] | None:
 
 
 # ------------------------------------------------------------------ cookie
-def make_token(key: str, now: float | None = None, days: int = SESSION_DAYS) -> str:
-    expires = int((now or time.time()) + days * 86400)
-    payload = f"v1.{expires}"
-    sig = hmac.new(bytes.fromhex(key), payload.encode(), hashlib.sha256).hexdigest()
-    return f"{payload}.{sig}"
+def _sign(key: str, payload: str) -> str:
+    return hmac.new(bytes.fromhex(key), payload.encode(), hashlib.sha256).hexdigest()
+
+
+def make_token(key: str, now: float | None = None, started: float | None = None) -> str:
+    """Token v2: ``v2.<started>.<expires>.<sig>``. ``expires`` = now + idle timeout, never later than
+    ``started`` + the 12 h cap. A fresh login passes no ``started``; renewals pass the original one."""
+    now = int(now or time.time())
+    started = int(started if started is not None else now)
+    expires = min(now + IDLE_SECONDS, started + MAX_SESSION_SECONDS)
+    payload = f"v2.{started}.{expires}"
+    return f"{payload}.{_sign(key, payload)}"
 
 
 def check_token(key: str, token: str | None, now: float | None = None) -> bool:
+    return token_started(key, token, now) is not None
+
+
+def token_started(key: str, token: str | None, now: float | None = None) -> int | None:
+    """Login time of a valid, unexpired token, else None."""
     if not token:
-        return False
+        return None
     try:
-        version, expires, sig = token.split(".")
-        if version != "v1" or int(expires) < (now or time.time()):
-            return False
-        expected = hmac.new(bytes.fromhex(key), f"{version}.{expires}".encode(), hashlib.sha256).hexdigest()
-        return hmac.compare_digest(expected, sig)
+        version, started, expires, sig = token.split(".")
+        if version != "v2":
+            return None
+        now = now or time.time()
+        if int(expires) < now or int(started) + MAX_SESSION_SECONDS < now:
+            return None
+        if not hmac.compare_digest(_sign(key, f"{version}.{started}.{expires}"), sig):
+            return None
+        return int(started)
     except (ValueError, TypeError):
-        return False
+        return None
+
+
+def set_session_cookie(response: Any, key: str, secure: bool, started: float | None = None) -> None:
+    # No max_age / expires -> a browser-session cookie: gone when the browser is closed.
+    response.set_cookie(COOKIE, make_token(key, started=started), httponly=True, samesite="lax", secure=secure,
+                        path="/")
 
 
 # ------------------------------------------------------------------ request helpers
@@ -232,8 +258,14 @@ def install(app: Any, auth_file: Path) -> None:
             return await call_next(request)
         headers = request.scope.get("headers", [])
         client = request.client.host if request.client else None
-        if is_direct_local(client, headers) or check_token(data["cookie_key"], request.cookies.get(COOKIE)):
+        if is_direct_local(client, headers):
             return await call_next(request)
+        started = token_started(data["cookie_key"], request.cookies.get(COOKIE))
+        if started is not None:
+            response = await call_next(request)
+            # Sliding idle timeout: every request pushes the expiry 30 minutes out (capped at 12 h from login).
+            set_session_cookie(response, data["cookie_key"], is_https(request.url.scheme, headers), started)
+            return response
         if path_.startswith("/api/") or request.method != "GET":
             return JSONResponse({"detail": "Login required"}, status_code=401)
         target = path_ + (f"?{request.url.query}" if request.url.query else "")
@@ -262,8 +294,7 @@ def install(app: Any, auth_file: Path) -> None:
             return HTMLResponse(login_page(target, "Wrong password."), status_code=401)
         lockout.reset(address)
         response = RedirectResponse(target, status_code=303)
-        response.set_cookie(COOKIE, make_token(data["cookie_key"]), max_age=SESSION_DAYS * 86400, httponly=True,
-                            samesite="lax", secure=is_https(request.url.scheme, headers), path="/")
+        set_session_cookie(response, data["cookie_key"], is_https(request.url.scheme, headers))
         return response
 
     @app.get("/logout", include_in_schema=False)
