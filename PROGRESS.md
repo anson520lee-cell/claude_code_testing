@@ -176,3 +176,9 @@
 * Setup bonus noise band (2026-11-01): a setup whose edge over random entries is within 0.05R of zero gets bonus 0
   (`scanner.setup_bonus_from_backtest.min_edge_r`). Breakout (+4.2 before) and reclaim (+3.7) no longer lift
   candidates, momentum (-6.1) and pullback (-6) no longer sink them; crash rebound +20 and squeeze +8.2 unchanged.
+* Regime filter test (2026-11-01): momentum / pullback only in Bullish or Strong Bullish markets - not adopted (the
+  kept regimes beat random entries out of sample, +0.06R / +0.09R, but not in sample, -0.04R / -0.05R; the dropped
+  trades were still profitable). `regime_split` in the strategy lab, shown on the Research page.
+* Insider buying study (2026-11-01, `python insider_study.py`): SEC Form 4 open-market purchases 2020-2026 on ~1,800
+  liquid stocks. None of the 3 styles passed; CEO / CFO / President buys >= $100k are a near pass (edge +0.13R in
+  sample, +0.16R out of sample, t 2.2). Not used live. Research page section; `config/insider.default.json`.

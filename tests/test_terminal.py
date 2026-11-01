@@ -1623,3 +1623,83 @@ def test_discovery_study_small_and_index_timing(tsettings):
     rows = dc.index_timing_today({"SPY": spy, "QQQ": qqq}, study)
     assert len(rows) == 1 and rows[0]["active"] and rows[0]["stop"] < rows[0]["close"] < rows[0]["target"]
     assert rows[0]["years_positive"] == 1 and rows[0]["period"] == "1999-2026"
+
+
+def _form345_zip(rows):
+    import io
+    import zipfile
+    sub = ["ACCESSION_NUMBER\tFILING_DATE\tDOCUMENT_TYPE\tISSUERTRADINGSYMBOL"]
+    tr = ["ACCESSION_NUMBER\tTRANS_CODE\tTRANS_SHARES\tTRANS_PRICEPERSHARE\tTRANS_ACQUIRED_DISP_CD"]
+    own = ["ACCESSION_NUMBER\tRPTOWNERCIK\tRPTOWNER_RELATIONSHIP\tRPTOWNER_TITLE"]
+    for k, (sym, day, owner, rel, title, code, shares, price, form) in enumerate(rows):
+        acc = f"0000-{k}"
+        sub.append(f"{acc}\t{day}\t{form}\t{sym}")
+        tr.append(f"{acc}\t{code}\t{shares}\t{price}\tA")
+        own.append(f"{acc}\t{owner}\t{rel}\t{title}")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, lines in (("SUBMISSION.tsv", sub), ("NONDERIV_TRANS.tsv", tr), ("REPORTINGOWNER.tsv", own)):
+            zf.writestr(name, "\n".join(lines) + "\n")
+    return buf.getvalue()
+
+
+def test_insider_events_from_form4_data_set():
+    from src.backtest import insider
+    content = _form345_zip([
+        ("ABC", "02-MAR-2024", "1", "Director", "", "P", 1000, 20, "4"),
+        ("ABC", "05-MAR-2024", "2", "Officer", "CFO", "P", 10000, 20, "4"),       # CFO, $200k
+        ("ABC", "20-MAR-2024", "3", "Director,Officer", "COO", "P", 500, 20, "4"),
+        ("ABC", "21-MAR-2024", "4", "Director", "", "S", 9000, 20, "4"),          # a sale: ignored
+        ("ABC", "22-MAR-2024", "5", "TenPercentOwner", "", "P", 90000, 20, "4"),  # 10% owner: ignored
+        ("XYZ", "10-APR-2024", "6", "Director", "", "P", 100, 20, "4"),           # $2,000: below the floor
+        ("XYZ", "11-APR-2024", "7", "Officer", "Chief Executive Officer", "P", 3000, 50, "3"),  # Form 3: ignored
+    ])
+    buys = insider.parse_quarter(content)
+    assert len(buys) == 5 and set(buys["sym"]) == {"ABC", "XYZ"}
+    ev = insider.insider_events(buys)
+    got = {(r.sym, r.style): r.filing_date.strftime("%Y-%m-%d") for r in ev.itertuples()}
+    assert got == {("ABC", "ins_ceo_100k"): "2024-03-05", ("ABC", "ins_cluster3"): "2024-03-20"}
+    # the CFO + director already make $220k in 30 days -> the >= 2 buyers / $250k style has not fired
+    assert ("ABC", "ins_cluster2_250k") not in got
+
+
+def test_insider_study_small_and_shipped_copy(tsettings, tmp_path):
+    from src.backtest import insider
+    from src.daily.pipeline import INSIDER_DEFAULT, load_insider
+    end = date(2026, 10, 30)
+    spy = bars(1300, end, seed=10, volume=5e6)
+    prices = {f"S{i}": bars(1300, end, drift=0.0005, vol=0.02, seed=60 + i, base=40, volume=5e6) for i in range(4)}
+    days = spy.index[300:-30:9]
+    ev = pd.DataFrame([{"sym": f"S{k % 4}", "style": list(insider.STYLE_NAMES)[k % 3], "filing_date": d, "n_buyers": 3,
+                        "value_30d": 3e5} for k, d in enumerate(days)])
+    data = insider.collect(ev, prices, spy["adj_close"], pd.Series("Neutral", index=spy.index), {"S0"})
+    sig = data["signals"]
+    assert (sig["setup"] == "baseline").sum() > 100 and (sig["setup"] != "baseline").sum() > 50
+    first = sig[sig["setup"] != "baseline"].iloc[0]
+    assert first["date"] <= ev.loc[ev["sym"] == first["symbol"], "filing_date"].min() + pd.Timedelta(days=4)
+    res = insider.run(data, 0.001)
+    assert res["verdict"] and res["robustness"] and set(res["styles"]) == set(insider.STYLE_NAMES)
+    shipped = load_insider(tmp_path)
+    assert INSIDER_DEFAULT.exists() and shipped["styles"] and not any(s.get("passes") for s in shipped["styles"].values())
+
+
+def test_regime_split_rule_and_shipped_result(tsettings):
+    from src.backtest import strategy_lab as lab
+    from src.daily.pipeline import LAB_DEFAULT
+    from src.scanner.setups import detect_setups
+    end = date(2026, 10, 30)
+    spy = bars(1300, end, seed=10)
+    feats, sets = {}, {}
+    for i in range(5):
+        f = build_features(bars(1300, end, drift=0.0006, vol=0.02, seed=70 + i, volume=5e6), spy["adj_close"], None)
+        feats[f"S{i}"], sets[f"S{i}"] = f, detect_setups(f)
+    data = lab.collect(feats, sets, spy["close"], pd.Series(0.0, index=spy.index), tsettings, techniques=False, workers=1)
+    label = pd.Series(np.where(np.arange(len(spy)) % 2, "Bullish", "Bearish"), index=spy.index)
+    rule = {"stop": "atr1.5", "target": "trail3", "horizon": 20, "name": "x"}
+    rs = lab.regime_split(data, {"momentum": rule, "pullback": rule}, label, data["signals"]["date"].quantile(0.6), 0.001)
+    for v in rs["setups"].values():
+        assert {r["regime"] for r in v["rows"]} >= {"Bullish", "Bearish", "kept", "dropped", "all"}
+        assert v["passes"] == (all(e is not None and e >= 0.05 for e in v["kept_edge"])
+                               and all(e is not None and e < 0 for e in v["dropped_edge"]))
+    shipped = json.loads(LAB_DEFAULT.read_text())["regime_split"]
+    assert set(shipped["setups"]) == {"momentum", "pullback"} and not any(v["passes"] for v in shipped["setups"].values())

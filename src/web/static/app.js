@@ -1461,6 +1461,44 @@ function discoverySection(ds) {
   </section>`;
 }
 
+function insiderSection(d) {
+  if (!d || !d.available) return "";
+  const r = (v) => `<span class="${cls(v)}">${isNum(v) ? (v > 0 ? "+" : "") + num(v) : "—"}</span>`;
+  const ex = (s) => `${s.stop.replace("atr", "")} ATR stop · ${s.target.startsWith("trail") ? s.target.replace("trail", "") + "-ATR trail" : s.target.replace("atr", "") + (s.target.startsWith("r") ? "" : " ATR")} · ${s.horizon}d`;
+  const near = (s) => s.edge_is >= 0.05 && s.edge_oos >= 0.05 && ((s.oos || {}).t_clustered || 0) >= 2;
+  const rows = Object.entries(d.styles || {}).filter(([, s]) => !s.skipped).map(([k, s]) => ({ key: k, name: s.name, exit: ex(s),
+    is_e: s.edge_is, oos_r: (s.oos || {}).avg_r, oos_e: s.edge_oos, n: (s.oos || {}).n, t: (s.oos || {}).t_clustered,
+    yp: Object.values(s.per_year || {}).filter((z) => z > 0).length + "/" + Object.keys(s.per_year || {}).length, pass: s.passes, near: near(s) }));
+  const rob = (d.robustness || []).map((x) => ({ ...x, name: (d.style_names || {})[x.style] || x.style, exit: ex(x) }));
+  return `<section class="note-block"><div class="note-head"><div><div class="eyebrow">SEC Form 4 · ${d.n_stocks} liquid stocks · ${esc(d.first)} → ${esc(d.last)} · in sample to ${esc(d.cutoff)}</div>
+      <div class="hl">Insider buying: do officers and directors know something?</div></div>
+      <div class="meta">Passed<b>${rows.filter((x) => x.pass).length} / ${rows.length}</b>strict test</div></div>
+    <ul class="list verdict">${(d.verdict || []).map((v) => `<li>${esc(v)}</li>`).join("")}</ul>
+    ${table("ins", [{ key: "name", label: "Style" }, { key: "exit", label: "Best exit (in sample)" }, { key: "is_e", label: "Edge in sample", n: 1, render: (x) => r(x.is_e) },
+      { key: "oos_r", label: "Out of sample", n: 1, render: (x) => r(x.oos_r) }, { key: "oos_e", label: "Edge out of sample", n: 1, render: (x) => r(x.oos_e) },
+      { key: "n", label: "Trades (OOS)", n: 1 }, { key: "t", label: "t (by date)", n: 1, render: (x) => num(x.t, 1) }, { key: "yp", label: "Years +" },
+      { key: "pass", label: "Result", render: (x) => (x.pass ? '<b class="up">PASS</b>' : x.near ? '<span class="warn">near pass</span>' : '<span class="muted">fail</span>') }], rows, { sortKey: "oos_e" })}
+    ${rob.length ? `<h3 class="sub">Same styles with three fixed exits <small>no exit chosen on the data: is the edge there whichever exit is used?</small></h3>
+    ${table("insr", [{ key: "name", label: "Style" }, { key: "exit", label: "Exit" }, { key: "edge_is", label: "Edge in sample", n: 1, render: (x) => r(x.edge_is) },
+      { key: "edge_oos", label: "Edge out of sample", n: 1, render: (x) => r(x.edge_oos) }, { key: "t_oos", label: "t (OOS)", n: 1, render: (x) => num(x.t_oos, 1) },
+      { key: "n_oos", label: "Trades (OOS)", n: 1 }], rob)}` : ""}
+    <p class="note">Signal day = the Form 4 filing date (when the public could know), entry at the next open. Only open-market purchases (code P) by officers and directors worth ≥ $5,000; price ≥ $5 and ≥ $5M median daily dollar volume. Edge = average R minus random entries in the same stocks with the same exit. Delisted companies are missing, which flatters every style. Source: <a href="${esc(d.source || "")}" target="_blank" rel="noopener">SEC insider transactions data sets</a>.</p>
+  </section>`;
+}
+
+function regimeSplitTable(rs, names) {
+  if (!rs || !rs.setups) return "";
+  const r = (v) => `<span class="${cls(v)}">${isNum(v) ? (v > 0 ? "+" : "") + num(v) : "—"}</span>`;
+  const rows = [];
+  for (const [k, v] of Object.entries(rs.setups)) for (const x of v.rows || []) rows.push({ setup: names[k] || k, part: x.part, regime: x.regime,
+    n: (x.setup || {}).n, avg: (x.setup || {}).avg_r, rnd: (x.random || {}).avg_r, edge: x.edge, kept: x.regime === "kept" || (rs.keep || []).includes(x.regime) });
+  return `<h3 class="sub">Only in Bullish markets? <small>setup trades vs random entries (same exit) by the regime on the signal day · ${Object.values(rs.setups).some((v) => v.passes) ? "a filter passed" : "no filter passed"}</small></h3>
+    ${table("labrg", [{ key: "setup", label: "Setup" }, { key: "part", label: "Period" }, { key: "regime", label: "Regime", render: (x) => (x.kept ? `<b>${esc(x.regime)}</b>` : esc(x.regime)) },
+      { key: "n", label: "Trades", n: 1 }, { key: "avg", label: "Setup avg", n: 1, render: (x) => r(x.avg) }, { key: "rnd", label: "Random avg", n: 1, render: (x) => r(x.rnd) },
+      { key: "edge", label: "Edge", n: 1, render: (x) => r(x.edge) }], rows)}
+    <p class="note">Adopted only if the kept regimes (Bullish, Strong Bullish) beat random entries by ≥ 0.05R in AND out of sample and the dropped regimes did worse than random in both halves.</p>`;
+}
+
 function labFeatureName(f) {
   const g = { f: "", d: "vs ", t: "technique: ", v: "chips: ", m: "" }[f[0]] || "";
   return g + f.slice(2).replace(/^setup_/, "setup = ").replace(/_/g, " ");
@@ -1487,6 +1525,7 @@ function labSection(lab) {
       { key: "oos_n", label: "Trades (OOS)", n: 1 }, { key: "oos_w", label: "Win (OOS)", n: 1, render: (x) => pct(x.oos_w, 0, false) },
       { key: "base", label: "Random entry, same exit", n: 1, render: (x) => r(x.base) }, { key: "edge_oos", label: "Setup edge", n: 1, render: (x) => r(x.edge_oos) }],
       exitRows, { sortKey: "oos_r" })}
+    ${regimeSplitTable(lab.regime_split, names)}
     <h3 class="sub">Ranking trades with all indicators <small>walk-forward: each year scored by models fitted only on earlier years</small></h3>
     ${table("labwf", [{ key: "year", label: "Test year" }, { key: "n", label: "Setup trades", n: 1 }, { key: "all", label: "All trades", n: 1, render: (x) => r(x.all) },
       { key: "ic", label: "Top fifth · indicator weights", n: 1, render: (x) => r(x.ic) }, { key: "ridge", label: "Top fifth · ridge model", n: 1, render: (x) => r(x.ridge) },
@@ -1732,6 +1771,8 @@ async function research() {
   try { lab = await api("/api/strategy-lab"); } catch (_) { lab = null; }
   let disc = null;
   try { disc = await api("/api/discovery"); } catch (_) { disc = null; }
+  let ins = null;
+  try { ins = await api("/api/insider"); } catch (_) { ins = null; }
   const rows = Object.entries(bt.by_setup || {}).map(([k, v]) => ({ key: k, name: s.setup_names[k] || tr(k), ...v })).filter((r) => r.n);
   const regimes = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
@@ -1739,6 +1780,7 @@ async function research() {
     <p>How stops and targets are set, how accurate they were over five years, and what works better; then the daily report's setup simulation and the methodology.</p></div></div>
     ${labSection(lab)}
     ${discoverySection(disc)}
+    ${insiderSection(ins)}
     ${setupWeighting(s)}
     ${crashSection(crash)}
     ${slTpExplainer(full)}

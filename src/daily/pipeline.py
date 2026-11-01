@@ -80,6 +80,7 @@ def run_lock(lock_dir: Path):
 
 LAB_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "strategy_lab.default.json"
 DISCOVERY_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "discovery.default.json"
+INSIDER_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "insider.default.json"
 
 
 def load_discovery(backtest_dir: Path) -> dict[str, Any] | None:
@@ -88,6 +89,18 @@ def load_discovery(backtest_dir: Path) -> dict[str, Any] | None:
         try:
             d = json.loads(f.read_text(encoding="utf-8"))
             if d.get("index"):
+                return d
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def load_insider(backtest_dir: Path) -> dict[str, Any] | None:
+    """The newest insider.json (SEC Form 4 insider-buying study), else the shipped copy."""
+    for f in [*sorted(backtest_dir.glob("*/insider.json"))[-1:], INSIDER_DEFAULT]:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            if d.get("styles"):
                 return d
         except (OSError, ValueError):
             continue
