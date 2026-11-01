@@ -18,6 +18,7 @@ Endpoints (JSON unless noted):
     GET  /api/backtest/status, POST /api/backtest/run   re-run that backtest in the background
     GET  /api/run/status, POST /api/run    run the daily pipeline in the background
     GET  /reports/{session}/report.html    the printable report
+    GET/POST /login, GET /logout    password login (only active after `python serve.py --set-password`)
 
 No endpoint places orders or talks to a broker - this is a research terminal.
 """
@@ -53,6 +54,11 @@ STATIC = Path(__file__).with_name("static")
 logger = logging.getLogger(__name__)
 
 
+def auth_file_for(settings: dict[str, Any]) -> Path:
+    """The login password file: data/auth.json, next to the database (git-ignored)."""
+    return path(settings, "database").parent / "auth.json"
+
+
 def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None = None,
                config_path: str | None = None) -> FastAPI:
     """``live_reload``: re-read config/terminal.yaml and the auto universe when they change on disk, so a
@@ -81,6 +87,9 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
     app = FastAPI(title="Swing Research Terminal", version="1.0",
                   description="Quantitative swing-trading RESEARCH terminal. No order execution.")
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    # optional password login (python serve.py --set-password); a no-op until data/auth.json exists
+    from src.web import auth
+    auth.install(app, auth_file_for(settings))
     run_state: dict[str, Any] = {"running": False, "started_at": None, "finished_at": None, "status": None,
                                  "message": None, "log": []}
     lock = threading.Lock()

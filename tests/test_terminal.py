@@ -1939,3 +1939,67 @@ def test_company_profile_summary_and_ceo():
     assert p["ceo"] == {"name": "John Doe", "title": "Co-Founder, CEO & Director"}
     empty = company_profile({})
     assert empty["summary"] is None and empty["ceo"] is None
+
+
+# ======================================================================= dashboard login
+def test_password_hash_and_cookie_token():
+    from src.web import auth
+    stored = auth.hash_password("correct horse", iterations=1000)
+    assert auth.verify_password("correct horse", stored) and not auth.verify_password("wrong", stored)
+    assert not auth.verify_password("x", "garbage")
+    key = "ab" * 32
+    token = auth.make_token(key, now=1_000_000)
+    assert auth.check_token(key, token, now=1_000_100)
+    assert not auth.check_token(key, token, now=1_000_000 + 91 * 86400)       # expired
+    assert not auth.check_token("cd" * 32, token, now=1_000_100)                # other key (password changed)
+    assert not auth.check_token(key, token[:-1] + ("0" if token[-1] != "0" else "1"), now=1_000_100)
+    assert auth.safe_next("/#/ticker/AAA") == "/#/ticker/AAA"
+    assert auth.safe_next("//evil.example") == "/" and auth.safe_next("https://evil.example") == "/"
+    h = lambda **kw: [(k.replace("_", "-").encode(), v.encode()) for k, v in kw.items()]  # noqa: E731
+    assert auth.is_direct_local("127.0.0.1", h(host="127.0.0.1:8000"))
+    assert auth.is_direct_local("::1", h(host="localhost:8000"))
+    assert not auth.is_direct_local("127.0.0.1", h(host="127.0.0.1:8000", x_forwarded_for="100.64.0.2"))
+    assert not auth.is_direct_local("127.0.0.1", h(host="swing.tail1234.ts.net"))
+    assert not auth.is_direct_local("127.0.0.1", h(host="127.0.0.1", tailscale_user_login="a@b.c"))
+    assert not auth.is_direct_local("100.64.0.2", h(host="127.0.0.1:8000"))
+
+
+def test_dashboard_login_guard(tsettings):
+    from fastapi.testclient import TestClient
+
+    from src.web import auth
+    from src.web.app import auth_file_for, create_app
+    client = TestClient(create_app(tsettings))
+    assert client.get("/api/sessions").status_code == 200          # no password set: open, as before
+    auth.set_password(auth_file_for(tsettings), "s3cret-pass")
+    assert client.get("/api/sessions").status_code == 401           # picked up without a restart
+    assert client.post("/api/journal", json={"symbol": "AAA"}).status_code == 401
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/login")
+    assert client.get("/static/app.js").status_code == 200          # assets carry no data
+    assert client.get("/login").status_code == 200
+    assert client.post("/login", data={"password": "nope"}).status_code == 401
+    r = client.post("/login", data={"password": "s3cret-pass", "next": "//evil.example"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/"
+    assert "httponly" in r.headers["set-cookie"].lower() and "samesite=lax" in r.headers["set-cookie"].lower()
+    assert client.get("/api/sessions").status_code == 200
+    client.get("/logout")
+    assert client.get("/api/sessions").status_code == 401
+    # lockout after repeated wrong passwords, even for the right one
+    other = TestClient(create_app(tsettings))
+    for _ in range(auth.MAX_FAILURES):
+        other.post("/login", data={"password": "bad"})
+    assert other.post("/login", data={"password": "s3cret-pass"}).status_code == 429
+    # changing the password signs everyone out
+    client.post("/login", data={"password": "s3cret-pass"})
+    assert client.get("/api/sessions").status_code == 200
+    auth.set_password(auth_file_for(tsettings), "another-pass")
+    assert client.get("/api/sessions").status_code == 401
+    assert auth.clear_password(auth_file_for(tsettings))
+    assert client.get("/api/sessions").status_code == 200
+
+
+def test_serve_refuses_public_host_without_password():
+    import serve
+    assert serve.is_loopback("127.0.0.1") and serve.is_loopback("localhost") and serve.is_loopback("::1")
+    assert not serve.is_loopback("0.0.0.0") and not serve.is_loopback("100.101.102.103")
