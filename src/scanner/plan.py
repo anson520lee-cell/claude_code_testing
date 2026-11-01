@@ -140,6 +140,51 @@ def plan_basis(df: pd.DataFrame, setup: str, plan: dict[str, Any], cfg: dict[str
             "method": "Price structure + ATR noise floor + historical resistance / support (no volume profile or options; the options expected move is context only)"}
 
 
+def apply_exit_rule(out: dict[str, Any], df: pd.DataFrame, setup: str, rule: dict[str, Any]) -> dict[str, Any]:
+    """Replace stop / targets / time stop with the exit the strategy lab chose for this setup (chosen in
+    sample, verified out of sample - see src/backtest/strategy_lab.py). Long setups only."""
+    if SETUP_DIRECTION.get(setup) != "long" or not rule:
+        return out
+    a, entry = float(out["atr"]), float(out["entry"])
+    sm, tm, hz = str(rule["stop"]), str(rule["target"]), int(rule["horizon"])
+    if sm.startswith("atr"):
+        stop, stop_txt = entry - float(sm[3:]) * a, f"Entry − {float(sm[3:]):g} ATR"
+    elif sm == "swing":
+        sw = float(df["swing_low_last"].iloc[-1]) if pd.notna(df["swing_low_last"].iloc[-1]) else float("nan")
+        dist = (entry - (sw - 0.1 * a)) / a if np.isfinite(sw) else float("nan")
+        if np.isfinite(dist):
+            stop = entry - float(np.clip(dist, 0.75, 4.0)) * a
+            stop_txt = f"Last confirmed swing low {sw:.2f} − 0.1 ATR (kept within 0.75–4 ATR)"
+        else:
+            stop, stop_txt = float(out["stop"]), STOP_BASIS[setup]
+    else:
+        stop, stop_txt = float(out["stop"]), STOP_BASIS[setup]
+    risk = entry - stop
+    if risk <= 0:
+        return out
+    trail = None
+    if tm.startswith("trail"):
+        trail = float(tm[5:] or 3)
+        t1 = t2 = float("nan")
+        tgt_txt = (f"No fixed target: trailing stop at the highest high since entry − {trail:g} ATR (it only moves up), "
+                   f"or exit at the close after {hz} sessions")
+    else:
+        t1 = entry + (float(tm[3:]) * a if tm.startswith("atr") else float(tm[1:]) * risk)
+        t2 = float("nan")
+        tgt_txt = (f"Target = entry + {tm[3:]} ATR" if tm.startswith("atr") else f"Target = {tm[1:]}R (entry + {tm[1:]} × risk)") + \
+            f"; otherwise exit at the close after {hz} sessions"
+    oos = rule.get("oos") or {}
+    tested = (f" Tested out of sample: {oos.get('avg_r', float('nan')):+.2f}R per trade over {oos.get('n', 0)} trades"
+              f" (win rate {oos.get('win_rate', float('nan')) * 100:.0f}%)." if oos.get("n") else "")
+    out.update({"stop": stop, "target1": t1 if np.isfinite(t1) else None, "target2": t2 if np.isfinite(t2) else None,
+                "risk_atr": risk / a, "risk_pct": risk / entry, "wide_stop": False, "horizon_days": hz,
+                "reward_risk": (t1 - entry) / risk if np.isfinite(t1) else None, "trail_atr": trail,
+                "exit_rule": {"name": rule.get("name"), "stop": sm, "target": tm, "horizon": hz, "oos": oos},
+                "stop_basis": stop_txt + ".", "target_basis": tgt_txt + "." + tested,
+                "method": "Strategy lab: exit chosen on the first 60% of 5 years of setups, verified on the last 40%"})
+    return out
+
+
 def plan_row(df: pd.DataFrame, setup: str, cfg: dict[str, Any], horizon: int) -> dict[str, Any]:
     """Today's plan for one setup as a plain dict."""
     p = plan_for_setup(df, setup, cfg).iloc[-1]
@@ -153,4 +198,7 @@ def plan_row(df: pd.DataFrame, setup: str, cfg: dict[str, Any], horizon: int) ->
     hv = float(df["hv20"].iloc[-1]) if pd.notna(df["hv20"].iloc[-1]) else float("nan")
     out["expected_move_hv"] = float(df["close"].iloc[-1] * hv * np.sqrt(horizon / 252)) if np.isfinite(hv) else None
     out.update(plan_basis(df, setup, out, cfg))
+    rule = (cfg.get("exit_rules") or {}).get(setup)
+    if rule:
+        apply_exit_rule(out, df, setup, rule)
     return out

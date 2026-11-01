@@ -252,11 +252,12 @@ def simulate(data: dict[str, Any], stop_m: str, target_m: str, horizon: int, sli
     ok = filled & (risk > 0) & np.isfinite(risk) & np.isfinite(entry)
     a = sig["atr"].to_numpy()
     big = horizon + 1
-    if target_m == "trail":
+    if target_m.startswith("trail"):
+        mult = float(target_m[5:] or 3)          # "trail" = 3 ATR; "trail2", "trail2.5" ...
         hi_run = np.maximum.accumulate(np.where(long[:, None], H, -L), axis=1)
         prev = np.concatenate([np.where(long, entry, -entry)[:, None], hi_run[:, :-1]], axis=1)
-        trail = np.where(long[:, None], np.maximum(stop[:, None], prev - 3 * a[:, None]),
-                         np.minimum(stop[:, None], -prev + 3 * a[:, None]))
+        trail = np.where(long[:, None], np.maximum(stop[:, None], prev - mult * a[:, None]),
+                         np.minimum(stop[:, None], -prev + mult * a[:, None]))
         hit_s = np.where(long[:, None], L <= trail, H >= trail)
         ks = np.where(hit_s.any(1), hit_s.argmax(1), big)
         kt = np.full(len(sig), big)
@@ -287,7 +288,7 @@ def simulate(data: dict[str, Any], stop_m: str, target_m: str, horizon: int, sli
     mfe = np.where(long, H.max(1) - entry, entry - L.min(1)) / np.where(risk > 0, risk, np.nan)
     mae_atr = np.where(long, window_lo - entry, entry - window_hi) / a
     after_stop_target = np.zeros(len(sig), dtype=bool)
-    if target_m != "trail":
+    if not target_m.startswith("trail"):
         for i in np.flatnonzero(stop_first & ok):
             k = ks[i]
             seg = H[i, k:] if long[i] else L[i, k:]

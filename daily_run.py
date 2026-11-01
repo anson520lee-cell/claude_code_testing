@@ -116,14 +116,18 @@ def main(argv: list[str] | None = None) -> int:
         maybe_upgrade_yfinance(settings)
     print(f"Report: {result['output_dir']}/report.html  ·  Dashboard: python serve.py")
     if not (args.offline or args.skip_backtest) and backtest_stale(settings):
-        print("\nSL/TP backtest is older than 30 days (or missing); re-running it (about 5 minutes)...")
+        print("\nSL/TP backtest is older than 30 days (or missing); re-running it with the crash study and the "
+              "strategy lab (about 20-45 minutes)...")
         failed_marker = path(settings, "reports_dir").parent / "backtest" / "last_failure"
         try:
             import backtest
             import crash_study
+            import strategy_lab
             if backtest.main([]) != 0:
                 raise RuntimeError("backtest.py exited with an error")
             crash_study.main([])
+            print("Strategy lab: exits per setup and indicator weights (about 15-40 minutes)...")
+            strategy_lab.main([])
             failed_marker.unlink(missing_ok=True)
         except Exception as exc:  # noqa: BLE001 - the daily report is already written
             failed_marker.parent.mkdir(parents=True, exist_ok=True)

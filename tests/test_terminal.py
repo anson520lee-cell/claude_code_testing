@@ -1441,3 +1441,72 @@ def test_chart_library_is_served_locally(tsettings):
     assert "unpkg.com" not in page and "/static/vendor/lightweight-charts-4.1.3" in page
     lib = client.get("/static/vendor/lightweight-charts-4.1.3.standalone.production.js")
     assert lib.status_code == 200 and "LightweightCharts" in lib.text[:200000]
+
+
+def test_exit_rule_replaces_plan_levels(tsettings):
+    from src.scanner.plan import plan_row
+    f = build_features(bars(400, SESSION, seed=2, breakout_last=True, volume=5e6), bars(400, SESSION, seed=10)["adj_close"], None)
+    sc = {**tsettings["scanner"], "exit_rules": {
+        "breakout": {"stop": "atr1.5", "target": "trail2.5", "horizon": 15, "name": "x", "oos": {"n": 900, "avg_r": 0.21, "win_rate": 0.5}},
+        "pullback": {"stop": "atr2.0", "target": "r2", "horizon": 10, "name": "y", "oos": {}}}}
+    p = plan_row(f, "breakout", sc, 7)
+    a, e = p["atr"], p["entry"]
+    assert abs(p["stop"] - (e - 1.5 * a)) < 1e-9 and p["target1"] is None and p["target2"] is None
+    assert p["trail_atr"] == 2.5 and p["horizon_days"] == 15 and p["reward_risk"] is None
+    assert "+0.21R" in p["target_basis"]
+    q = plan_row(f, "pullback", sc, 7)
+    assert abs(q["target1"] - (q["entry"] + 2 * 2.0 * q["atr"])) < 1e-9 and abs(q["reward_risk"] - 2.0) < 1e-9
+    r = plan_row(f, "momentum", sc, 7)                     # no rule: the structural plan is unchanged
+    assert "exit_rule" not in r and r["target1"] is not None
+
+
+def test_trailing_stop_multiple_in_simulation():
+    from src.backtest.research import simulate
+    n = 3
+    sig = pd.DataFrame({"symbol": ["A"] * n, "setup": ["x"] * n, "long": [True] * n, "date": pd.to_datetime(["2025-01-02"] * n),
+                        "ref": [100.0] * n, "atr": [2.0] * n, "structural": [97.0] * n, "resistance": [104.0] * n,
+                        "planned_rr": [1.0] * n, "swing": [96.0] * n, "chip_stop": [np.nan] * n, "chip_target": [np.nan] * n,
+                        "regime": ["n/a"] * n, "score": [50.0] * n, "tier": ["B"] * n, "conditional": [False] * n})
+    # price runs to 110 then falls back to 104: a 2-ATR trail exits at 106, a 3-ATR trail at 104 (close)
+    H = np.tile([101, 105, 110, 109, 107, 105], (n, 1)).astype(float)
+    L = np.tile([99.5, 101, 106, 107, 105.5, 104], (n, 1)).astype(float)
+    O = np.tile([100, 101, 106, 109, 107, 105], (n, 1)).astype(float)
+    C = np.tile([100.5, 104, 109, 108, 106, 104], (n, 1)).astype(float)
+    data = {"signals": sig, "O": O, "H": H, "L": L, "C": C}
+    t2 = simulate(data, "atr1.5", "trail2", 6, 0.0)
+    t3 = simulate(data, "atr1.5", "trail", 6, 0.0)
+    assert abs(t2["r"].iloc[0] - (106 - 100) / 3) < 1e-9 and t2["outcome"].iloc[0] == "stop"
+    assert abs(t3["r"].iloc[0] - (104 - 100) / 3) < 1e-9
+
+
+def test_strategy_lab_end_to_end_small(tsettings):
+    """The lab runs on synthetic data: exits chosen per setup, every trade labelled, models walk-forward tested."""
+    from src.backtest import strategy_lab as lab
+    from src.scanner.setups import detect_setups
+    end = date(2026, 10, 30)
+    spy = bars(1300, end, seed=10)
+    feats, sets = {}, {}
+    for i in range(6):
+        f = build_features(bars(1300, end, drift=0.0006, vol=0.02, seed=40 + i, volume=5e6), spy["adj_close"], None)
+        feats[f"S{i}"], sets[f"S{i}"] = f, detect_setups(f)
+    regime_s = pd.Series(0.0, index=spy.index)
+    data = lab.collect(feats, sets, spy["close"], regime_s, tsettings, techniques=False, workers=1)
+    sig = data["signals"]
+    assert (sig["setup"] == "baseline").sum() > 100 and (sig["setup"] != "baseline").sum() > 50
+    assert data["O"].shape == (len(sig), lab.H_LAB)
+    assert any(c.startswith("d_") for c in sig.columns) and "m_regime" in sig.columns
+    res = lab.run_lab(data, tsettings)
+    assert res["exits"]["chosen"]["all"]["horizon"] in lab.LAB_HORIZONS
+    assert res["n_features"] > 50 and res["verdict"]
+    assert set(res["walk_forward"]["models"]) <= {"ic", "ridge"}
+
+
+def test_setup_bonus_from_strategy_lab_edge():
+    from src.scanner.scoring import backtest_setup_bonus
+    cfg = {"setup_bonus_from_backtest": {"points_per_r": 150, "min": -10, "max": 20, "min_trades": 200}}
+    lab = {"chosen": {"all": {}, "breakout": {"is": {"n": 300, "avg_r": 0.30}, "oos": {"n": 200, "avg_r": 0.25},
+                                              "baseline_is": {"n": 3000, "avg_r": 0.20}, "baseline_oos": {"n": 2000, "avg_r": 0.20}},
+                      "momentum": {"is": {"n": 300, "avg_r": 0.18}, "oos": {"n": 200, "avg_r": 0.20},
+                                   "baseline_is": {"n": 3000, "avg_r": 0.20}, "baseline_oos": {"n": 2000, "avg_r": 0.20}}}}
+    bonus, src = backtest_setup_bonus({"by_setup": {"_": {}}, "session": "2026-10-30", "lab": lab}, cfg)
+    assert src.startswith("strategy lab") and bonus["breakout"] == 12.0 and bonus["momentum"] == -1.8

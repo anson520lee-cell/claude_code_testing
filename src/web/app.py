@@ -483,6 +483,16 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
         threading.Thread(target=work, daemon=True).start()
         return {"started": True}
 
+    @app.get("/api/strategy-lab")
+    def api_strategy_lab() -> dict[str, Any]:
+        from src.daily.pipeline import load_strategy_lab
+        res = load_strategy_lab(backtest_dir)
+        if not res:
+            return {"available": False, "reason": "No strategy lab yet: run python strategy_lab.py."}
+        if res.get("adopted_model"):
+            res["adopted_model"] = {k: v for k, v in res["adopted_model"].items() if k in ("kind", "top_weights", "n_train")}
+        return res
+
     @app.get("/api/crash-study")
     def api_crash_study() -> dict[str, Any]:
         latest = backtest_dir / "latest.json"
@@ -511,7 +521,7 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
         def work() -> None:
             root = Path(__file__).resolve().parents[2]
             try:
-                for script in ("backtest.py", "crash_study.py"):
+                for script in ("backtest.py", "crash_study.py", "strategy_lab.py"):
                     proc = subprocess.Popen([sys.executable, script], cwd=root, stdout=subprocess.PIPE,
                                             stderr=subprocess.STDOUT, text=True, bufsize=1)
                     for line in proc.stdout or []:
