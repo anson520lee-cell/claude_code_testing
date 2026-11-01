@@ -17,13 +17,16 @@ from datetime import datetime
 from src.config import ConfigError
 from src.daily.settings import load_terminal_settings, path
 from src.market import calendar
+from src.platform_compat import ensure_utf8, redirect_output
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Intraday quote refresh every 30 minutes (display only).")
     parser.add_argument("--config", help="terminal settings file (default config/terminal.yaml)")
     parser.add_argument("--force", action="store_true", help="fetch the latest slot of today even if already fetched")
+    parser.add_argument("--log", metavar="FILE", help="append all output to FILE (used by the Windows background task)")
     args = parser.parse_args(argv)
+    redirect_output(args.log)
     try:
         settings = load_terminal_settings(args.config)
     except ConfigError as exc:
@@ -57,4 +60,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    ensure_utf8()
     sys.exit(main())

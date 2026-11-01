@@ -6,12 +6,14 @@
 #   - "Swing Terminal" shortcuts on the Desktop and in the Start menu (one click: start the dashboard,
 #     update data, open the browser) - pin it to the taskbar from the Start menu if you like
 #   - optional: hourly background task that runs the daily analysis once per new US session
+#   - optional: intraday price refresh every 30 minutes in US market hours (display only, no re-scoring)
 #   - optional: first data download now
 # Research only - nothing here places orders. Re-run it after every update (git pull).
 $ErrorActionPreference = "Continue"
 $Repo = Split-Path -Parent $PSScriptRoot
 Set-Location $Repo
 $TaskName = "Swing Terminal hourly update"
+$IntradayTask = "Swing Terminal intraday prices"
 
 function Ask([string]$Question, [string]$Default) {
     $hint = if ($Default -eq "y") { "Y/n" } else { "y/N" }
@@ -116,6 +118,29 @@ if (Ask "Update data automatically in the background (hourly check, runs once pe
     } catch {
         Write-Host "Could not create the background task: $($_.Exception.Message)" -ForegroundColor Yellow
         Write-Host "The terminal still works; it updates whenever you open it."
+    }
+}
+
+# 5b. intraday prices every 30 minutes in market hours (9:30, 10:00, ... 16:00 New York). The task wakes
+#     every 5 minutes; intraday_run.py checks New York time itself (daylight saving and the PC's time zone
+#     do not matter) and exits at once outside market hours or when the slot was already fetched.
+if (Ask "Refresh prices every 30 minutes while the US market is open (display only; signals stay after-close)?" "y") {
+    try {
+        New-Item -ItemType Directory -Force -Path (Join-Path $Repo "data") | Out-Null
+        $action = New-ScheduledTaskAction -Execute $VenvPyw `
+            -Argument "-X utf8 intraday_run.py --log data\intraday.log" -WorkingDirectory $Repo
+        $trigger = New-ScheduledTaskTrigger -Daily -At "00:02"
+        $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At "00:02" -RepetitionInterval (New-TimeSpan -Minutes 5) `
+            -RepetitionDuration (New-TimeSpan -Hours 23 -Minutes 55)).Repetition
+        $options = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+            -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName $IntradayTask -Action $action -Trigger $trigger -Settings $options `
+            -Description "Swing research terminal: intraday prices every 30 minutes in US market hours (display only)" -Force `
+            -ErrorAction Stop | Out-Null
+        Write-Host "Intraday task installed (log: data\intraday.log)."
+        Write-Host "Remove it with:  Unregister-ScheduledTask -TaskName '$IntradayTask' -Confirm:`$false"
+    } catch {
+        Write-Host "Could not create the intraday task: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 

@@ -20,7 +20,9 @@ program as the macOS branch plus the changes Windows needs; the macOS branch is 
 
    It creates `.venv`, installs the dependencies, asks for the SEC contact (name + email, stored in `.env`),
    creates a **Swing Terminal** shortcut on the Desktop and in the Start menu, registers an hourly background
-   task ("Swing Terminal hourly update" in Task Scheduler) and runs the first analysis.
+   task ("Swing Terminal hourly update" in Task Scheduler), optionally an intraday price task ("Swing Terminal
+   intraday prices": every 30 minutes in US market hours, display only - see docs/TERMINAL.md) and runs the
+   first analysis.
 
 Double-click **Swing Terminal** to open the dashboard (http://127.0.0.1:8000). To pin it to the taskbar:
 Start menu -> right-click Swing Terminal -> Pin to taskbar.
@@ -37,6 +39,7 @@ Start menu -> right-click Swing Terminal -> Pin to taskbar.
 |---|---|---|
 | Launcher | Dock app (`scripts/start_terminal.sh`) | Desktop / Start-menu shortcut (`scripts/start_terminal.ps1`) |
 | Background job | launchd, hourly | Task Scheduler, hourly (`pythonw`, no window) |
+| Intraday prices | launchd every 5 min → `intraday_run.py` | Task Scheduler every 5 min → `intraday_run.py --log data\intraday.log` |
 | Stop the server | `bash scripts/stop_terminal.sh` | `powershell -ExecutionPolicy Bypass -File scripts\stop_terminal.ps1` |
 | Price-alert pop-up | macOS notification | none - triggered alerts show on the dashboard |
 | Logs | `data/daily_run.log`, `data/server.log` | same |
@@ -49,6 +52,7 @@ for the window-less background task and server.
 ## Remove
 
     Unregister-ScheduledTask -TaskName "Swing Terminal hourly update" -Confirm:$false
+    Unregister-ScheduledTask -TaskName "Swing Terminal intraday prices" -Confirm:$false
     powershell -ExecutionPolicy Bypass -File scripts\stop_terminal.ps1
 
 then delete the shortcuts and the `swing-terminal` folder.
