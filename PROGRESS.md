@@ -181,6 +181,10 @@
   trades were still profitable). `regime_split` in the strategy lab, shown on the Research page.
 * Live setups narrowed (2026-11-01, user): only crash rebound, squeeze and breakout make candidates
   (`scanner.enabled_setups`); momentum, pullback and reclaim are no longer shown.
+* CEO / CFO buy score bonus (2026-11-01): the insider study's near pass was re-tested on 2010-2019 filings (never
+  used before): edge +0.09R to +0.15R, t 3.5-4.3; passes in both periods -> +10 points for deep-dive candidates with
+  a CEO / CFO / President open-market buy >= $100k in the last 5 days (`scanner.insider_exec_buy`).
+* Cross-asset lead-lag scan (2026-11-01): 22,104 tests, 17 one-day effects survive; none improves setup trades.
 * Insider buying study (2026-11-01, `python insider_study.py`): SEC Form 4 open-market purchases 2020-2026 on ~1,800
   liquid stocks. None of the 3 styles passed; CEO / CFO / President buys >= $100k are a near pass (edge +0.13R in
   sample, +0.16R out of sample, t 2.2). Not used live. Research page section; `config/insider.default.json`.

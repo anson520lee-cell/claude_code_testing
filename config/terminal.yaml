@@ -221,6 +221,10 @@ scanner:
     max: 20
     min_trades: 200
     min_edge_r: 0.05          # strategy lab: an edge over random entries smaller than this (either way) = noise -> 0
+  insider_exec_buy:           # CEO / CFO / President open-market purchase (Form 4 via Yahoo, deep-dive candidates)
+    bonus: 10                 # = 150 points/R x +0.07R, the smaller of the 2010-2019 and 2020-2026 edges (insider study)
+    min_value: 100000
+    max_age_days: 5           # transaction date within 5 calendar days: entering 7+ days after the filing lost the edge
   setup_horizon:              # time stop per setup (sessions); others use plan_horizon_days
     crash_rebound: 10
 

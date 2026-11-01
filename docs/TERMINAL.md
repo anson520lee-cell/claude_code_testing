@@ -304,6 +304,7 @@ stock) is tested; choices are made on the first 60% of dates and judged on the l
   were worse (-0.04R / -0.05R), so the filter fails the "both halves" rule. The dropped regimes lag random entries
   (random entries do very well after market falls), yet those trades still made money (+0.02R to +0.33R), so dropping
   them would cut profit. Shown on the Research page under "Only in Bullish markets?" (`regime_split` in the lab).
+* Live candidates (user decision 2026-11-01): only crash rebound, squeeze and breakout (`scanner.enabled_setups`).
 * The results of the 2026-10-30 run ship as `config/strategy_lab.default.json`, used until this machine's own monthly
   run writes `reports/backtest/<session>/strategy_lab.json`.
 * Not testable: options positioning (no free option-chain history) and fundamentals over time. Survivorship bias
@@ -342,6 +343,19 @@ bars from Yahoo) with the discovery study's method and pass rule.
 * Result (2026-11-01): **none passed**. The CEO / CFO buy is a near pass: edge over random entries +0.13R in sample and
   +0.16R out of sample (724 trades), t 2.2 (the bar is 2.5), and the edge holds with all three fixed exits (+0.04R to
   +0.14R). The classic "cluster" signal (>= 3 insiders) adds almost nothing (+0.04R, t 0.6).
+* **Independent check (2010-2019 filings, never used to design the study):** the CEO / CFO / President buy beat
+  random entries in the same stocks by +0.15R (t 3.5) with the exit the study had chosen (1 ATR stop + 3-ATR trailing
+  stop, 20 sessions), and by +0.09R with both other fixed exits (t 3.7 / 4.3); 2020 onwards +0.05R to +0.13R. It
+  passes in both periods, so it is **used live**: a deep-dive candidate whose CEO, CFO or President bought >= $100k
+  in the open market in the last 5 calendar days gets **+10 points** (`scanner.insider_exec_buy`; 150 points/R x
+  +0.07R, the smaller edge). The window is short on purpose: entering 7 days after the filing lost the edge in
+  2010-2019. Source of the live data: Yahoo's insider-transaction table (transaction date, position, value).
+* Cross-asset lead-lag (2026-11-01, research notes, not in the code): 63 assets (sector ETFs, oil, gold, copper,
+  rates, dollar, yen, bitcoin, VIX, Asian and European indices), 22,104 "A moved > 2 sd today -> B over the next 1 /
+  3 / 5 days" tests, first 60% of history to find, last 40% to check, false-discovery control. 17 held up, all
+  one-day effects (bonds give back the day after an equity sell-off; after a big Hang Seng fall US stocks open lower
+  and recover during the session). None of 251 cross-asset conditions changed the result of crash rebound / squeeze
+  / breakout trades, so none is in the score. Oil up -> tech down: no stable relation.
 * In the terminal's own 248-stock universe there are too few signals (62 out of sample) to judge.
 * Delisted companies are missing (survivorship bias), which flatters every style. Not used in the live ranking.
 * The 2026-11-01 results ship as `config/insider.default.json`; the Research page shows the newest run.

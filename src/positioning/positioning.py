@@ -85,8 +85,27 @@ def insider_summary(table: pd.DataFrame | None, as_of: date, days: int = 90) -> 
               for _, r in t.sort_values("date", ascending=False).head(8).iterrows()]
     return {"available": True, "window_days": days, "n_buys": int(len(buys)), "n_sales": int(len(sells)),
             "buy_value": value(buys), "sale_value": value(sells), "net_value": value(buys) - value(sells),
-            "recent": recent,
+            "recent": recent, "exec_buy": exec_buy(buys, as_of),
             "note": "Sales are often pre-planned (10b5-1) or tax-related; open-market purchases are the rarer signal."}
+
+
+EXEC_TITLE = r"\bceo\b|\bcfo\b|chief executive|chief financial|president"
+
+
+def exec_buy(buys: pd.DataFrame, as_of: date, min_value: float = 100_000, max_age_days: int = 14) -> dict[str, Any] | None:
+    """Largest open-market purchase by the CEO / CFO / President worth >= ``min_value`` in the last ``max_age_days``
+    calendar days (insider buying study: such buys beat random entries by +0.07-0.15R in 2010-2019 AND 2020-2026)."""
+    if buys is None or buys.empty:
+        return None
+    pos = buys.get("Position", pd.Series("", index=buys.index)).fillna("").astype(str).str.lower()
+    val = pd.to_numeric(buys.get("Value"), errors="coerce").fillna(0)
+    age = (pd.Timestamp(as_of) - buys["date"]).dt.days
+    m = pos.str.contains(EXEC_TITLE) & ~pos.str.contains("vice president") & (val >= min_value) & (age <= max_age_days) & (age >= 0)
+    if not m.any():
+        return None
+    r = buys[m].assign(_v=val[m]).sort_values("_v", ascending=False).iloc[0]
+    return {"date": r["date"].strftime("%Y-%m-%d"), "insider": r.get("Insider"), "position": r.get("Position"),
+            "value": float(r["_v"]), "age_days": int((pd.Timestamp(as_of) - r["date"]).days)}
 
 
 def institutional_summary(table: pd.DataFrame | None) -> dict[str, Any]:
@@ -226,6 +245,10 @@ def interpret(p: dict[str, Any]) -> list[str]:
     if ins.get("available"):
         if ins["n_buys"]:
             notes.append(f"{ins['n_buys']} insider purchase(s) in 90 days (${ins['buy_value'] / 1e6:.1f}M).")
+        eb = ins.get("exec_buy")
+        if eb:
+            notes.append(f"{eb['position']} bought ${eb['value'] / 1e6:.2f}M in the open market on {eb['date']} - "
+                         f"historically a modest edge over the next 20 sessions.")
         if ins["n_sales"]:
             notes.append(f"{ins['n_sales']} insider sales in 90 days (${ins['sale_value'] / 1e6:.1f}M), mostly planned (10b5-1) or compensation-related.")
     sv = p.get("short_volume") or {}

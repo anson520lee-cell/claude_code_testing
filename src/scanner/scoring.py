@@ -294,10 +294,12 @@ def finalize(c: dict[str, Any], settings: dict[str, Any]) -> None:
     raw = sum(weights[k] * c["components"][k] for k in weights) / 100
     penalty = sum(c["penalties"].values())
     bonus = float((settings["scanner"].get("setup_bonus") or {}).get(c["setup"], 0))
+    extra = float(sum((c.get("bonuses") or {}).values()))
     c["raw_score"] = round(float(raw), 2)
     c["penalty_total"] = float(penalty)
     c["setup_bonus"] = bonus
-    c["score"] = round(float(np.clip(raw - penalty + bonus, 0, 100)), 2)
+    c["bonus_total"] = extra
+    c["score"] = round(float(np.clip(raw - penalty + bonus + extra, 0, 100)), 2)
     tiers = settings["tiers"]
     c["tier"] = "A" if c["score"] >= tiers["A"] else "B" if c["score"] >= tiers["B"] else \
         "C" if c["score"] >= tiers["C"] else "Watch"
@@ -359,6 +361,13 @@ def apply_enrichment(c: dict[str, Any], enrichment: dict[str, Any], settings: di
     insider = pos.get("insider_90d") or {}
     if insider.get("net_value") is not None and insider.get("n_buys", 0) >= 2 and insider["net_value"] > 0:
         (c["supporting"] if long else c["contradicting"]).append("Insider open-market buying in the last 90 days.")
+    eb = insider.get("exec_buy")
+    cfg = sc.get("insider_exec_buy") or {}
+    if eb and long and cfg.get("bonus") and eb.get("value", 0) >= float(cfg.get("min_value", 100_000)) \
+            and eb.get("age_days", 99) <= int(cfg.get("max_age_days", 14)):
+        c.setdefault("bonuses", {})["insider_exec_buy"] = float(cfg["bonus"])
+        c["supporting"].append(f"{eb['position']} bought ${eb['value'] / 1e6:.2f}M in the open market on {eb['date']} "
+                               f"(insider study: +{float(cfg['bonus']):g} points).")
     finalize(c, settings)
 
 

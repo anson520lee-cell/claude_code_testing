@@ -37,6 +37,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Insider buying study (research only)")
     ap.add_argument("--first-year", type=int, default=2020)
     ap.add_argument("--offline", action="store_true")
+    ap.add_argument("--validate-from", type=int, default=2010,
+                    help="also check the CEO/CFO style on filings from this year to 2019 (independent period)")
     args = ap.parse_args(argv)
     t0 = time.time()
     settings = load_terminal_settings()
@@ -54,6 +56,13 @@ def main(argv: list[str] | None = None) -> int:
         for u in urls:
             client.get_file(u, u.rsplit("/", 1)[1])
         files = sorted((client.cache_dir / "files").glob("*_form345.zip"))
+    first = min(args.first_year, args.validate_from)
+    if not args.offline:
+        for u in quarter_urls(client, first):
+            if int(u.rsplit("/", 1)[1][:4]) < args.first_year:
+                client.get_file(u, u.rsplit("/", 1)[1])
+        files = sorted((client.cache_dir / "files").glob("*_form345.zip"))
+    old_files = [f for f in files if args.validate_from <= int(f.name[:4]) < args.first_year]
     files = [f for f in files if int(f.name[:4]) >= args.first_year]
     if not files:
         print(f"No SEC insider data ({client.last_error or 'nothing cached'}).", file=sys.stderr)
@@ -83,6 +92,19 @@ def main(argv: list[str] | None = None) -> int:
     data = insider.collect(events, allp, prices["SPY"]["adj_close"], hist["label"], set(settings["universe"]))
     slip = float(settings["scanner"].get("slippage_bps", 10)) / 10_000
     res = insider.run(data, slip, progress=print)
+    if old_files:
+        print(f"Independent check on {len(old_files)} older quarters...")
+        ob = pd.concat([insider.parse_quarter(f.read_bytes()) for f in old_files + files], ignore_index=True).drop_duplicates()
+        oev = insider.insider_events(ob)
+        oev = oev[oev["style"] == "ins_ceo_100k"]
+        ofile = cache / "insider_prices_old.pkl"
+        oprices: dict = pickle.loads(ofile.read_bytes()) if ofile.exists() else {}
+        if not args.offline and not oprices:
+            oprices = market_data.YahooBatchDownloader().download(sorted(set(oev["sym"])), start=date(args.validate_from - 1, 1, 1))
+            store.write_atomic(ofile, pickle.dumps(oprices))
+        odata = insider.collect(oev, {**allp, **oprices}, prices["SPY"]["adj_close"], hist["label"], set(settings["universe"]))
+        res["period_check"] = insider.period_check(odata, slip)
+        res["verdict"] = insider.verdict(res)
     res.update({"generated_at": store.utc_now(), "session": session.isoformat(), "elapsed_seconds": round(time.time() - t0, 1),
                 "n_purchases": int(len(buys)), "quarters": [f.name[:6] for f in files]})
     out = path(settings, "reports_dir").parent / "backtest" / session.isoformat()

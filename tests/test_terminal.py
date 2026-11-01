@@ -1689,6 +1689,8 @@ def test_insider_study_small_and_shipped_copy(tsettings, tmp_path):
     assert res["verdict"] and res["robustness"] and set(res["styles"]) == set(insider.STYLE_NAMES)
     shipped = load_insider(tmp_path)
     assert INSIDER_DEFAULT.exists() and shipped["styles"] and not any(s.get("passes") for s in shipped["styles"].values())
+    pc = shipped["period_check"]
+    assert pc["passes"] and {r["period"] for r in pc["rows"]} == {"before", "after"} and min(r["edge"] for r in pc["rows"]) > 0
 
 
 def test_regime_split_rule_and_shipped_result(tsettings):
@@ -1844,3 +1846,31 @@ def test_shipped_leverage_study_loads(tmp_path):
     from src.daily.pipeline import load_leverage
     d = load_leverage(tmp_path)
     assert d and d["trades"] and d["verdict"]
+
+
+def test_ceo_cfo_buy_bonus(tsettings):
+    from src.positioning.positioning import insider_summary
+    from src.scanner.scoring import apply_enrichment, finalize
+    as_of = date(2026, 10, 30)
+    table = pd.DataFrame([
+        {"Start Date": "2026-10-27", "Insider": "DOE JANE", "Position": "Chief Executive Officer", "Text": "Purchase at price 20.00 per share.",
+         "Transaction": "", "Shares": 10000, "Value": 200000},
+        {"Start Date": "2026-10-28", "Insider": "ROE RICH", "Position": "Vice President", "Text": "Purchase at price 20.00 per share.",
+         "Transaction": "", "Shares": 50000, "Value": 1000000},                       # a VP: not counted
+        {"Start Date": "2026-09-01", "Insider": "POE PAT", "Position": "Chief Financial Officer", "Text": "Purchase at price 20.00 per share.",
+         "Transaction": "", "Shares": 50000, "Value": 1000000},                       # too old
+    ])
+    s = insider_summary(table, as_of)
+    assert s["exec_buy"]["insider"] == "DOE JANE" and s["exec_buy"]["age_days"] == 3
+    assert insider_summary(table.iloc[1:], as_of)["exec_buy"] is None
+    cfg = load_terminal_settings()["scanner"]["insider_exec_buy"]
+    assert cfg["bonus"] == 10 and cfg["min_value"] == 100000
+    st = copy.deepcopy(tsettings)
+    st["scanner"]["insider_exec_buy"] = cfg
+    c = {"symbol": "AAA", "setup": "breakout", "direction": "long", "components": {k: 50.0 for k in st["weights"]},
+         "penalties": {}, "supporting": [], "contradicting": []}
+    finalize(c, st)
+    before = c["score"]
+    apply_enrichment(c, {"positioning": {"insider_90d": s}}, st)
+    assert c["bonuses"] == {"insider_exec_buy": 10.0} and c["score"] == pytest.approx(before + 10)
+    assert any("Chief Executive Officer bought" in x for x in c["supporting"])
