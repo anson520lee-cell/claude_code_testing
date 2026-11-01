@@ -78,6 +78,23 @@ closes and a 30-minute settle time), so it is safe to schedule it at any time af
 
 Exit codes: 0 success, 2 settings error, 3 no market data, 1 unexpected error.
 
+### Intraday prices every 30 minutes (display only)
+
+`install_mac.sh` can also install a second `launchd` job (`com.swingterminal.intraday`) that runs
+`intraday_run.py` every 5 minutes. The script works in New York time (daylight saving and the Mac's own
+time zone do not matter) and only downloads when a new half-hour slot has started on a trading day:
+9:30, 10:00, ... 16:00 (13:00 on early-close days). A slot missed while the Mac slept is fetched within
+25 minutes, otherwise skipped. Each slot is one small yfinance batch of 5-minute bars for the latest
+candidates, open journal trades, active price alerts and SPY / QQQ / IWM (at most 80 symbols; ~14
+batches a day), written to `data/intraday/latest.json`. Log: `data/intraday.log`.
+
+**It changes the displayed prices only.** Candidate cards and the stock page show "Live hh:mm ET" with
+the change against the last stored close; scores, setups, plans, alerts and the price database are not
+touched, and no provisional candle is added to the chart. The validated setups are after-close signals
+entered at the next open, so they are still computed once per session by `daily_run.py --if-new` from the
+final daily bar. Settings: `intraday:` in `config/terminal.yaml` (`enabled: false` turns it off);
+`python intraday_run.py --force` fetches the latest slot of today by hand.
+
 ---
 
 ### Interface language and focus

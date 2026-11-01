@@ -389,3 +389,4 @@ table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
 .key-news h3 { margin: 0 0 4px; font-size: 13px; font-family: var(--font-mono); letter-spacing: .1em; font-weight: 600; }
 .key-news h3 small { color: var(--muted); letter-spacing: 0; font-family: var(--font); font-weight: 400; margin-left: 8px; }
 .why { margin-bottom: 18px; }
+.live-tag { display: inline-block; background: var(--up); color: #000; font-weight: 700; font-size: 10px; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; margin-right: 4px; text-transform: uppercase; }

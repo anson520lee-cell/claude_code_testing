@@ -143,6 +143,7 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
             conn.close()
         if prices.empty:
             raise HTTPException(404, f"No stored prices for {symbol}")
+        stored_last = prices.index[-1] if not prices.empty else None
         if session:
             cut = pd.Timestamp(session)
             prices, spy = prices[prices.index <= cut], spy[spy.index <= cut]
@@ -184,6 +185,10 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
                  "hist_high": float(f["high"].max()), "hist_low": float(f["low"].min()),
                  "hist_since": f.index[0].strftime("%Y-%m-%d"), "beta": last.get("beta120"), "hv20": last.get("hv20"),
                  "hv60": last.get("hv60"), "atr": last.get("atr")}
+        live_quote = None
+        if f.index[-1] == stored_last:          # latest stored bar shown (not an older session's view)
+            from src.daily import intraday
+            live_quote = intraday.overlay(quote, f.index[-1].strftime("%Y-%m-%d"), intraday.load_latest(cfg()), symbol)
         from src.analyst.techniques import volume_profile
         from src.backtest.crash_study import crash_history
         try:
@@ -208,8 +213,14 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
             "last": {k: last.get(k) for k in ("close", "atr", "atr_pct", "rsi6", "rsi14", "trend", "swing_structure",
                                               "volume_ratio", "extension_atr", "hv20", "high252", "low252",
                                               "from_52w_high", "rel_20d", "rel_60d", "swing_condition", "structure")},
-            "as_of": f.index[-1].strftime("%Y-%m-%d"), "quote": quote, "volume_profile": vp, "crash_history": crashes,
+            "as_of": f.index[-1].strftime("%Y-%m-%d"), "quote": live_quote or quote, "volume_profile": vp, "crash_history": crashes,
         })
+
+    @app.get("/api/intraday")
+    def api_intraday() -> dict[str, Any]:
+        """Latest intraday quotes (every 30 minutes in market hours; display only, no scoring)."""
+        from src.daily import intraday
+        return intraday.load_latest(cfg()) or {"session": None, "quotes": {}}
 
     @app.get("/api/minicharts")
     def api_minicharts(symbols: str, days: int = Query(70, ge=20, le=250), session: str | None = None) -> dict[str, Any]:

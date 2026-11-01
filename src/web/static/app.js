@@ -392,7 +392,23 @@ function scanner() {
   $("#f-q").oninput = (e) => { f.q = e.target.value; clearTimeout(state.qt); state.qt = setTimeout(() => { route(); const i = $("#f-q"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
   if (mode === "cards") wireCards(rows);
   loadMinicharts(rows);
+  applyLive();
 }
+
+// Intraday quotes (refreshed every 30 minutes in market hours by intraday_run.py): display only - the card
+// keeps the setup, score and plan of the after-close run; only the price line shows "Live hh:mm".
+async function applyLive() {
+  let d;
+  try { d = await api("/api/intraday"); } catch (_) { return; }
+  if (!d || !d.session || !state.snap || d.session <= state.snap.session.date) return;
+  document.querySelectorAll("[data-live]").forEach((el) => {
+    const q = (d.quotes || {})[el.dataset.live], c = (state.snap.candidates.long || []).concat(state.snap.candidates.short || []).find((x) => x.symbol === el.dataset.live);
+    if (!q || !c) return;
+    const prev = c.technical.close, ch = isNum(prev) && prev ? q.last / prev - 1 : null;
+    el.innerHTML = `<div class="p">${num(q.last)}</div><div class="c ${cls(ch)}">${pct(ch, 2)}</div><div class="note" title="Display only: scores and plans use the after-close bar">Live ${esc(q.bar_time || d.slot_label || "")} ET</div>`;
+  });
+}
+setInterval(() => { if (document.querySelector("[data-live]")) applyLive(); }, 5 * 60 * 1000);
 
 function scanTable(side, rows) {
   const cols = [
@@ -431,7 +447,7 @@ function stockCard(c, i) {
   return `<div><div class="scard" tabindex="0" role="button" data-i="${i}" aria-label="${esc(c.symbol)} ${esc(c.setup_name)}, score ${c.score.toFixed(0)}">
     <div class="sc-top z1"><span class="sc-label">${esc(tr(c.direction))} · <b>${String(c.rank).padStart(2, "0")}</b></span>${tier(c.tier)}</div>
     <div class="sc-id z2"><div><div class="sc-sym">${esc(c.symbol)}</div><div class="sc-name">${esc(name)}</div></div>
-      <div class="sc-px"><div class="p">${num(t.close)}</div><div class="c ${cls(t.return_1d)}">${pct(t.return_1d, 2)}</div></div></div>
+      <div class="sc-px" data-live="${esc(c.symbol)}"><div class="p">${num(t.close)}</div><div class="c ${cls(t.return_1d)}">${pct(t.return_1d, 2)}</div></div></div>
     <div class="sc-chart z1" data-mini="${esc(c.symbol)}"></div>
     <div class="sc-setup z1">${ring(c.score)}<div class="s">${esc(c.setup_name)}<div class="note">${esc(tr(t.trend))} · ${esc(tr(t.swing_structure))}</div></div></div>
     ${c.setup === "crash_rebound" ? `<div class="sc-bias"><b class="up">Counter-trend bounce</b> · buy within 0–2 days of the crash · stop 2 ATR · T1 1.5 ATR</div>` : c.analyst ? `<div class="sc-bias"><b class="${biasClass(c.analyst.bias)}">${esc(c.analyst.bias)}</b> · confidence ${esc(c.analyst.confidence)} — ${esc(c.analyst.headline.split(": ").slice(1).join(": "))}</div>` : ""}
@@ -650,7 +666,7 @@ function quoteHTML(d, deep, c, uni) {
   ];
   return `<div class="q-top"><div class="q-px ${cls(q.change)}">${num(q.close, q.close < 10 ? 3 : 2)}<span class="q-arrow">${q.change > 0 ? "↑" : q.change < 0 ? "↓" : ""}</span></div>
       <div class="q-ch ${cls(q.change)}">${isNum(q.change) ? (q.change > 0 ? "+" : "") + num(q.change, q.close < 10 ? 3 : 2) : ""} ${pct(q.change_pct, 2)}</div></div>
-    <div class="q-time">Close ${esc(d.as_of)} 16:00 ET</div>
+    <div class="q-time">${q.live ? `<span class="live-tag">Live</span> ${esc(q.live.session)} ${esc(q.live.bar_time || q.live.slot || "")} ET · prev. close ${esc(d.as_of)} · <span class="muted" title="Refreshed every 30 minutes in market hours. Scores, setups and plans use the after-close daily bar and are not recomputed intraday.">display only</span>` : `Close ${esc(d.as_of)} 16:00 ET`}</div>
     <div class="q-grid">${rows.map(([k, v, cl]) => `<div><span>${k}</span><b class="${cl}">${v === "n/a" || v === "n/a%" ? "—" : v}</b></div>`).join("")}</div>
     ${isNum(o.iv_rank) ? "" : `<p class="note q-note">IV Rank needs 60 sessions of stored implied volatility (${o.iv_history_n ?? 0} days so far). Average price is estimated as (high + low + close) ÷ 3.</p>`}`;
 }

@@ -567,6 +567,84 @@ def test_web_api(tsettings):
     assert client.get("/api/snapshot?session=1999-01-01").status_code == 404
 
 
+# ======================================================================= intraday refresh (display only)
+def test_intraday_slots_dst_holidays_and_early_close():
+    from src.daily import intraday
+    s = intraday.slots(date(2026, 11, 2))
+    assert [t.strftime("%H:%M") for t in s] == ["09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00",
+                                                 "13:30", "14:00", "14:30", "15:00", "15:30", "16:00"]
+    # daylight saving: 9:30 New York = 13:30 UTC on Fri Oct 30 (EDT) but 14:30 UTC on Mon Nov 2 (EST)
+    assert intraday.slots(date(2026, 10, 30))[0].astimezone(timezone.utc).hour == 13
+    assert s[0].astimezone(timezone.utc).hour == 14
+    assert intraday.slots(date(2026, 11, 1)) == [] and intraday.slots(date(2026, 11, 26)) == []   # Sunday, Thanksgiving
+    assert intraday.slots(date(2026, 11, 27))[-1].strftime("%H:%M") == "13:00"                      # early close
+
+
+def test_intraday_due_slot():
+    from src.daily import intraday
+    utc = timezone.utc
+    assert intraday.due_slot(datetime(2026, 11, 2, 14, 29, tzinfo=utc), None) is None           # 9:29 ET
+    first = intraday.due_slot(datetime(2026, 11, 2, 14, 31, tzinfo=utc), None)                 # 9:31 ET
+    assert first.strftime("%H:%M") == "09:30"
+    assert intraday.due_slot(datetime(2026, 11, 2, 14, 36, tzinfo=utc), first.isoformat()) is None   # already done
+    assert intraday.due_slot(datetime(2026, 11, 2, 10, 2), first.isoformat()).strftime("%H:%M") == "10:00"  # naive = NY
+    assert intraday.due_slot(datetime(2026, 11, 2, 16, 10), None).strftime("%H:%M") == "16:00"
+    assert intraday.due_slot(datetime(2026, 11, 2, 16, 40), None) is None                     # after the close
+    assert intraday.due_slot(datetime(2026, 11, 2, 12, 58), None) is None                     # 28 min after 12:30
+    assert intraday.due_slot(datetime(2026, 11, 1, 12, 0), None) is None                      # Sunday
+
+
+def _five_minute_bars(day: date, prev_day: date, start: float) -> pd.DataFrame:
+    ny = calendar.NEW_YORK
+    idx = [datetime.combine(prev_day, datetime.min.time(), ny).replace(hour=15, minute=55)]
+    idx += [datetime.combine(day, datetime.min.time(), ny).replace(hour=9, minute=30) + timedelta(minutes=5 * i)
+            for i in range(7)]
+    close = [start] + [start * (1.01 + 0.002 * i) for i in range(7)]
+    return pd.DataFrame({"Open": close, "High": [c * 1.003 for c in close], "Low": [c * 0.997 for c in close],
+                         "Close": close, "Volume": [1000.0] * 8}, index=pd.DatetimeIndex(idx))
+
+
+def test_intraday_refresh_is_display_only(tsettings):
+    from fastapi.testclient import TestClient
+
+    from src.daily import intraday
+    from src.daily.pipeline import run_daily
+    from src.web.app import create_app
+    run_daily(tsettings, session=SESSION, downloader=FakeDownloader(market_frames(tsettings)), enrichment=FakeEnrichment(),
+              fred_getter=fake_fred, progress=lambda m: None)
+    db_file = Path(tsettings["paths"]["database"])
+    conn = sqlite3.connect(db_file)
+    before_prices = conn.execute("SELECT COUNT(*), MAX(date) FROM price_data").fetchone()
+    snap_file = Path(tsettings["paths"]["reports_dir"]) / "2026-10-30" / "data.json"
+    before_snap = snap_file.read_bytes()
+    client = TestClient(create_app(tsettings))
+    stored = client.get("/api/chart/AAA?days=60").json()
+    assert "live" not in stored["quote"]
+    live_day, asked = date(2026, 11, 2), []
+
+    def fetch(symbols):
+        asked.extend(symbols)
+        return {sym: _five_minute_bars(live_day, SESSION, 100.0) for sym in symbols}
+
+    now = datetime(2026, 11, 2, 10, 2)                      # 10:02 New York
+    r = intraday.refresh(tsettings, now=now, fetch=fetch, conn=conn)
+    assert r["status"] == "ok" and r["slot"] == "10:00"
+    assert "SPY" in asked and len(asked) <= tsettings["intraday"]["max_symbols"]
+    assert intraday.refresh(tsettings, now=now + timedelta(minutes=5), fetch=fetch, conn=conn)["status"] == "skipped"
+    assert conn.execute("SELECT COUNT(*), MAX(date) FROM price_data").fetchone() == before_prices   # prices untouched
+    conn.close()
+    assert snap_file.read_bytes() == before_snap                                                      # scores untouched
+    latest = client.get("/api/intraday").json()
+    assert latest["session"] == "2026-11-02" and latest["quotes"]
+    sym = next(iter(latest["quotes"]))
+    chart = client.get(f"/api/chart/{sym}?days=60").json()
+    q = chart["quote"]
+    assert q["live"]["slot"] == "10:00" and q["close"] == pytest.approx(latest["quotes"][sym]["last"])
+    assert q["prev_close"] == pytest.approx(stored["quote"]["close"]) if sym == "AAA" else q["prev_close"]
+    assert chart["candles"][-1]["time"] == "2026-10-30"                     # no provisional candle in the chart
+    assert "live" not in client.get(f"/api/chart/{sym}?days=60&session=2026-10-29").json()["quote"]   # history view
+
+
 def test_run_lock_blocks_concurrent_runs(tsettings, tmp_path):
     from src.daily.pipeline import RunInProgressError, run_daily, run_lock
     from src.daily.settings import path
