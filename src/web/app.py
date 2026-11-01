@@ -498,6 +498,11 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
         from src.daily.pipeline import load_discovery
         return load_discovery(backtest_dir) or {"available": False}
 
+    @app.get("/api/insider")
+    def api_insider() -> dict[str, Any]:
+        from src.daily.pipeline import load_insider
+        return load_insider(backtest_dir) or {"available": False}
+
     @app.get("/api/crash-study")
     def api_crash_study() -> dict[str, Any]:
         latest = backtest_dir / "latest.json"

@@ -43,6 +43,13 @@ def load(settings, session, years: int = 5):
     return {s: features[s] for s in kept}, {s: setups[s] for s in kept}, prices["SPY"]["close"], hist
 
 
+def regime_labels(settings, session, years: int = 5):
+    conn = store.connect(path(settings, "database"), path(settings, "backups_dir"))
+    prices = market_data.load_universe_prices(conn, all_symbols(settings), session, max_days=300 * years)
+    conn.close()
+    return regime.compute_regime_history(prices, [s for s in settings["universe"] if s in prices], settings)["label"]
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Exit and indicator-weight study (research only)")
     ap.add_argument("--cache", help="pickle file for the collected feature vectors")
@@ -54,17 +61,20 @@ def main(argv: list[str] | None = None) -> int:
     cache = Path(args.cache) if args.cache else None
     if cache and cache.exists():
         data = pickle.loads(cache.read_bytes())
+        if "regime_label" not in data:
+            data["regime_label"] = regime_labels(settings, session)
     else:
         print("Loading 5 years of prices, indicators and setups...")
         features, setups, spy, hist = load(settings, session)
         print(f"{len(features)} stocks; computing ~170 indicators for every setup episode and random entry "
               f"({args.workers} processes, about 20-40 minutes)...")
         data = lab.collect(features, setups, spy, hist["composite"], settings, workers=args.workers, progress=print)
+        data["regime_label"] = hist["label"]
         if cache:
             cache.write_bytes(pickle.dumps(data))
     sig = data["signals"]
     print(f"{(sig['setup'] != 'baseline').sum()} setup episodes, {(sig['setup'] == 'baseline').sum()} random entries")
-    res = lab.run_lab(data, settings, progress=print)
+    res = lab.run_lab(data, settings, progress=print, regime_label=data.get("regime_label"))
     res.update({"generated_at": store.utc_now(), "session": session.isoformat(), "elapsed_seconds": round(time.time() - t0, 1),
                 "survivorship_note": "Only stocks in today's universe are tested (survivorship bias)."})
     out = path(settings, "reports_dir").parent / "backtest" / session.isoformat()

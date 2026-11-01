@@ -299,6 +299,11 @@ stock) is tested; choices are made on the first 60% of dates and judged on the l
   than 0.05R either way (`setup_bonus_from_backtest.min_edge_r`) counts as noise and gives a bonus of 0: with the
   2026-10-30 results crash rebound +20, squeeze +8.2, and breakout, reclaim, momentum and pullback 0 (they track the
   market, so they neither lift nor sink a candidate).
+* **Regime filter (momentum / pullback only in Bullish or Strong Bullish markets):** tested 2026-11-01, **not
+  adopted**. Out of sample the kept regimes beat random entries (+0.06R momentum, +0.09R pullback), but in sample they
+  were worse (-0.04R / -0.05R), so the filter fails the "both halves" rule. The dropped regimes lag random entries
+  (random entries do very well after market falls), yet those trades still made money (+0.02R to +0.33R), so dropping
+  them would cut profit. Shown on the Research page under "Only in Bullish markets?" (`regime_split` in the lab).
 * The results of the 2026-10-30 run ship as `config/strategy_lab.default.json`, used until this machine's own monthly
   run writes `reports/backtest/<session>/strategy_lab.json`.
 * Not testable: options positioning (no free option-chain history) and fundamentals over time. Survivorship bias
@@ -323,6 +328,23 @@ signal date, and a style must beat random entries by >= 0.05R in AND out of samp
   long-history result (passing styles and near passes with >= 0.05R edge in both periods and t >= 2).
 * Fact about these stocks: on average almost all of the return came overnight (close to open), not during the session.
 * The results of the 2026-10-30 run ship as `config/discovery.default.json`.
+
+### 7g. Insider buying (`python insider_study.py`, run by hand)
+
+Do a company's own officers and directors buying shares in the open market predict the next weeks? Source: the SEC
+insider transactions data sets (every Form 4, one zip per quarter, 2020 onwards, ~300 MB cached in
+`data/cache/sec/files/`); needs `SEC_USER_AGENT`. Only open-market purchases (code P) by officers and directors worth
+>= $5,000; the signal day is the filing date (when the public could know), entry at the next open. Three styles fixed
+in advance: >= 3 insiders buying within 30 days, >= 2 buying >= $250k in total, and a CEO / CFO / President buying
+>= $100k. Tested on every liquid company with such filings (price >= $5, >= $5M daily dollar volume; ~1,800 stocks,
+bars from Yahoo) with the discovery study's method and pass rule.
+
+* Result (2026-11-01): **none passed**. The CEO / CFO buy is a near pass: edge over random entries +0.13R in sample and
+  +0.16R out of sample (724 trades), t 2.2 (the bar is 2.5), and the edge holds with all three fixed exits (+0.04R to
+  +0.14R). The classic "cluster" signal (>= 3 insiders) adds almost nothing (+0.04R, t 0.6).
+* In the terminal's own 248-stock universe there are too few signals (62 out of sample) to judge.
+* Delisted companies are missing (survivorship bias), which flatters every style. Not used in the live ranking.
+* The 2026-11-01 results ship as `config/insider.default.json`; the Research page shows the newest run.
 
 ### 7d. News (automatic)
 

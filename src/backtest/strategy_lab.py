@@ -411,8 +411,77 @@ def apply_model(vec: dict[str, float], model: dict[str, Any]) -> float | None:
     return float(np.searchsorted(np.array(model["percentiles"]), s, side="right") - 1)
 
 
+# ====================================================================== 3. regime filter
+REGIME_KEEP = ("Bullish", "Strong Bullish")
+REGIME_LABELS = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"]
+
+
+def regime_split(data: dict[str, Any], chosen: dict[str, dict], label: pd.Series, cutoff: pd.Timestamp, slip: float,
+                 setups: tuple[str, ...] = ("momentum", "pullback")) -> dict[str, Any]:
+    """Would a setup do better if it were only taken in Bullish / Strong Bullish markets? Each setup's trades (its
+    chosen exit) and random entries with the same exit, split by the market regime on the signal day, in and out
+    of sample. The filter is adopted only if (fixed before the test): the kept regimes beat random entries by
+    >= 0.05R both in AND out of sample, and the dropped regimes did worse than random in both halves."""
+    from src.backtest.research import simulate
+    sig = data["signals"]
+    out: dict[str, Any] = {"keep": list(REGIME_KEEP), "cutoff": pd.Timestamp(cutoff).strftime("%Y-%m-%d"), "setups": {}}
+
+    def stats(t: pd.DataFrame) -> dict[str, Any]:
+        if not len(t):
+            return {"n": 0}
+        daily = t.groupby("date")["r"].mean()
+        sd = daily.std(ddof=1)
+        return {"n": int(len(t)), "avg_r": float(t["r"].mean()), "win_rate": float((t["r"] > 0).mean()),
+                "t": float(daily.mean() / (sd / math.sqrt(len(daily)))) if len(daily) > 2 and sd > 0 else float("nan")}
+    for s in setups:
+        rule = chosen.get(s)
+        if not rule or not (sig["setup"] == s).any():
+            continue
+        stop = rule["stop"]
+        tr = simulate(_subset(data, (sig["setup"] == s).to_numpy()), stop, rule["target"], rule["horizon"], slip)
+        br = simulate(_subset(data, (sig["setup"] == "baseline").to_numpy()), stop if stop != "structural" else "atr1.5",
+                      rule["target"], rule["horizon"], slip)
+        for t in (tr, br):
+            t["label"] = pd.to_datetime(t["date"]).map(label).fillna("n/a")
+            t["oos"] = pd.to_datetime(t["date"]) > cutoff
+        rows = []
+        for part, is_oos in (("in sample", False), ("out of sample", True)):
+            for grp in [*REGIME_LABELS, "kept", "dropped", "all"]:
+                def sel(t: pd.DataFrame) -> pd.DataFrame:
+                    t = t[t["oos"] == is_oos]
+                    if grp == "kept":
+                        return t[t["label"].isin(REGIME_KEEP)]
+                    if grp == "dropped":
+                        return t[~t["label"].isin(REGIME_KEEP)]
+                    return t if grp == "all" else t[t["label"] == grp]
+                a, b = stats(sel(tr)), stats(sel(br))
+                rows.append({"part": part, "regime": grp, "setup": a, "random": b,
+                             "edge": a["avg_r"] - b["avg_r"] if a["n"] and b["n"] else None})
+        get = lambda part, grp: next(r for r in rows if r["part"] == part and r["regime"] == grp)  # noqa: E731
+        kept = [get(p, "kept")["edge"] for p in ("in sample", "out of sample")]
+        dropped = [get(p, "dropped")["edge"] for p in ("in sample", "out of sample")]
+        passes = all(e is not None and e >= 0.05 for e in kept) and all(e is not None and e < 0 for e in dropped)
+        out["setups"][s] = {"exit": rule["name"], "rows": rows, "passes": bool(passes),
+                            "kept_edge": kept, "dropped_edge": dropped,
+                            "dropped_avg_r": [get(p, "dropped")["setup"].get("avg_r") for p in ("in sample", "out of sample")]}
+    return out
+
+
+def regime_verdict(rs: dict[str, Any]) -> list[str]:
+    out = []
+    for s, v in rs.get("setups", {}).items():
+        k, d, dr = v["kept_edge"], v["dropped_edge"], v["dropped_avg_r"]
+        f = lambda x: "n/a" if x is None else f"{x:+.2f}R"  # noqa: E731
+        out.append(f"{SETUP_NAMES.get(s, s)} only in Bullish / Strong Bullish markets: edge over random entries in the kept "
+                   f"regimes {f(k[0])} in sample, {f(k[1])} out of sample; in the dropped regimes {f(d[0])} / {f(d[1])} "
+                   f"(those trades still averaged {f(dr[0])} / {f(dr[1])}) - "
+                   f"{'ADOPTED' if v['passes'] else 'not adopted (the filter must help in both halves)'}.")
+    return out
+
+
 # ====================================================================== driver
-def run_lab(data: dict[str, Any], settings: dict[str, Any], progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+def run_lab(data: dict[str, Any], settings: dict[str, Any], progress: Callable[[str], None] | None = None,
+            regime_label: pd.Series | None = None) -> dict[str, Any]:
     say = progress or (lambda m: None)
     slip = float(settings["scanner"].get("slippage_bps", 10)) / 10_000
     sig = data["signals"]
@@ -442,6 +511,9 @@ def run_lab(data: dict[str, Any], settings: dict[str, Any], progress: Callable[[
         res["adopted_model"] = final_model(sig, cols, kind)
     else:
         res["adopted_model"] = None
+    if regime_label is not None and len(regime_label):
+        say("Regime filter test (momentum / pullback only in Bullish markets)...")
+        res["regime_split"] = regime_split(data, ex["chosen"], regime_label, cutoff, slip)
     res["verdict"] = lab_verdict(res)
     return res
 
@@ -474,6 +546,8 @@ def lab_verdict(res: dict[str, Any]) -> list[str]:
             rnd = res["walk_forward"]["models"][kind].get("random", {})
             if rnd.get("n"):
                 out.append(f"  Same model on random entries: top fifth {rnd['top_avg_r']:+.2f}R vs {rnd['avg_r']:+.2f}R.")
+    if res.get("regime_split"):
+        out += regime_verdict(res["regime_split"])
     if not res.get("adopted_model"):
         out.append("No indicator combination ranked trades reliably out of sample, so the live ranking keeps the "
                    "backtest-based setup weighting and the composite score is shown for context only.")
