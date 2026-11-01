@@ -974,6 +974,14 @@ def test_crash_rebound_scoring_bonus_and_long_only(tsettings):
     assert tsettings["scanner"]["directions"] == ["long"]
 
 
+def test_only_enabled_setups_make_candidates():
+    from src.scanner.setups import LONG_SETUPS
+    enabled = load_terminal_settings()["scanner"]["enabled_setups"]
+    assert set(enabled) == {"crash_rebound", "squeeze", "breakout"} and set(enabled) <= set(LONG_SETUPS)
+    src = (Path(__file__).resolve().parents[1] / "src" / "daily" / "pipeline.py").read_text()
+    assert 'sc.get("enabled_setups")' in src and "n in enabled" in src
+
+
 def test_crash_study_events_trades_and_history():
     from src.backtest.crash_study import _trade, analyse, baseline, collect_events, crash_history, event_masks
     spy = bars(400, seed=99)["adj_close"]
