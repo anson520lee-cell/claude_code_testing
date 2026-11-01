@@ -211,7 +211,8 @@ function renderTickerCharts(d, c, p = "c", bucket = undefined, big = 420, sub = 
   if (c) {
     const pl = (v, color, title, style = 0) => candles.createPriceLine({ price: v, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
     const pp = c.plan;
-    pl(pp.entry, P.neutral, pp.conditional_entry ? "trigger" : "ref", 2); pl(pp.stop, P.down, "stop"); pl(pp.target1, P.up, "T1"); pl(pp.target2, P.up, "T2", 2);
+    pl(pp.entry, P.neutral, pp.conditional_entry ? "trigger" : "ref", 2); pl(pp.stop, P.down, "stop");
+    if (isNum(pp.target1)) pl(pp.target1, P.up, pp.target2 ? "T1" : "target"); if (isNum(pp.target2)) pl(pp.target2, P.up, "T2", 2);
   }
   const upAt = new Map(d.candles.map((k) => [k.time, k.close >= k.open]));
   const vol = makeChart($(`#${p}-vol`), sub, { ...opt, timeVisible: false });
@@ -403,7 +404,7 @@ function scanTable(side, rows) {
     { key: "tier", label: "Tier", render: (c) => tier(c.tier), sort: (c) => c.score },
     { key: "entry", label: "Entry", n: 1, render: (c) => num(c.plan.entry) + (c.plan.conditional_entry ? ' <span class="chip">cond.</span>' : ""), sort: (c) => c.plan.entry },
     { key: "stop", label: "Stop", n: 1, render: (c) => num(c.plan.stop), sort: (c) => c.plan.stop },
-    { key: "t1", label: "T1", n: 1, render: (c) => num(c.plan.target1), sort: (c) => c.plan.target1 },
+    { key: "t1", label: "Target", n: 1, render: (c) => (isNum(c.plan.target1) ? num(c.plan.target1) : `trail ${num(c.plan.trail_atr, 1)}`), sort: (c) => c.plan.target1 },
     { key: "rr", label: "Reward/risk", n: 1, render: (c) => `<span class="${c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${num(c.plan.reward_risk, 1)}</span>`, sort: (c) => c.plan.reward_risk },
     { key: "risk", label: "Risk %", n: 1, render: (c) => pct(c.plan.risk_pct, 1, false), sort: (c) => c.plan.risk_pct },
     { key: "rs", label: "RS percentile", n: 1, render: (c) => num(c.technical.rs_percentile, 0), sort: (c) => c.technical.rs_percentile },
@@ -648,18 +649,20 @@ function keyHTML(a, c) {
   const p = c && c.plan;
   const pens = c ? Object.entries(c.penalties || {}).map(([k, v]) => `<span class="chip warn">${tr(k)} −${v}</span>`).join("") : "";
   const crash = c && c.setup === "crash_rebound";
-  const b = state.btFull, ss = !crash && b && c && (b.selected_side || {})[c.direction];
+  const b = state.btFull, ss = !crash && b && c && !(c.plan || {}).exit_rule && (b.selected_side || {})[c.direction];
   const k = ss && ss.stop.startsWith("atr") ? Number(ss.stop.slice(3)) : null, sg = c && c.direction === "long" ? 1 : -1;
   return `<section class="key">
     ${crash ? `<div class="key-crash"><b>Crash rebound · counter-trend</b> The trend read below is bearish by design - this is a short bounce trade after a crash,
-      not a trend call. 5-year study: buying 0–2 days after such a crash beat random entries by ~+2.5% over 5 days; 2-ATR stop, quick 1.5-ATR target, 10-day time stop.</div>` : ""}
+      not a trend call. 5-year study: buying 0–2 days after such a crash beat random entries by ~+2.5% over 5 days.
+      Exit: ${p && p.exit_rule ? esc(p.exit_rule.name || "") : "2-ATR stop, 1.5-ATR target, 10-day time stop"}.</div>` : ""}
     ${a ? `<div class="key-head"><div class="key-bias ${biasClass(a.bias)}">${esc(a.bias)}<small>${a.bias_score > 0 ? "+" : ""}${a.bias_score.toFixed(0)} / 100 · confidence ${esc(a.confidence)}</small></div>
       <h2 class="key-hl">${esc(String(a.headline || "").replace(new RegExp("^" + a.bias + ":\\s*"), ""))}</h2></div>` : '<div class="key-head"><p class="note">Building the analyst call…</p></div>'}
     ${p ? `<div class="key-plan">
       <div><span>${p.conditional_entry ? "Trigger" : "Ref. entry"}</span><b>${num(p.entry)}</b></div>
       <div><span>Stop</span><b class="down">${num(p.stop)}</b><small>${pct(-Math.abs(p.entry - p.stop) / p.entry, 1)}</small></div>
-      <div><span>T1</span><b class="up">${num(p.target1)}</b><small>${pct(Math.abs(p.target1 - p.entry) / p.entry * sg, 1)}</small></div>
-      <div><span>Reward/risk</span><b>${num(p.reward_risk, 1)}R</b></div>
+      ${isNum(p.target1) ? `<div><span>${p.target2 ? "T1" : "Target"}</span><b class="up">${num(p.target1)}</b><small>${pct(Math.abs(p.target1 - p.entry) / p.entry * sg, 1)}</small></div>
+      <div><span>Reward/risk</span><b>${num(p.reward_risk, 1)}R</b></div>` : `<div><span>Exit</span><b class="up">Trail ${num(p.trail_atr, 1)} ATR</b><small>highest high − ${num(p.trail_atr * p.atr)}</small></div>`}
+      ${p.exit_rule && p.exit_rule.oos && p.exit_rule.oos.n ? `<div><span>Tested (out of sample)</span><b>${p.exit_rule.oos.avg_r > 0 ? "+" : ""}${num(p.exit_rule.oos.avg_r)}R</b><small>${p.exit_rule.oos.n} trades · win ${pct(p.exit_rule.oos.win_rate, 0, false)}</small></div>` : ""}
       <div><span>Max hold</span><b>${p.horizon_days} days</b></div>
       ${ss && k && isNum(p.atr) ? `<div class="alt"><span>Backtest's pick: ${k} ATR stop + trailing stop</span><b class="down">${num(p.entry - sg * k * p.atr)}</b><small>Out of sample ${num(ss.oos.avg_r)}R</small></div>` : ""}
     </div>` : ""}
@@ -680,7 +683,7 @@ function foldsHTML(sym, c, deep, a, extra = "", pre = "") {
   return `<div class="folds">
     ${pre}
     ${fold("Full analyst note", a ? `${a.scorecard.length} dimensions · ${(a.techniques || {}).count || 0} techniques · Scenarios` : "", `<div class="fold-analyst">${a ? analystPanel(a) : '<p class="note">Loading…</p>'}</div>`)}
-    ${c ? fold("Risk plan · Why these levels", `Stop ${num(c.plan.stop)} · Target ${num(c.plan.target1)} / ${num(c.plan.target2)}`, planPanel(c)) : ""}
+    ${c ? fold("Risk plan · Why these levels", `Stop ${num(c.plan.stop)} · ${isNum(c.plan.target1) ? `Target ${num(c.plan.target1)}${c.plan.target2 ? " / " + num(c.plan.target2) : ""}` : `Trailing stop ${num(c.plan.trail_atr, 1)} ATR`}`, planPanel(c)) : ""}
     ${c ? fold("Score breakdown · Setup history", `${num(c.score, 0)} (penalties ${num(c.penalty_total, 0)})`, candidatePanels(c, deep)) : ""}
     ${deep.earnings_study ? fold("Earnings reactions", es.available ? (es.implied && isNum(es.implied.move_pct) ? `Options implied ±${pct(es.implied.move_pct, 1, false)} vs history ±${pct(es.median_abs_move, 1, false)}` : `Median historical move ±${pct(es.median_abs_move, 1, false)}`) : "No data", earningsPanel(es)) : ""}
     ${deep.options ? fold("Options", o.available ? `IV ${pct(o.atm_iv, 0, false)} · expected move ±${pct(o.expected_move_pct, 1, false)} · put/call ${num(o.pcr_volume, 2)}` : "No options data", optionsPanel(o)) : ""}
@@ -892,13 +895,15 @@ function planPanel(c) {
   return `<div class="card"><h2>Risk plan <small>${p.horizon_days}-session time stop</small></h2><div class="kv">
     <div><span>${p.conditional_entry ? "Trigger (conditional entry)" : "Reference entry"}</span><span class="num">${num(p.entry)}</span></div>
     <div><span>Stop</span><span class="num down">${num(p.stop)} (${num(p.risk_atr, 1)} ATR)</span></div>
-    <div><span>T1</span><span class="num up">${num(p.target1)}</span></div><div><span>T2</span><span class="num up">${num(p.target2)}</span></div>
-    <div><span>Reward/risk (T1)</span><span class="num">${num(p.reward_risk, 2)}</span></div><div><span>Risk / share</span><span class="num">${pct(p.risk_pct, 2, false)}</span></div>
+    ${isNum(p.target1) ? `<div><span>${p.target2 ? "T1" : "Target"}</span><span class="num up">${num(p.target1)}</span></div>${isNum(p.target2) ? `<div><span>T2</span><span class="num up">${num(p.target2)}</span></div>` : ""}
+    <div><span>Reward/risk</span><span class="num">${num(p.reward_risk, 2)}</span></div>` : `<div><span>Exit</span><span class="num up">Trailing stop: highest high − ${num(p.trail_atr, 1)} ATR</span></div>`}
+    ${p.exit_rule ? `<div><span>Exit rule</span><span class="num">${esc(p.exit_rule.name || "")}</span></div>` : ""}<div><span>Risk / share</span><span class="num">${pct(p.risk_pct, 2, false)}</span></div>
     <div><span>Structural stop</span><span class="num ${p.wide_stop ? "warn" : ""}">${num(p.structural_stop_atr, 1)} ATR${p.wide_stop ? " (capped)" : ""}</span></div>
     <div><span>${p.horizon_days}-day 1σ move (HV20)</span><span class="num">±${num(p.expected_move_hv)}</span></div></div>
     <p class="note">Position size is your call. Example: risking 0.5% of a $100,000 account = $500 ÷ ${num(Math.abs(p.entry - p.stop))} ≈ ${isNum(p.entry - p.stop) && p.entry !== p.stop ? Math.floor(500 / Math.abs(p.entry - p.stop)) : "n/a"} shares (then × regime budget ×${budget}).</p>
     <div class="qa">Add alert: ${(() => {
-      const L = c.direction === "long", items = [[L ? "below" : "above", p.stop, "Stop hit"], [L ? "above" : "below", p.target1, "Reach T1"]];
+      const L = c.direction === "long", items = [[L ? "below" : "above", p.stop, "Stop hit"]];
+      if (isNum(p.target1)) items.push([L ? "above" : "below", p.target1, "Reach target"]);
       if (p.conditional_entry) items.unshift([L ? "above" : "below", p.entry, "Entry trigger"]);
       return items.map(([k, lv, n]) => `<button data-qa="${n}" data-sym="${c.symbol}" data-kind="${k}" data-level="${lv}">${n} ${num(lv)}</button>`).join("");
     })()}</div>
@@ -1398,6 +1403,48 @@ function setupWeighting(s) {
       weighting only tilts the ranking toward what has worked. A fuller model (setup + indicator factors, fitted in sample) did not rank trades reliably out of sample, so it is not used.</p></section>`;
 }
 
+function labFeatureName(f) {
+  const g = { f: "", d: "vs ", t: "technique: ", v: "chips: ", m: "" }[f[0]] || "";
+  return g + f.slice(2).replace(/^setup_/, "setup = ").replace(/_/g, " ");
+}
+
+function labSection(lab) {
+  if (!lab || !lab.available) return "";
+  const ex = lab.exits || {}, ch = ex.chosen || {}, wf = lab.walk_forward || {}, names = lab.setup_names || {};
+  const all = ch.all || {}, adopted = lab.adopted_model;
+  const exitRows = Object.entries(ch).filter(([k]) => k !== "all").map(([k, c]) => ({ setup: names[k] || k, exit: c.name + (c.common ? " (common)" : ""),
+    edge_oos: c.edge_oos, is_r: (c.is || {}).avg_r, oos_r: (c.oos || {}).avg_r, oos_n: (c.oos || {}).n, oos_w: (c.oos || {}).win_rate, base: (c.baseline_oos || {}).avg_r }));
+  const folds = (wf.folds || []).map((f) => ({ year: f.year, n: (f.ic.setups || {}).n, all: (f.ic.setups || {}).avg_r,
+    ic: (f.ic.setups || {}).top_avg_r, ridge: (f.ridge.setups || {}).top_avg_r, ric: (f.ridge.setups || {}).rank_ic }));
+  const facts = (lab.factors || []).slice(0, 30).map((f) => ({ ...f, label: labFeatureName(f.feature) }));
+  const r = (v) => `<span class="${cls(v)}">${isNum(v) ? (v > 0 ? "+" : "") + num(v) : "—"}</span>`;
+  const m = (wf.models || {}), ms = (k) => ((m[k] || {}).setups || {});
+  return `<section class="note-block"><div class="note-head"><div><div class="eyebrow">${(lab.n_setup_signals || 0).toLocaleString()} setup trades · ${(lab.n_random || 0).toLocaleString()} random entries · ${lab.n_features} indicators · ${lab.first} → ${lab.last}</div>
+      <div class="hl">Strategy lab: which exits and which indicators actually work?</div></div>
+      <div class="meta">Common exit, out of sample<b class="${cls((all.oos || {}).avg_r)}">${isNum((all.oos || {}).avg_r) ? num(all.oos.avg_r) + "R" : "—"}</b>${esc(all.name || "")}</div></div>
+    <ul class="list verdict">${(lab.verdict || []).map((v) => `<li>${esc(v)}</li>`).join("")}</ul>
+    <h3 class="sub">Exit used for each setup <small>chosen on the first 60% of dates (to ${esc(ex.cutoff || "")}), judged on the rest</small></h3>
+    ${table("labx", [{ key: "setup", label: "Setup" }, { key: "exit", label: "Exit" },
+      { key: "is_r", label: "In sample", n: 1, render: (x) => r(x.is_r) }, { key: "oos_r", label: "Out of sample", n: 1, render: (x) => r(x.oos_r) },
+      { key: "oos_n", label: "Trades (OOS)", n: 1 }, { key: "oos_w", label: "Win (OOS)", n: 1, render: (x) => pct(x.oos_w, 0, false) },
+      { key: "base", label: "Random entry, same exit", n: 1, render: (x) => r(x.base) }, { key: "edge_oos", label: "Setup edge", n: 1, render: (x) => r(x.edge_oos) }],
+      exitRows, { sortKey: "oos_r" })}
+    <h3 class="sub">Ranking trades with all indicators <small>walk-forward: each year scored by models fitted only on earlier years</small></h3>
+    ${table("labwf", [{ key: "year", label: "Test year" }, { key: "n", label: "Setup trades", n: 1 }, { key: "all", label: "All trades", n: 1, render: (x) => r(x.all) },
+      { key: "ic", label: "Top fifth · indicator weights", n: 1, render: (x) => r(x.ic) }, { key: "ridge", label: "Top fifth · ridge model", n: 1, render: (x) => r(x.ridge) },
+      { key: "ric", label: "Rank corr. (ridge)", n: 1, render: (x) => num(x.ric, 3) }], folds)}
+    <p class="note">Pooled out of sample: indicator weights top fifth ${r(ms("ic").top_avg_r)}R vs ${r(ms("ic").avg_r)}R (t ${num(ms("ic").t_top_minus_all, 1)}); ridge top fifth ${r(ms("ridge").top_avg_r)}R (t ${num(ms("ridge").t_top_minus_all, 1)}).
+      A model is used live only if its top fifth beats the average by ≥ 0.05R with t ≥ 2 and in most test years.
+      ${adopted ? `<b>Adopted: ${esc(adopted.kind)}</b> - the candidate score is now this model's percentile.` : "<b>No model passed</b>, so candidates are ranked by the setup's tested edge plus the composite score."}</p>
+    ${adopted && adopted.top_weights ? `<h3 class="sub">Largest weights in the adopted model</h3><ul class="list">${adopted.top_weights.slice(0, 12).map((w) => `<li>${esc(labFeatureName(w.feature))}: <b class="${cls(w.weight)}">${w.weight > 0 ? "+" : ""}${num(w.weight, 3)}</b></li>`).join("")}</ul>` : ""}
+    <h3 class="sub">Each indicator alone <small>rank correlation with the trade result (setup trades) · ${(lab.factors || []).filter((f) => f.held).length} of ${(lab.factors || []).length} kept their sign out of sample</small></h3>
+    ${table("labf", [{ key: "label", label: "Indicator" }, { key: "group", label: "Group" }, { key: "ic_is", label: "In sample", n: 1, render: (x) => num(x.ic_is, 3) },
+      { key: "ic_oos", label: "Out of sample", n: 1, render: (x) => `<span class="${x.held ? cls(x.ic_oos) : "muted"}">${num(x.ic_oos, 3)}</span>` },
+      { key: "same_sign_years", label: "Same sign (years)", n: 1, render: (x) => pct(x.same_sign_years, 0, false) }], facts)}
+    <p class="note">${esc((lab.method || "").split("\n\n").slice(-1)[0] || "")} Correlations of 0.02–0.05 are typical even for indicators that help; they matter only if they hold out of sample.</p>
+  </section>`;
+}
+
 function crashSection(cs) {
   if (!cs || !cs.available || !cs.crash || !cs.crash.available) return "";
   const r = cs.crash, sp = cs.spike || {}, names = cs.event_names, snames = cs.spike_names;
@@ -1622,13 +1669,15 @@ async function research() {
   const s = state.snap, bt = s.backtest;
   let full = null;
   try { full = await api("/api/backtest"); } catch (err) { full = { available: false, reason: err.message }; }
-  let crash = null;
+  let crash = null, lab = null;
   try { crash = await api("/api/crash-study"); } catch (_) { crash = null; }
+  try { lab = await api("/api/strategy-lab"); } catch (_) { lab = null; }
   const rows = Object.entries(bt.by_setup || {}).map(([k, v]) => ({ key: k, name: s.setup_names[k] || tr(k), ...v })).filter((r) => r.n);
   const regimes = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
   app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">${bt.first_signal || ""} → ${bt.last_signal || ""} / <b>${bt.n_trades} simulated trades</b></div><h1 class="display">Research <em>&amp; backtest</em></h1>
     <p>How stops and targets are set, how accurate they were over five years, and what works better; then the daily report's setup simulation and the methodology.</p></div></div>
+    ${labSection(lab)}
     ${setupWeighting(s)}
     ${crashSection(crash)}
     ${slTpExplainer(full)}

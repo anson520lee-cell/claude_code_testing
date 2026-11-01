@@ -275,6 +275,32 @@ Consequences in the live terminal: candidate lists are **long only** (`scanner.d
 EMA21 capped at 3 ATR, 10-day time stop) is scored on long-term trend and how oversold it is and gets
 a +15 bonus (`scanner.setup_bonus`); long Target 1 is capped at entry + 2 ATR (`max_target1_atr`).
 
+### 7e. Strategy lab (`python strategy_lab.py`, refreshed monthly)
+
+The question behind it: are the exits right, and does any weighting of ALL the indicators pick better trades?
+Every long setup episode over 5 years (34,195) plus a random-entry sample (21,328 entries, every 10th session of every
+stock) is tested; choices are made on the first 60% of dates and judged on the last 40%.
+
+* **Exits (350 combinations per setup):** stops of 1-3 ATR, swing low or structural; targets of 1.5-4 ATR or 1.5-3R, or
+  a 2 / 2.5 / 3-ATR trailing stop; time stops of 5-20 sessions. Result (2026-10-30): the old plan (structural stop,
+  resistance target, 7 days) earned +0.05R out of sample; **1.5 ATR stop + 3-ATR trailing stop, up to 20 sessions earns
+  +0.29R** (random entries with the same exit +0.25R). Squeeze uses 2 ATR + 3R target (+0.44R), breakout a 1 ATR stop.
+  The live plan now uses each setup's chosen exit (`exit_rule` in the plan); trailing exits show no fixed target.
+  Trailing exits win only 30-50% of the time: many small losses, fewer but larger winners.
+* **Indicators (183 per trade):** every `build_features` column, distances to the moving averages / highs / lows in ATR,
+  the 49 analyst techniques, the volume profile (position vs POC / VAH / VAL, dense-chip nodes, vacuum, holder profit
+  ratio) and market context (`src/scanner/model_features.py`, shared with the live run). Two models are fitted
+  walk-forward (sign-consistent IC weights; ridge regression) and must lift the top fifth by >= 0.05R with t >= 2 in
+  most test years. Result: **neither passed** - the five score buckets earn about the same average R. Single
+  indicators have consistent rank correlations of 0.10-0.15 (higher volatility, further below the 52-week high, more
+  holders under water), but they shift the typical outcome, not the average profit. The candidate score is therefore
+  context; the evidence-based part of the ranking is the setup bonus = the setup's edge over random entries with its
+  exit (crash rebound +0.20R, squeeze +0.14R; breakout and reclaim about 0).
+* The results of the 2026-10-30 run ship as `config/strategy_lab.default.json`, used until this machine's own monthly
+  run writes `reports/backtest/<session>/strategy_lab.json`.
+* Not testable: options positioning (no free option-chain history) and fundamentals over time. Survivorship bias
+  applies (today's universe only).
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the

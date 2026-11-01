@@ -78,6 +78,24 @@ def run_lock(lock_dir: Path):
         locks.release(handle)
 
 
+LAB_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "strategy_lab.default.json"
+
+
+def load_strategy_lab(backtest_dir: Path) -> dict[str, Any] | None:
+    """The newest strategy_lab.json (chosen exits per setup, adopted indicator model). Until this machine has run
+    the lab itself (monthly), the copy shipped with the code (config/strategy_lab.default.json) is used."""
+    try:
+        files = sorted(backtest_dir.glob("*/strategy_lab.json"))
+        if files:
+            return json.loads(files[-1].read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    try:
+        return json.loads(LAB_DEFAULT.read_text(encoding="utf-8")) if LAB_DEFAULT.exists() else None
+    except (OSError, ValueError):
+        return None
+
+
 def _load_macro() -> list[dict[str, Any]]:
     if not MACRO_PATH.exists():
         return []
@@ -260,9 +278,18 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         bt_full = json.loads((bt_dir / bt_session / "backtest.json").read_text())
     except (OSError, ValueError, KeyError):
         bt_full = None
+    lab = load_strategy_lab(path(settings, "reports_dir").parent / "backtest")
+    exit_rules = {s: r for s, r in ((lab or {}).get("exits") or {}).get("chosen", {}).items() if s != "all"}
+    if lab and bt_full is not None:
+        bt_full = {**bt_full, "lab": lab["exits"]}
+    elif lab:
+        bt_full = {"by_setup": {"_": {}}, "session": lab.get("session"), "lab": lab["exits"]}
     bonus, bonus_source = backtest_setup_bonus(bt_full, sc)
-    settings = {**settings, "scanner": {**sc, "setup_bonus": bonus}}
+    settings = {**settings, "scanner": {**sc, "setup_bonus": bonus, "exit_rules": exit_rules}}
     sc = settings["scanner"]
+    if exit_rules:
+        say("Exits from the strategy lab: " + "; ".join(f"{s} {r['stop']}/{r['target']}/{r['horizon']}d"
+                                                        for s, r in exit_rules.items()))
     say(f"Setup weighting ({bonus_source}): " + ", ".join(f"{k} {v:+g}" for k, v in sorted(bonus.items(), key=lambda x: -x[1])))
 
     # 6. stage 1
@@ -350,6 +377,13 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             st_reg = (bt["by_setup_regime"].get(c["setup"]) or {}).get(reg["label"])
             c["history"] = {"setup": st, "setup_in_regime": st_reg, "regime": reg["label"],
                             "note": stats_note(st), "note_regime": stats_note(st_reg)}
+            rule = (c["plan"].get("exit_rule") or {})
+            oos = rule.get("oos") or {}
+            if oos.get("n"):
+                # the daily 2-year simulation uses the structural plan; the strategy lab tested THIS exit
+                c["history"]["lab"] = oos
+                c["history"]["note"] = (f"5-year test of this exit, out of sample: N={oos['n']}, win {oos['win_rate'] * 100:.0f}%, "
+                                        f"avg {oos['avg_r']:+.2f}R")
             c["thesis"] = thesis(c)
             try:
                 c["analyst"] = analyze(c["symbol"], features[c["symbol"]], c, deep.get(c["symbol"]), reg,
@@ -544,8 +578,10 @@ def thesis(c: dict[str, Any]) -> str:
     if p.get("conditional_entry"):
         parts.append(f"Conditional entry on a move through {p['entry']:.2f}.")
     parts.append(f"Plan: reference {p['entry']:.2f}, stop {p['stop']:.2f} ({p['risk_atr']:.1f} ATR, "
-                 f"{p['risk_pct'] * 100:.1f}%), T1 {p['target1']:.2f} ({p['reward_risk']:.1f}R), "
-                 f"T2 {p['target2']:.2f}, time stop {p['horizon_days']} sessions.")
+                 f"{p['risk_pct'] * 100:.1f}%), " + (f"T1 {p['target1']:.2f} ({p['reward_risk']:.1f}R), "
+                 if p.get("target1") is not None else f"trailing stop {p.get('trail_atr')} ATR (no fixed target), ")
+                 + (f"T2 {p['target2']:.2f}, " if p.get("target2") is not None else "")
+                 + f"time stop {p['horizon_days']} sessions.")
     if t.get("rs_percentile") is not None:
         parts.append(f"RS percentile {t['rs_percentile']:.0f}; trend '{t.get('trend')}', structure "
                      f"{t.get('swing_structure')}.")
