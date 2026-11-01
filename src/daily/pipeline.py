@@ -582,10 +582,33 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
         out["earnings_study"] = {"available": False, "reason": f"Earnings study failed: {exc}"}
     out["ftd"] = analyze_ftd(ftd, symbol, f["volume"]) if ftd is not None else {
         "available": False, "reason": "No SEC fails-to-deliver data: set SEC_USER_AGENT in .env."}
-    info = raw.get("info") or {}
-    out["profile"] = {k: info.get(k) for k in ("longName", "sector", "industry", "marketCap", "exchange",
-                                               "beta", "fullTimeEmployees", "website", "sharesOutstanding", "floatShares",
-                                               "trailingPE", "forwardPE", "priceToBook", "dividendYield", "trailingAnnualDividendYield")}
+    out["profile"] = company_profile(raw.get("info") or {})
+    return out
+
+
+PROFILE_FIELDS = ("longName", "sector", "industry", "marketCap", "exchange", "beta", "fullTimeEmployees", "website",
+                  "sharesOutstanding", "floatShares", "trailingPE", "forwardPE", "priceToBook", "dividendYield",
+                  "trailingAnnualDividendYield", "country", "city", "state", "quoteType")
+
+
+def company_profile(info: dict[str, Any], summary_chars: int = 1600) -> dict[str, Any]:
+    """Company profile for the stock page: quote fields plus the business description and the CEO
+    (from Yahoo's info dictionary). The description is clipped so the daily report stays small."""
+    out = {k: info.get(k) for k in PROFILE_FIELDS}
+    text = " ".join(str(info.get("longBusinessSummary") or "").split())
+    if len(text) > summary_chars:
+        cut = text[:summary_chars].rsplit(" ", 1)[0]
+        text = cut.rstrip(",;:") + "…"
+    out["summary"] = text or None
+    ceo = None
+    for officer in info.get("companyOfficers") or []:
+        if not isinstance(officer, dict):
+            continue
+        title = str(officer.get("title") or "")
+        if "CEO" in title or "Chief Executive" in title:
+            ceo = {"name": " ".join(str(officer.get("name") or "").split()) or None, "title": title}
+            break
+    out["ceo"] = ceo
     return out
 
 

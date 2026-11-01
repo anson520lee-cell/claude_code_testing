@@ -479,6 +479,14 @@ filters; stock pages fetch their headlines live and, for crash rebounds, show th
 ("why did it crash?"). Offering / legal / guidance headlines appear as contradicting evidence on a
 candidate; news never changes the score (there is no historical news to back-test that).
 
+**Stock page layout.** Top row, left to right: the K-line chart, the chip distribution (120-session volume
+profile drawn on the chart's price scale: green = volume below the price / in profit, red = above / trapped,
+VA / VAH / POC / VAL), the Futu-style quote panel and, at the far right, **About** - the company profile from
+Yahoo (business description, sector, industry, exchange, headquarters, employees, CEO, website). On screens
+narrower than about 1380 px the About panel sits under the quote panel; below 1100 px both move under the
+chart. The profile is stored with the deep dive (`profile.summary`, `profile.ceo`, description clipped to
+1,600 characters); other stocks fetch it live. Display only - it never changes the score.
+
 ---
 
 ## 8. Dashboard

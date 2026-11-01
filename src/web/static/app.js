@@ -671,6 +671,25 @@ function quoteHTML(d, deep, c, uni) {
     ${isNum(o.iv_rank) ? "" : `<p class="note q-note">IV Rank needs 60 sessions of stored implied volatility (${o.iv_history_n ?? 0} days so far). Average price is estimated as (high + low + close) ÷ 3.</p>`}`;
 }
 
+function aboutHTML(deep, sym) {
+  // company profile column at the far right of the stock page (Yahoo profile: description, sector, HQ, CEO, website)
+  const pr = (deep && deep.profile) || {};
+  const loc = [pr.city, pr.state, pr.country].filter(Boolean).join(", ");
+  const site = pr.website && /^https?:\/\//i.test(pr.website) ? pr.website : null;
+  const rows = [
+    ["Sector", pr.sector], ["Industry", pr.industry], ["Exchange", pr.exchange], ["Headquarters", loc],
+    ["Employees", isNum(pr.fullTimeEmployees) ? Number(pr.fullTimeEmployees).toLocaleString("en-US") : null],
+    ["CEO", pr.ceo && pr.ceo.name],
+  ].filter(([, v]) => v);
+  const has = pr.summary || rows.length;
+  return `<div class="ab-head">About ${esc(sym || "")}</div>
+    ${pr.longName ? `<div class="ab-name">${esc(pr.longName)}</div>` : ""}
+    ${rows.length ? `<div class="ab-kv">${rows.map(([k, v]) => `<div><span>${k}</span><b title="${esc(v)}">${esc(v)}</b></div>`).join("")}</div>` : ""}
+    ${site ? `<a class="ab-site" href="${esc(site)}" target="_blank" rel="noopener noreferrer">${esc(site.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, ""))} ↗</a>` : ""}
+    ${pr.summary ? `<p class="ab-text">${esc(pr.summary)}</p>`
+      : `<p class="note">${has ? "No business description from Yahoo yet - it appears after the next daily update." : "Loading company profile…"}</p>`}`;
+}
+
 function factorLists(a) {
   const sc = (a && a.scorecard) || [];
   const w = (x) => x.score * x.weight;
@@ -771,6 +790,7 @@ function stockShell(sym, c, deep, opts = {}) {
           <span><i style="background:${VPC.poc}"></i>POC most traded price</span><span><i style="background:${VPC.val}"></i>VAL value-area low</span><span id="${p}-vp-txt" class="muted"></span></div></div>
       <div class="sv-chips" id="${p}-chips"></div>
       <aside class="sv-quote" id="${p}-quote"><p class="note">Loading quote…</p></aside>
+      <aside class="sv-about" id="${p}-about">${aboutHTML(deep, sym)}</aside>
     </div>
     <div id="${p}-key">${keyHTML(c && c.analyst, c)}</div>
     <div id="${p}-folds">${foldsHTML(sym, c, deep, c && c.analyst, (opts.extra || ""),
@@ -783,7 +803,9 @@ async function fillStock(sym, c, deep, p, bucket, big, isCurrent = () => true) {
   const uni = state.snap.universe.find((u) => u.symbol === sym);
   if (!(c && c.analyst)) {
     api(`/api/analyst/${encodeURIComponent(sym)}?session=${state.session}&live=true`).then((r) => {
-      if (!isCurrent() || !r || !r.note) return;
+      if (!isCurrent() || !r) return;
+      const ab = $(`#${p}-about`); if (ab && r.deep && r.deep.profile) ab.innerHTML = aboutHTML(r.deep, sym);
+      if (!r.note) return;
       const k = $(`#${p}-key`); if (k) k.innerHTML = keyHTML(r.note, c);
       const fa = document.querySelector(`#${p}-folds .fold-analyst`); if (fa) fa.innerHTML = analystPanel(r.note);
     }).catch(() => { const k = $(`#${p}-key .key-head`); if (k) k.innerHTML = '<p class="note">Could not build the analyst call.</p>'; });

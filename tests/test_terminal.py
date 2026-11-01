@@ -1926,3 +1926,16 @@ def test_exec_buy_prefers_the_most_recent_buy():
                          "Value": [5_000_000, 150_000], "Insider": ["A", "B"]})
     eb = exec_buy(buys, _d(2026, 10, 30))
     assert eb["insider"] == "B" and eb["age_days"] == 1
+
+
+def test_company_profile_summary_and_ceo():
+    from src.daily.pipeline import company_profile
+    info = {"longName": "Acme Corp", "sector": "Technology", "industry": "Software", "city": "Austin", "country": "United States",
+            "longBusinessSummary": "Acme   makes\nwidgets. " + "word " * 600,
+            "companyOfficers": [{"name": "Jane Roe", "title": "CFO"}, {"name": "John Doe", "title": "Co-Founder, CEO & Director"}]}
+    p = company_profile(info)
+    assert p["longName"] == "Acme Corp" and p["city"] == "Austin"
+    assert p["summary"].startswith("Acme makes widgets.") and p["summary"].endswith("…") and len(p["summary"]) <= 1601
+    assert p["ceo"] == {"name": "John Doe", "title": "Co-Founder, CEO & Director"}
+    empty = company_profile({})
+    assert empty["summary"] is None and empty["ceo"] is None
