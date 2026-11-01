@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     setups = {s: setups[s] for s in focus["kept"]}
     print(f"{len(features)} stocks after the focus filter; collecting historical signals...")
     data = collect_signals(features, setups, settings, hist["label"], progress=print, regime_scores=hist["composite"])
-    print(f"{len(data['signals'])} signals; simulating {8 * 8 * 3} stop / target / time-stop combinations...")
+    print(f"{len(data['signals'])} signals; simulating {8 * 12 * 3} stop / target / time-stop combinations...")
     base = collect_baseline(features, hist["label"])
     print(f"Random-entry baseline: {len(base['signals'])} entries; simulating...")
     res = run_research(data, settings, baseline=base)

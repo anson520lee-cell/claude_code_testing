@@ -47,7 +47,7 @@ from src.scanner.backtest import run_backtest
 from src.scanner.universe_filter import apply_universe_filter
 from src.scanner.features import build_features
 from src.scanner.plan import plan_row
-from src.scanner.scoring import apply_enrichment, build_candidate, cross_sectional_ranks, stats_note
+from src.scanner.scoring import apply_enrichment, backtest_setup_bonus, build_candidate, cross_sectional_ranks, stats_note
 from src.scanner.setups import SETUP_DIRECTION, SETUP_NAMES, active_setups, detect_setups
 
 logger = logging.getLogger(__name__)
@@ -228,6 +228,18 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     bt = run_backtest(features, setups, sc, history["label"])
     trades_frame = bt.pop("trades_frame", None)
 
+    # 5c. evidence-based setup weighting from the latest SL/TP backtest
+    try:
+        bt_dir = path(settings, "reports_dir").parent / "backtest"
+        bt_session = json.loads((bt_dir / "latest.json").read_text())["session"]
+        bt_full = json.loads((bt_dir / bt_session / "backtest.json").read_text())
+    except (OSError, ValueError, KeyError):
+        bt_full = None
+    bonus, bonus_source = backtest_setup_bonus(bt_full, sc)
+    settings = {**settings, "scanner": {**sc, "setup_bonus": bonus}}
+    sc = settings["scanner"]
+    say(f"Setup weighting ({bonus_source}): " + ", ".join(f"{k} {v:+g}" for k, v in sorted(bonus.items(), key=lambda x: -x[1])))
+
     # 6. stage 1
     latest = pd.DataFrame({s: f.iloc[-1] for s, f in features.items()}).T
     ranks = cross_sectional_ranks(_numeric(latest))
@@ -237,7 +249,8 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     for symbol, f in features.items():
         row = f.iloc[-1]
         price, dv = float(row["close"]), float(row["dollar_volume20"]) if pd.notna(row["dollar_volume20"]) else 0.0
-        names = active_setups(setups[symbol].iloc[-1])
+        allowed = set(sc.get("directions") or ["long", "short"])
+        names = [n for n in active_setups(setups[symbol].iloc[-1]) if SETUP_DIRECTION[n] in allowed]
         if not names:
             continue
         if price < liq["min_price"] or dv < liq["min_avg_dollar_volume"]:
@@ -245,7 +258,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             continue
         best: dict[str, dict] = {}
         for name in names:
-            plan = plan_row(f, name, sc, int(sc["plan_horizon_days"]))
+            plan = plan_row(f, name, sc, int((sc.get("setup_horizon") or {}).get(name, sc["plan_horizon_days"])))
             context = {"regime": reg["label"], "sector_quadrant": quadrant.get(universe[symbol]),
                        "sector_etf": universe[symbol], "data_quality": status_by_symbol.get(symbol, "ok")}
             cand = build_candidate(symbol, row, name, float(setups[symbol].iloc[-1][f"quality_{name}"]), plan,
@@ -258,7 +271,8 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     say(f"Stage 1: {len(candidates)} (stock, direction) candidates with an active setup")
 
     # 7. stage 2
-    per_side = max(1, int(sc["shortlist_size"]) // 2)
+    sides = [d for d in ("long", "short") if d in set(sc.get("directions") or ["long", "short"])]
+    per_side = max(1, int(sc["shortlist_size"]) // len(sides))
     shortlist = []
     for d in ("long", "short"):
         side = sorted((c for c in candidates if c["direction"] == d), key=lambda c: -c["score"])
@@ -372,6 +386,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         "universe_filter": universe_filter,
         "backtest": bt,
         "setup_names": SETUP_NAMES,
+        "setup_bonus": {"bonus": bonus, "source": bonus_source},
         "setup_directions": SETUP_DIRECTION,
         "macro_events": events,
         "upcoming_earnings": upcoming_earnings,

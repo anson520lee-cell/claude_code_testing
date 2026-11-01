@@ -190,11 +190,22 @@ scanner:
   horizons: [3, 5, 7, 10]     # trading days for forward statistics
   plan_horizon_days: 7        # time stop of the standard swing plan
   min_reward_risk: 1.5        # T1 / stop distance below this -> "poor reward/risk" penalty
+  max_target1_atr: 2.0        # long Target 1 never further than entry + 2 ATR (far targets are rarely reached)
   max_stop_atr: 3.0           # structural stop further than this is capped and flagged
   min_stop_atr: 1.0           # stop never tighter than 1 ATR (daily noise)
   extension_atr: 3.0          # close more than N ATR above EMA21 = extended
   event_window_days: 7        # earnings within this many sessions = event risk for the swing
   slippage_bps: 10            # per side, used in the historical setup simulation
+  directions: [long]          # candidate lists: long only (short setups lose money in this high-beta universe)
+  setup_bonus:                # fallback points per setup when no backtest exists yet
+    crash_rebound: 15         # crash study: +2.5% excess 5-day return, holds out of sample
+  setup_bonus_from_backtest:  # bonus = clip(points_per_r x setup's average R in the SL/TP backtest, min, max)
+    points_per_r: 150
+    min: -10
+    max: 20
+    min_trades: 200
+  setup_horizon:              # time stop per setup (sessions); others use plan_horizon_days
+    crash_rebound: 10
 
 # Weights of the transparent composite score (sum = 100). Each component is a
 # 0-100 sub-score; the composite is the weighted average minus penalties.

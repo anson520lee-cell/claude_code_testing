@@ -306,7 +306,6 @@ function overview() {
         <div><span>2s10s</span><span class="num">${isNum(rt.curve_2s10s) ? (rt.curve_2s10s * 100).toFixed(0) + "bp" : "n/a"}</span></div>
         <div><span>VIX 5D change</span><span class="num ${cls(-(v.vix_chg5 || 0))}">${pct(v.vix_chg5, 0)}</span></div></div></div>
       <div class="card"><h2>Top long research candidates</h2><div class="tw"><table><tbody>${tops("long")}</tbody></table></div></div>
-      <div class="card"><h2>Top short research candidates</h2><div class="tw"><table><tbody>${tops("short")}</tbody></table></div></div>
       <div class="card"><h2>Next events</h2><ul class="list">${(s.macro_events || []).slice(0, 6).map((e) => `<li><span class="mono">${e.event_date}</span> ${esc(e.event_type)} <span class="chip">${e.status}</span></li>`).join("") || "<li>None in the next 30 days</li>"}
         ${(s.upcoming_earnings || []).filter((e) => e.sessions_until <= 10).slice(0, 8).map((e) => `<li><span class="mono">${e.date}</span> <a href="#/ticker/${e.symbol}">${e.symbol}</a> earnings ${esc(e.timing || "(time n/a)")} <span class="chip">${e.status}</span></li>`).join("")}</ul></div>
     </div>
@@ -362,7 +361,7 @@ function drawRRG(svg, sectors) {
 // ------------------------------------------------------------------ views: scanner
 function earningsOf(c) { return ((state.snap.deep_dive[c.symbol] || {}).catalysts || {}).next_earnings; }
 function scanner() {
-  const s = state.snap, f = state.filters, side = state.scannerSide, mode = state.scanMode || "cards";
+  const s = state.snap, f = state.filters, side = (s.candidates.short || []).length ? state.scannerSide : "long", mode = state.scanMode || "cards";
   const all = s.candidates[side];
   const setups = [...new Set(all.map((c) => c.setup))];
   const rows = all.filter((c) => (!f.tier || c.tier === f.tier) && (!f.setup || c.setup === f.setup)
@@ -373,7 +372,7 @@ function scanner() {
     <h1 class="display">Candidates <em>swing</em></h1>
     <p>Ranked by research priority - not trade signals. Every card and row has a recent price preview; click to open the full chart and research.</p></div>
     <div class="filters" style="margin:0">
-      <div class="seg" id="seg-side"><button data-v="long" class="${side === "long" ? "active" : ""}">Long ${s.candidates.long.length}</button><button data-v="short" class="${side === "short" ? "active" : ""}">Short ${s.candidates.short.length}</button></div>
+      ${(s.candidates.short || []).length ? `<div class="seg" id="seg-side"><button data-v="long" class="${side === "long" ? "active" : ""}">Long ${s.candidates.long.length}</button><button data-v="short" class="${side === "short" ? "active" : ""}">Short ${s.candidates.short.length}</button></div>` : `<span class="chip">Long only · ${s.candidates.long.length}</span>`}
       <div class="seg" id="seg-mode"><button data-v="cards" class="${mode === "cards" ? "active" : ""}">Cards</button><button data-v="table" class="${mode === "table" ? "active" : ""}">Table</button></div>
     </div></div>
   <div class="filters">
@@ -434,8 +433,8 @@ function stockCard(c, i) {
       <div class="sc-px"><div class="p">${num(t.close)}</div><div class="c ${cls(t.return_1d)}">${pct(t.return_1d, 2)}</div></div></div>
     <div class="sc-chart z1" data-mini="${esc(c.symbol)}"></div>
     <div class="sc-setup z1">${ring(c.score)}<div class="s">${esc(c.setup_name)}<div class="note">${esc(tr(t.trend))} · ${esc(tr(t.swing_structure))}</div></div></div>
-    ${c.analyst ? `<div class="sc-bias"><b class="${biasClass(c.analyst.bias)}">${esc(c.analyst.bias)}</b> · confidence ${esc(c.analyst.confidence)} — ${esc(c.analyst.headline.split(": ").slice(1).join(": "))}</div>` : ""}
-    <div class="sc-stats z1"><div><span>Reward/risk</span><b class="${c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${num(c.plan.reward_risk, 1)}</b></div>
+    ${c.setup === "crash_rebound" ? `<div class="sc-bias"><b class="up">Counter-trend bounce</b> · buy within 0–2 days of the crash · stop 2 ATR · T1 1.5 ATR</div>` : c.analyst ? `<div class="sc-bias"><b class="${biasClass(c.analyst.bias)}">${esc(c.analyst.bias)}</b> · confidence ${esc(c.analyst.confidence)} — ${esc(c.analyst.headline.split(": ").slice(1).join(": "))}</div>` : ""}
+    <div class="sc-stats z1"><div><span>Reward/risk</span><b class="${c.setup === "crash_rebound" ? "" : c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${num(c.plan.reward_risk, 1)}</b></div>
       <div><span>Risk</span>${pct(c.plan.risk_pct, 1, false)}</div><div><span>Beta</span>${num(t.beta120, 2)}</div>
       <div><span>Earnings</span><b class="${e && e.sessions_until <= 7 ? "warn" : ""}">${e ? e.sessions_until + " days" : "—"}</b></div></div>
     <div class="sc-flags z1">${pens}</div></div></div>`;
@@ -648,9 +647,12 @@ function keyHTML(a, c) {
   const f = factorLists(a);
   const p = c && c.plan;
   const pens = c ? Object.entries(c.penalties || {}).map(([k, v]) => `<span class="chip warn">${tr(k)} −${v}</span>`).join("") : "";
-  const b = state.btFull, ss = b && c && (b.selected_side || {})[c.direction];
+  const crash = c && c.setup === "crash_rebound";
+  const b = state.btFull, ss = !crash && b && c && (b.selected_side || {})[c.direction];
   const k = ss && ss.stop.startsWith("atr") ? Number(ss.stop.slice(3)) : null, sg = c && c.direction === "long" ? 1 : -1;
   return `<section class="key">
+    ${crash ? `<div class="key-crash"><b>Crash rebound · counter-trend</b> The trend read below is bearish by design - this is a short bounce trade after a crash,
+      not a trend call. 5-year study: buying 0–2 days after such a crash beat random entries by ~+2.5% over 5 days; 2-ATR stop, quick 1.5-ATR target, 10-day time stop.</div>` : ""}
     ${a ? `<div class="key-head"><div class="key-bias ${biasClass(a.bias)}">${esc(a.bias)}<small>${a.bias_score > 0 ? "+" : ""}${a.bias_score.toFixed(0)} / 100 · confidence ${esc(a.confidence)}</small></div>
       <h2 class="key-hl">${esc(String(a.headline || "").replace(new RegExp("^" + a.bias + ":\\s*"), ""))}</h2></div>` : '<div class="key-head"><p class="note">Building the analyst call…</p></div>'}
     ${p ? `<div class="key-plan">
@@ -671,10 +673,11 @@ function fold(title, teaser, body, open = false) {
   return `<details class="fold"${open ? " open" : ""}><summary><span class="ft">${title}</span><span class="fs">${teaser || ""}</span></summary><div class="fold-body">${body}</div></details>`;
 }
 
-function foldsHTML(sym, c, deep, a, extra = "") {
+function foldsHTML(sym, c, deep, a, extra = "", pre = "") {
   const o = deep.options || {}, pos = deep.positioning || {}, cat = deep.catalysts || {}, fm = (deep.fundamentals || {}).metrics || {}, es = deep.earnings_study || {}, ftd = deep.ftd || {};
   const e = cat.next_earnings;
   return `<div class="folds">
+    ${pre}
     ${fold("Full analyst note", a ? `${a.scorecard.length} dimensions · ${(a.techniques || {}).count || 0} techniques · Scenarios` : "", `<div class="fold-analyst">${a ? analystPanel(a) : '<p class="note">Loading…</p>'}</div>`)}
     ${c ? fold("Risk plan · Why these levels", `Stop ${num(c.plan.stop)} · Target ${num(c.plan.target1)} / ${num(c.plan.target2)}`, planPanel(c)) : ""}
     ${c ? fold("Score breakdown · Setup history", `${num(c.score, 0)} (penalties ${num(c.penalty_total, 0)})`, candidatePanels(c, deep)) : ""}
@@ -686,6 +689,30 @@ function foldsHTML(sym, c, deep, a, extra = "") {
     ${deep.ftd ? fold("SEC fails to deliver (FTD)", ftd.available ? (ftd.n ? `High ${fmtVol(ftd.max)} shares (${pct(ftd.max_vs_adv, 1, false)} of avg volume)` : "none") : "needs SEC_USER_AGENT", ftdPanel(ftd)) : ""}
     ${extra}
   </div>`;
+}
+
+function crashTeaser(ch) {
+  const s = ch.summary || {};
+  if (!s.n) return "No crash in the stored history";
+  const d0 = s.d0 || {};
+  return `${s.n} crashes since ${String(s.since).slice(0, 4)} · buying the next day: avg ${pct(d0.mean5, 1)} after 5 days, ${pct(d0.win5, 0, false)} up`;
+}
+
+function crashHistoryHTML(ch) {
+  const s = ch.summary || {};
+  if (!s.n) return '<p class="note">No crash (5-day drop ≥ 20%, 3-day drop ≥ 15% or ≥ 3 ATR below EMA21) in the stored history.</p>';
+  const cell = (k) => s[k] ? `<div class="kpi"><span class="l">Buy ${k === "d0" ? "next day" : k === "d1" ? "1 day later" : "2 days later"}</span>
+      <span class="v ${cls(s[k].mean5)}">${pct(s[k].mean5, 1)}</span><span class="note">avg 5-day return · ${pct(s[k].win5, 0, false)} up · 10-day ${pct(s[k].mean10, 1)}</span></div>` : "";
+  return `<div class="grid g3 kpis">${cell("d0")}${cell("d1")}${cell("d2")}</div>
+    ${table("crash-h", [{ key: "date", label: "Crash day" }, { key: "drop5", label: "5-day move", n: 1, render: (r) => `<span class="down">${pct(r.drop5, 1)}</span>` },
+      { key: "below_ema21_atr", label: "ATR below EMA21", n: 1, render: (r) => num(r.below_ema21_atr, 1) },
+      { key: "d0_ret5", label: "Next day → 5d", n: 1, render: (r) => `<span class="${cls(r.d0_ret5)}">${pct(r.d0_ret5, 1)}</span>` },
+      { key: "d1_ret5", label: "+1 day → 5d", n: 1, render: (r) => `<span class="${cls(r.d1_ret5)}">${pct(r.d1_ret5, 1)}</span>` },
+      { key: "d2_ret5", label: "+2 days → 5d", n: 1, render: (r) => `<span class="${cls(r.d2_ret5)}">${pct(r.d2_ret5, 1)}</span>` },
+      { key: "d0_ret10", label: "Next day → 10d", n: 1, render: (r) => `<span class="${cls(r.d0_ret10)}">${pct(r.d0_ret10, 1)}</span>` },
+      { key: "d0_mae10", label: "Worst dip after", n: 1, render: (r) => `<span class="down">${pct(r.d0_mae10, 1)}</span>` }], ch.events, { sortKey: "date" })}
+    <p class="note">Crash = the first of: 5-day drop ≥ 20%, 3-day drop ≥ 15% or close ≥ 3 ATR below EMA21, at most one per 10 sessions. Returns from the next session's open.
+      Each stock has only a handful of crashes, so its own "best day" is mostly noise: in the 5-year study a stock's own best entry day did <b>worse</b> out of sample than the universe-wide rule (buy 0–2 days after the crash).</p>`;
 }
 
 function stockShell(sym, c, deep, opts = {}) {
@@ -704,7 +731,8 @@ function stockShell(sym, c, deep, opts = {}) {
       <aside class="sv-quote" id="${p}-quote"><p class="note">Loading quote…</p></aside>
     </div>
     <div id="${p}-key">${keyHTML(c && c.analyst, c)}</div>
-    <div id="${p}-folds">${foldsHTML(sym, c, deep, c && c.analyst, opts.extra || "")}</div>
+    <div id="${p}-folds">${foldsHTML(sym, c, deep, c && c.analyst, (opts.extra || ""),
+      fold("Crash history · buy the plunge", `<span id="${p}-crash-teaser">loading…</span>`, `<div id="${p}-crash" class="note">Loading…</div>`, !!(c && c.setup === "crash_rebound")))}</div>
   </div>`;
 }
 
@@ -724,6 +752,8 @@ async function fillStock(sym, c, deep, p, bucket, big, isCurrent = () => true) {
     $(`#${p}-quote`).innerHTML = quoteHTML(d, deep, c, uni);
     const vp = d.volume_profile, t = $(`#${p}-vp-txt`);
     if (t) t.textContent = vp ? `Last ${vp.window}d: VA ${num(vp.val)}–${num(vp.vah)} · POC ${num(vp.poc)}` : "";
+    const ch = d.crash_history, ce = $(`#${p}-crash`), ct = $(`#${p}-crash-teaser`);
+    if (ce && ch) { ce.innerHTML = crashHistoryHTML(ch); if (ct) ct.textContent = crashTeaser(ch); }
     return d;
   } catch (err) {
     const el = $(`#${p}-price`); if (el) el.innerHTML = `<div class="empty">Could not load the chart: ${esc(err.message)}</div>`;
@@ -837,7 +867,8 @@ function candidatePanels(c, deep) {
     ${g ? `<p class="note">Industry group: <b>${esc(g.group)}</b>, RS rank ${g.rank} / ${g.of} ${g.rank_change ? ` (${g.rank_change > 0 ? "up" : "down"} ${Math.abs(g.rank_change)} in 5 days)` : ""}.</p>` : ""}
     <div class="grid g2"><div><h3 class="up">Supporting evidence</h3><ul class="list ev-pos">${c.supporting.map((x) => `<li>${esc(x)}</li>`).join("") || "<li class=muted>none</li>"}</ul></div>
     <div><h3 class="down">Contradicting evidence / risks</h3><ul class="list ev-neg">${c.contradicting.map((x) => `<li>${esc(x)}</li>`).join("") || "<li class=muted>none</li>"}</ul></div></div></div>
-    <div class="card"><h2>Score breakdown <small>raw ${num(c.raw_score, 1)} − penalties ${num(c.penalty_total, 0)} = ${num(c.score, 1)}</small></h2>${comps}<div style="margin-top:8px">Penalties: ${pens}</div></div>
+    <div class="card"><h2>Score breakdown <small>raw ${num(c.raw_score, 1)} − penalties ${num(c.penalty_total, 0)}${c.setup_bonus ? ` ${c.setup_bonus > 0 ? "+" : "−"} setup weighting ${num(Math.abs(c.setup_bonus), 1)}` : ""} = ${num(c.score, 1)}</small></h2>${comps}<div style="margin-top:8px">Penalties: ${pens}</div>
+    ${c.setup_bonus ? `<p class="note">Setup weighting comes from the backtest: each setup gets 150 points per R of its average result (capped −10 to +20)${(state.snap.setup_bonus || {}).source ? `, source: ${esc(state.snap.setup_bonus.source)}` : ""}.</p>` : ""}</div>
     <div class="card"><h2>Historical simulation of this setup <small>universe-wide, in-sample</small></h2><div class="tw"><table><thead><tr><th>Sample</th><th class="n">N</th><th class="n">Win</th><th class="n">Avg R</th><th class="n">T1 hit</th><th class="n">Stopped</th><th class="n">Days</th></tr></thead>
     <tbody>${hrow(h.setup, "All regimes")}${hrow(h.setup_in_regime, `In ${esc(h.regime)} regimes`)}</tbody></table></div>
     <p class="note">Next-open entry, same stop / T1 / time-stop rules, slippage included. Survivorship and in-sample bias apply; ⚠ = fewer than 30 trades.</p></div>`;
@@ -865,7 +896,7 @@ function planPanel(c) {
 function planBasis(c) {
   const p = c.plan, long = c.direction === "long", b = state.btFull;
   let alt = "";
-  const ss = b && (b.selected_side || {})[c.direction];
+  const ss = c.setup !== "crash_rebound" && b && (b.selected_side || {})[c.direction];
   if (ss && isNum(p.atr)) {
     const k = ss.stop.startsWith("atr") ? Number(ss.stop.slice(3)) : null, sg = long ? 1 : -1;
     const bl = (b.baseline || {})[`${c.direction}|${ss.stop}|${ss.target}|${ss.horizon}`];
@@ -1250,9 +1281,76 @@ document.addEventListener("click", (e) => {
   if (b) quickAlert(b.dataset.sym, b.dataset.kind, Number(b.dataset.level), b.dataset.qa);
 });
 
+// ------------------------------------------------------------------ crash-rebound / spike-fade study (python crash_study.py)
+const CS_ENTRIES = ["d0", "d1", "d2", "d3", "d4", "d5", "d7", "d10", "green", "hold_hi"];
+const csEntryName = (k) => ({ green: "1st up day", hold_hi: "1st close > prior high" }[k] || (k === "d0" ? "next day" : `+${k.slice(1)} days`));
+
+function crashHeat(r, names, part = "oos") {
+  const base = ((r.baseline || {}).ret5 || {})[part] || {};
+  const cell = {};
+  for (const g of r.grid || []) cell[g.event + "|" + g.entry] = g[`ret5_${part}`];
+  const ex = (st) => (st && st.n >= 30 && isNum(st.mean) ? st.mean - (base.mean || 0) : null);
+  const vals = Object.values(cell).map(ex).filter(isNum), m = Math.max(0.01, ...vals.map(Math.abs));
+  const bg = (x) => (isNum(x) ? `background:color-mix(in srgb, var(${x > 0 ? "--up" : "--down"}) ${Math.round(8 + 52 * Math.min(1, Math.abs(x) / m))}%, transparent)` : "");
+  return `<div class="tw"><table class="heat"><thead><tr><th>Event ↓ / entry →</th>${CS_ENTRIES.map((k) => `<th class="n">${csEntryName(k)}</th>`).join("")}</tr></thead><tbody>
+    ${Object.keys(names).map((e) => `<tr><th>${esc(names[e])}</th>${CS_ENTRIES.map((k) => { const st = cell[e + "|" + k], x = ex(st);
+      return `<td class="n" style="${bg(x)}" title="${st ? st.n : 0} trades · win ${pct(st && st.win, 0, false)} · raw ${pct(st && st.mean, 2)}">${isNum(x) ? pct(x, 1) : "—"}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function crashBest(rows, id, trade = false) {
+  return table(id, [{ key: "event", label: "Event", render: (x) => esc(x.ev_name) }, { key: "entry", label: "Entry", render: (x) => csEntryName(x.entry) },
+    ...(trade ? [{ key: "target", label: "Target", render: (x) => (x.target === "ema21" ? "EMA21" : x.target.replace("atr", "") + " ATR") }] : []),
+    { key: "is", label: trade ? "In-sample R" : "In-sample excess 5d", n: 1, sort: (x) => (trade ? x.is.mean : x.excess_is), render: (x) => (trade ? rv(x.is.mean) : `<span class="${cls(x.excess_is)}">${pct(x.excess_is, 1)}</span>`) },
+    { key: "oos", label: trade ? "Out-of-sample R" : "Out-of-sample excess 5d", n: 1, sort: (x) => (trade ? x.oos.mean : x.excess_oos), render: (x) => (trade ? rv(x.oos.mean) : `<span class="${cls(x.excess_oos)}">${pct(x.excess_oos, 1)}</span>`) },
+    { key: "win", label: "OOS win rate", n: 1, sort: (x) => x.oos.win, render: (x) => pct(x.oos.win, 0, false) },
+    { key: "n", label: "OOS trades", n: 1, sort: (x) => x.oos.n, render: (x) => (x.oos.n || 0).toLocaleString() }], rows);
+}
+
+function setupWeighting(s) {
+  const sb = s.setup_bonus || {}, bt = (state.btFull || {}).by_setup || {};
+  const rows = Object.entries(sb.bonus || {}).map(([k, v]) => ({ k, name: s.setup_names[k] || k, bonus: v, ...(bt[k] || {}) }));
+  if (!rows.length) return "";
+  return `<section class="note-block"><div class="note-head"><div><div class="eyebrow">Score weighting · ${esc(sb.source || "")}</div>
+      <div class="hl">Which setups get extra points - decided by the backtest</div></div></div>
+    ${table("sw", [{ key: "name", label: "Setup" }, { key: "n", label: "Backtest trades", n: 1, render: (r) => (r.n || 0).toLocaleString() },
+      { key: "avg_r", label: "Average R", n: 1, render: (r) => rv(r.avg_r) }, { key: "win_rate", label: "Win rate", n: 1, render: (r) => pct(r.win_rate, 0, false) },
+      { key: "bonus", label: "Score points", n: 1, render: (r) => `<b class="${cls(r.bonus)}">${r.bonus > 0 ? "+" : ""}${num(r.bonus, 1)}</b>` }], rows, { sortKey: "bonus" })}
+    <p class="note">Points = 150 × the setup's average R under the live plan (capped −10 to +20), refreshed with the monthly backtest. Every setup can still make the list - the
+      weighting only tilts the ranking toward what has worked. A fuller model (setup + indicator factors, fitted in sample) did not rank trades reliably out of sample, so it is not used.</p></section>`;
+}
+
+function crashSection(cs) {
+  if (!cs || !cs.available || !cs.crash || !cs.crash.available) return "";
+  const r = cs.crash, sp = cs.spike || {}, names = cs.event_names, snames = cs.spike_names;
+  const top = (r.best_ret5 || [])[0], topT = (r.best_trade || [])[0], ps = r.per_stock || {};
+  const named = (rows, nm) => (rows || []).map((x) => ({ ...x, ev_name: nm[x.event] || x.event }));
+  const spTop = (sp.best_trade || [])[0], spEx = (sp.best_ret5 || [])[0];
+  const cond = r.conditions ? Object.entries(r.conditions.by).map(([k, v]) => ({ k, ...v })) : [];
+  return `<section class="note-block"><div class="note-head"><div><div class="eyebrow">${cs.n_stocks} stocks · ${(r.n_events || 0).toLocaleString()} crash events · in sample to ${r.cutoff}</div>
+      <div class="hl">Buy the plunge: when does buying after a crash pay?</div></div>
+      <div class="meta">Best rule, out of sample<b class="${cls(top && top.excess_oos)}">${top ? pct(top.excess_oos, 1) : "—"}</b>vs random entry, 5 days</div></div>
+    <ul class="list verdict">
+      ${top ? `<li><b class="tag up">EDGE</b>Best rule: <b>${esc(names[top.event])}</b>, buy ${csEntryName(top.entry)}: +${pct(top.excess_is, 1, false)} vs random entry over 5 days in sample, ${pct(top.excess_oos, 1)} out of sample (win rate ${pct(top.oos.win, 0, false)}).</li>` : ""}
+      ${topT ? `<li><b class="tag up">TRADE</b>As a trade (stop 2 ATR, target ${topT.target === "ema21" ? "EMA21" : topT.target.replace("atr", "") + " ATR"}, 10 days): <b>${esc(names[topT.event])}</b>, buy ${csEntryName(topT.entry)} → ${num(topT.is.mean)}R in sample, ${num(topT.oos.mean)}R out of sample, win rate ${pct(topT.oos.win, 0, false)}.</li>` : ""}
+      <li><b class="tag up">TIMING</b>The edge sits in the first three sessions after the crash (next day to +2 days) and is mostly gone by day 4–7. Waiting for a "confirmation" (first up day, close above the prior high) gives most of it away.</li>
+      ${ps.n_compared ? `<li><b class="tag down">PER STOCK</b>Each stock's own best entry day (in sample) earned ${pct(ps.oos_own_best_mean, 1)} out of sample vs ${pct(ps.oos_pooled_best_mean, 1)} for the universe-wide best day (${csEntryName(ps.pooled_best)}), over ${ps.n_compared} stocks: stock-specific timing is noise - the terminal uses the universal rule.</li>` : ""}
+      ${spEx ? `<li><b class="tag down">SHORT SPIKES</b>Shorting after surges: best in-sample rule ${pct(spEx.excess_is, 1)} vs random shorts (${pct(spEx.excess_oos, 1)} out of sample), but random shorts lose ${pct(-(((sp.baseline || {}).ret5 || {}).oos || {}).mean, 1, false)} per 5 days here, so the absolute result is ~zero; as trades ${spTop ? `the best is ${num(spTop.oos.mean)}R out of sample` : "all lose"}. Not used.</li>` : ""}
+    </ul>
+    <h3>Excess 5-day return vs random entry, by crash type and entry day <small>out of sample</small></h3>${crashHeat(r, names, "oos")}
+    <p class="note">Each cell = average 5-day return after entering at the next open, minus the random-entry average over the same period. Hover for trades, win rate and raw return. Green = beat random entry.</p>
+    <h3>Best rules (5-day excess return)</h3>${crashBest(named(r.best_ret5, names).slice(0, 8), "cs-b5")}
+    <h3>Best trades (stop 2 ATR, close target, 10 days)</h3>${crashBest(named(r.best_trade, names).slice(0, 8), "cs-bt", true)}
+    ${cond.length ? `<h3>When does it work best? <small>${esc(names[r.conditions.event])}, buy ${csEntryName(r.conditions.entry)} · average 5-day return</small></h3>${table("cs-cond", [{ key: "k", label: "Condition" },
+      { key: "is", label: "In sample", n: 1, sort: (x) => x.is.mean, render: (x) => `<span class="${cls(x.is.mean)}">${pct(x.is.mean, 1)}</span> <span class="muted">(${x.is.n || 0})</span>` },
+      { key: "oos", label: "Out of sample", n: 1, sort: (x) => x.oos.mean, render: (x) => `<span class="${cls(x.oos.mean)}">${pct(x.oos.mean, 1)}</span> <span class="muted">(${x.oos.n || 0})</span>` }], cond)}` : ""}
+    <h3>Short after a surge? <small>excess vs random shorts, out of sample</small></h3>${crashHeat(sp, snames, "oos")}
+    <p class="note">Survivorship bias applies (today's universe); events of one type within 10 sessions are merged; daily bars only. The live "Crash rebound" setup uses the strongest, most stable rules: 5-day drop ≥ 20%, 3-day drop ≥ 15% or ≥ 3 ATR below EMA21, buy within 0–2 days, stop 2 ATR, T1 1.5 ATR, 10-day time stop, and gets a +${num(((state.snap.settings || {}).scanner || {}).setup_bonus ? state.snap.settings.scanner.setup_bonus.crash_rebound : 15, 0)} score bonus.</p>
+  </section>`;
+}
+
 // ------------------------------------------------------------------ SL / TP validation backtest (python backtest.py)
 const BT_STOP_ORDER = ["structural", "atr1.0", "atr1.5", "atr2.0", "atr2.5", "atr3.0", "swing", "chip"];
-const BT_TGT_ORDER = ["resistance", "atr2", "atr3", "atr4", "r2", "r3", "chip", "trail"];
+const BT_TGT_ORDER = ["resistance", "atr1", "atr1.5", "atr2", "atr3", "atr4", "r1", "r1.5", "r2", "r3", "chip", "trail"];
 const REGIMES = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
 state.bt = { side: "long", hz: 10, period: "oos" };
 const rv = (v, d = 2) => (isNum(v) ? `<span class="${cls(v)}">${v > 0 ? "+" : ""}${num(v, d)}R</span>` : '<span class="muted">—</span>');
@@ -1280,7 +1378,7 @@ function slTpExplainer(b) {
       ${verdictLine(`Overall ${live.all.n.toLocaleString()} trades: win rate ${pct(live.all.win_rate, 0, false)}, avg ${rv(live.all.avg_r)}; out of sample ${rv(live.oos.avg_r)} (t ${tval(live.oos.t_stat)}) - ${edge ? "<b>a statistically significant edge</b>" : "<b>no reliable edge</b>"}.`, edge)}
       ${verdictLine(`Stop${tight ? " may be too tight" : " not too tight"}: stopped trades that still reached the target ${pct(d.stopped_then_target, 0, false)}; winners took a median heat of ${num(mae.p50)} ATR, 90% under ${num(mae.p90)} ATR; the average stop is ${num(d.avg_risk_atr)} ATR.`, !tight)}
       ${verdictLine(`Target${below === rr.length && rr.length ? " too far: every planned-R:R bucket hits below break-even" : `: ${rr.length - below} / ${rr.length} planned-R:R buckets hit above break-even`}; median best open profit ${num(mfe.p50)}R, ${pct(mfe.ge2, 0, false)} reached 2R.`, below < rr.length)}
-      ${verdictLine(`Long ${rv(live.long.avg_r)}, short ${rv(live.short.avg_r)}: short setups lose money in this high-beta universe.`, live.short.avg_r > 0)}
+      ${live.short && live.short.n ? verdictLine(`Long ${rv(live.long.avg_r)}, short ${rv(live.short.avg_r)}: short setups lose money in this high-beta universe.`, live.short.avg_r > 0) : verdictLine(`Long only: short setups were removed after losing money in this high-beta universe (see the heat map's Short tab).`, true)}
     </ul>` : ""}
   </section>`;
 }
@@ -1445,11 +1543,15 @@ async function research() {
   const s = state.snap, bt = s.backtest;
   let full = null;
   try { full = await api("/api/backtest"); } catch (err) { full = { available: false, reason: err.message }; }
+  let crash = null;
+  try { crash = await api("/api/crash-study"); } catch (_) { crash = null; }
   const rows = Object.entries(bt.by_setup || {}).map(([k, v]) => ({ key: k, name: s.setup_names[k] || tr(k), ...v })).filter((r) => r.n);
   const regimes = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
   app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">${bt.first_signal || ""} → ${bt.last_signal || ""} / <b>${bt.n_trades} simulated trades</b></div><h1 class="display">Research <em>&amp; backtest</em></h1>
     <p>How stops and targets are set, how accurate they were over five years, and what works better; then the daily report's setup simulation and the methodology.</p></div></div>
+    ${setupWeighting(s)}
+    ${crashSection(crash)}
     ${slTpExplainer(full)}
     ${backtestSection(full)}
     <div class="card" style="margin-top:14px"><h2>Setup simulation <small>daily report · ${bt.horizon_days}-day time stop · slippage ${bt.slippage_bps} bps</small></h2>

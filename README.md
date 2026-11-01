@@ -50,6 +50,7 @@ export SEC_USER_AGENT="Your Name you@example.com"
 python daily_run.py        # analyse the latest completed session
 python serve.py            # dashboard at http://127.0.0.1:8000
 python backtest.py         # SL / TP validation backtest (5 years, walk-forward + random-entry baseline)
+python crash_study.py      # crash-rebound / spike-fade event study (buy the plunge: which day after a crash)
 ```
 
 On a Mac, `bash scripts/install_mac.sh` sets everything up and adds a one-click **Swing Terminal** app to the Dock.

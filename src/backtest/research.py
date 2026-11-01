@@ -43,11 +43,11 @@ from src.scanner.setups import LONG_SETUPS, SETUP_DIRECTION, SETUP_NAMES, SHORT_
 
 H_MAX = 10
 STOPS = ["structural", "atr1.0", "atr1.5", "atr2.0", "atr2.5", "atr3.0", "swing", "chip"]
-TARGETS = ["resistance", "atr2", "atr3", "atr4", "r2", "r3", "chip", "trail"]
+TARGETS = ["resistance", "atr1", "atr1.5", "atr2", "atr3", "atr4", "r1", "r1.5", "r2", "r3", "chip", "trail"]
 HORIZONS = [5, 7, 10]
 STOP_NAMES = {"structural": "Live structural stop", "atr1.0": "1.0 ATR", "atr1.5": "1.5 ATR", "atr2.0": "2.0 ATR", "atr2.5": "2.5 ATR",
               "atr3.0": "3.0 ATR", "swing": "Last swing low", "chip": "Volume node / value-area low"}
-TARGET_NAMES = {"resistance": "Live resistance target", "atr2": "2 ATR", "atr3": "3 ATR", "atr4": "4 ATR", "r2": "2R", "r3": "3R",
+TARGET_NAMES = {"resistance": "Live resistance target", "atr1": "1 ATR", "atr1.5": "1.5 ATR", "r1": "1R", "r1.5": "1.5R", "atr2": "2 ATR", "atr3": "3 ATR", "atr4": "4 ATR", "r2": "2R", "r3": "3R",
                 "chip": "Volume node / vacuum top above", "trail": "3-ATR trailing stop (no target)"}
 
 
@@ -229,7 +229,7 @@ def target_levels(sig: pd.DataFrame, entry: np.ndarray, stop: np.ndarray, method
         return sig["resistance"].to_numpy()
     if method.startswith("atr"):
         return entry + s * float(method[3:]) * a
-    if method in ("r2", "r3"):
+    if method.startswith("r") and method[1:].replace(".", "").isdigit():
         return entry + s * float(method[1:]) * risk
     if method == "chip":
         ct = sig["chip_target"].to_numpy()
@@ -350,6 +350,8 @@ def run_research(data: dict[str, Any], settings: dict[str, Any], is_fraction: fl
         return sorted(rows, key=lambda g: -g["is"]["avg_r"])[:k]
     res["best_is"] = {side: best(side) for side in ("all", "long", "short")}
     live = cache[("structural", "resistance", int(settings["scanner"].get("plan_horizon_days", 7)))]
+    if "short" not in set(settings["scanner"].get("directions") or ["long", "short"]):
+        live = live[live["long"]]          # the live terminal is long only; the grid still covers both sides
     res["live"] = {"all": summary(live), "is": summary(live[live["date"] <= cutoff]), "oos": summary(live[live["date"] > cutoff]),
                    "long": summary(live[live["long"]]), "short": summary(live[~live["long"]])}
     # selection honesty: the IS winner's out-of-sample result vs the live plan's
@@ -430,7 +432,7 @@ def verdict(res: dict[str, Any]) -> list[str]:
     live = res["live"]
     d = res["diagnostics"]
     o = live["oos"]
-    out.append(f"Live SL/TP (structural stop + resistance target + 7 days): {live['all']['n']} simulated trades, win rate {live['all']['win_rate'] * 100:.0f}%, "
+    out.append(f"Live SL/TP{' (long only)' if not live.get('short', {}).get('n') else ''} (structural stop + resistance target + 7 days): {live['all']['n']} simulated trades, win rate {live['all']['win_rate'] * 100:.0f}%, "
                f"average {live['all']['avg_r']:+.2f}R; out of sample {o.get('n', 0)} trades averaging {o.get('avg_r', float('nan')):+.2f}R "
                f"(t {o.get('t_stat', float('nan')):.1f}; |t| < 2 means not distinguishable from zero).")
     if d.get("stopped_then_target") is not None:

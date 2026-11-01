@@ -128,6 +128,20 @@ def liquidity_score(dollar_volume: float, minimum: float, good: float) -> float:
                          / (math.log10(good) - math.log10(minimum)), 0, 1) * 100)
 
 
+def backtest_setup_bonus(backtest: dict[str, Any] | None, cfg: dict[str, Any]) -> tuple[dict[str, float], str]:
+    """Per-setup score bonus from the SL/TP backtest: bonus = clip(k x average R of the setup's live plan, lo, hi),
+    only for setups with at least ``min_trades`` simulated trades. Falls back to the configured bonuses."""
+    rule = cfg.get("setup_bonus_from_backtest") or {}
+    by = (backtest or {}).get("by_setup") or {}
+    if not rule or not by:
+        return dict(cfg.get("setup_bonus") or {}), "config"
+    k, lo, hi, nmin = (float(rule.get("points_per_r", 150)), float(rule.get("min", -10)), float(rule.get("max", 20)),
+                       int(rule.get("min_trades", 200)))
+    out = {s: round(float(np.clip(k * v["avg_r"], lo, hi)), 1) for s, v in by.items()
+           if v.get("n", 0) >= nmin and v.get("avg_r") is not None and SETUP_DIRECTION.get(s) == "long"}
+    return out, f"backtest {backtest.get('session', '')}"
+
+
 def build_candidate(symbol: str, row: pd.Series, setup: str, quality: float, plan: dict[str, Any],
                     ranks: pd.Series, context: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
     """Score one (symbol, setup) pair. ``context``: regime label, sector quadrant, sector ETF, quality status."""
@@ -148,6 +162,15 @@ def build_candidate(symbol: str, row: pd.Series, setup: str, quality: float, pla
         "regime_alignment": 0.6 * regime_map.get(context.get("regime"), 50)
                             + 0.4 * quad_map.get(context.get("sector_quadrant"), 50),
     }
+    if setup == "crash_rebound":
+        # a crash is a short-term downtrend by definition: score the rebound on long-term context and
+        # how stretched / oversold it is; its target is deliberately close (calibrated by the crash study)
+        close, e200 = _f(row.get("close")), _f(row.get("ema200"))
+        rsi, ext = _f(row.get("rsi14")), _f(row.get("extension_atr"))
+        components["trend"] = 70.0 if np.isfinite(e200) and close > e200 else 40.0
+        osold = 0.5 * np.clip((45 - np.nan_to_num(rsi, nan=45)) / 30, 0, 1) + 0.5 * np.clip((-np.nan_to_num(ext, nan=0) - 2) / 3, 0, 1)
+        components["momentum"] = float(100 * osold)
+        components["reward_risk"] = 70.0
     candidate = {
         "symbol": symbol, "setup": setup, "setup_name": SETUP_NAMES[setup], "direction": "long" if long else "short",
         "setup_quality": float(quality), "components": components, "plan": plan,
@@ -191,7 +214,11 @@ def technical_penalties(c: dict[str, Any], row: pd.Series, settings: dict[str, A
         c["penalties"]["overbought_extreme"] = pen["overbought_extreme"]
         c["contradicting"].append(f"RSI6 {rsi6:.0f} is at an extreme - short-term exhaustion risk.")
     rr = _f(plan.get("reward_risk"))
-    if np.isfinite(rr) and rr < sc["min_reward_risk"]:
+    if c["setup"] == "crash_rebound":
+        c["supporting"].append("Crash rebound: first crash in 10 sessions, within the 0-2 day entry window. In the 5-year "
+                               "crash study, buying then beat random entries by about +2.5% over 5 days (win rate ~57%) "
+                               "in and out of sample.")
+    elif np.isfinite(rr) and rr < sc["min_reward_risk"]:
         c["penalties"]["poor_reward_risk"] = pen["poor_reward_risk"]
         c["contradicting"].append(f"Reward/risk to Target 1 is only {rr:.2f} (< {sc['min_reward_risk']}).")
     if plan.get("wide_stop"):
@@ -241,9 +268,11 @@ def finalize(c: dict[str, Any], settings: dict[str, Any]) -> None:
     weights = settings["weights"]
     raw = sum(weights[k] * c["components"][k] for k in weights) / 100
     penalty = sum(c["penalties"].values())
+    bonus = float((settings["scanner"].get("setup_bonus") or {}).get(c["setup"], 0))
     c["raw_score"] = round(float(raw), 2)
     c["penalty_total"] = float(penalty)
-    c["score"] = round(float(np.clip(raw - penalty, 0, 100)), 2)
+    c["setup_bonus"] = bonus
+    c["score"] = round(float(np.clip(raw - penalty + bonus, 0, 100)), 2)
     tiers = settings["tiers"]
     c["tier"] = "A" if c["score"] >= tiers["A"] else "B" if c["score"] >= tiers["B"] else \
         "C" if c["score"] >= tiers["C"] else "Watch"

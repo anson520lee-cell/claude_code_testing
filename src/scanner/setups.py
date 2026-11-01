@@ -24,6 +24,12 @@ squeeze    BOLL width in the lowest 15% of the previous 126 sessions, Close > EM
 reclaim    Close crossed above EMA21 today or yesterday after >= 3 sessions below it,
            Volume >= 1.0 x MAVOL20, and (Close > EMA50 or EMA50 rising).
            Quality: volume (+0..30), CLV (+0..20), MACD histogram rising (+20), Close > EMA50 (+15), RSI14 > 50 (+15).
+crash_rebound  Buy the plunge (from the crash event study, crash_study.py): the FIRST crash event in 10
+           sessions - 5-day return <= -20%, 3-day return <= -15%, or close >= 3 ATR below EMA21 - and
+           we are 0-2 sessions after it (the study found the edge is in the first three days and gone
+           by day 4-7). Quality: depth of the 5-day drop (-15% -> 0, -40% -> 30), stock-specific (lagging
+           SPY by >= 10% over 5 days: +20), long-term uptrend (Close > EMA200: +20), >= 4 ATR below EMA21
+           (+15), RSI14 < 25 (+15).
 momentum   Close > EMA9 > EMA21 > EMA50, 20d return > 0 and outperforming SPY over 20 and 60 sessions,
            Close within 1 ATR of the 20-session high, extension (Close - EMA21) <= 2.5 ATR.
            Quality: RS 60d (+0..30), HH/HL (+20), up/down volume ratio > 1.2 (+20), RSI14 55-72 (+15), ADX >= 25 (+15).
@@ -43,17 +49,18 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-LONG_SETUPS = ("breakout", "pullback", "squeeze", "reclaim", "momentum")
+LONG_SETUPS = ("crash_rebound", "breakout", "pullback", "squeeze", "reclaim", "momentum")
 SHORT_SETUPS = ("breakdown", "rally_fail", "ema21_loss")
 SETUP_DIRECTION = {**{s: "long" for s in LONG_SETUPS}, **{s: "short" for s in SHORT_SETUPS}}
 SETUP_NAMES = {
     "breakout": "Breakout (20D high, volume)", "pullback": "Pullback to EMA9/21 in uptrend",
     "squeeze": "Volatility squeeze near highs", "reclaim": "EMA21 reclaim", "momentum": "Momentum leader near highs",
+    "crash_rebound": "Crash rebound (buy the plunge)",
     "breakdown": "Breakdown (20D low, volume)", "rally_fail": "Failed rally into falling EMA21",
     "ema21_loss": "EMA21 loss",
 }
 # When several setups are active the primary one is the first in this order.
-PRIORITY = ("breakout", "breakdown", "pullback", "rally_fail", "reclaim", "ema21_loss", "squeeze", "momentum")
+PRIORITY = ("crash_rebound", "breakout", "breakdown", "pullback", "rally_fail", "reclaim", "ema21_loss", "squeeze", "momentum")
 
 
 def _scale(x: pd.Series, lo: float, hi: float, points: float) -> pd.Series:
@@ -108,6 +115,17 @@ def detect_setups(df: pd.DataFrame) -> pd.DataFrame:
     q = (_scale(df["rel_60d"], 0, 0.25, 30) + 20 * hhhl + 20 * _b(df["updown_vol_ratio"] > 1.2)
          + 15 * _b(rsi14.between(55, 72)) + 15 * _b(df["adx"] >= 25))
     out["setup_momentum"], out["quality_momentum"] = momentum, q.where(momentum, 0)
+
+    # ---------------------------------------------------------------- crash rebound (buy the plunge)
+    ret3 = c / c.shift(3) - 1
+    event = _b((df["return_5d"] <= -0.20) | (ret3 <= -0.15) | (df["extension_atr"] <= -3))
+    recent = event.shift(1).rolling(10, min_periods=1).max().fillna(0).astype(bool)
+    first = event & ~recent
+    crash = _b(first | first.shift(1) | first.shift(2))
+    drop5 = df["return_5d"].where(first).ffill(limit=2)
+    q = (_scale(-drop5, 0.15, 0.40, 30) + 20 * _b(df["rel_5d"] <= -0.10) + 20 * _b(c > e200)
+         + 15 * _b(df["extension_atr"] <= -4) + 15 * _b(rsi14 < 25))
+    out["setup_crash_rebound"], out["quality_crash_rebound"] = crash, q.where(crash, 0)
 
     # ---------------------------------------------------------------- short
     breakdown = _b((c < df["prior_low20"]) & (vr >= 1.3) & (clv <= 0.4) & (c < e50))

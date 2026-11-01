@@ -255,6 +255,26 @@ this high-beta universe (best combination -0.05R OOS). The score has no predicti
 (Spearman -0.03); the planned-R:R component is *negatively* related to outcomes. The live plan is not
 changed automatically - the dashboard shows the backtest's preferred plan next to every candidate.
 
+### 7c. Crash rebound and spike fade (`python crash_study.py`)
+
+An event study over the same 5-year history (`src/backtest/crash_study.py`). Crash events: 1-day drop
+beyond 3σ, 1-day drop ≥ 8%, 3-day drop ≥ 15%, 5-day drop ≥ 20%, close ≥ 3 ATR below EMA21 (one per stock
+per 10 sessions). Entries from the next day to +10 days, or after a first up day / a close above the prior
+high; outcomes over 3-20 days and as 2-ATR-stop trades with close targets; everything compared with
+random entries, in-sample vs out-of-sample. Spikes (the mirror image) test shorting after surges.
+
+First result (233 stocks, ~10,600 crash events): buying 0-2 days after a 5-day drop ≥ 20% or a 3-day drop
+≥ 15% beat random entries by about +2.5% over 5 days in and out of sample (win rate 55-58%); ≥ 3 ATR
+below EMA21 with a 2-ATR stop and a 1.5-2 ATR target earned about +0.2R per trade out of sample (win
+rate ~65%). The edge is gone by day 4-7. A stock's own "best entry day" did worse out of sample than
+the universe-wide rule, so per-stock timing is not used (each stock page shows its own crash history).
+Shorting after surges did not make money (only less than random shorts in a rising universe).
+
+Consequences in the live terminal: candidate lists are **long only** (`scanner.directions`); a new
+**crash rebound** setup (first crash in 10 sessions, entry window 0-2 days, stop 2 ATR, T1 1.5 ATR, T2
+EMA21 capped at 3 ATR, 10-day time stop) is scored on long-term trend and how oversold it is and gets
+a +15 bonus (`scanner.setup_bonus`); long Target 1 is capped at entry + 2 ATR (`max_target1_atr`).
+
 ---
 
 ## 8. Dashboard

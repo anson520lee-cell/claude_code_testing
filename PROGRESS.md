@@ -149,3 +149,8 @@
     line and McClellan oscillator; industry-group RS ranking with 5-day rank change; each candidate shows its group rank.
   - Ticker pages: earnings reaction study (options-implied vs historical moves, post-earnings drift, gap fade) and SEC
     fails-to-deliver analysis (needs SEC_USER_AGENT).
+* Long only + crash rebound (2026-11-01):
+  - `crash_study.py` event study: buying 0-2 days after a big multi-day crash beats random entries (+2.5% over 5 days,
+    holds out of sample); per-stock timing does not; shorting after spikes does not pay.
+  - Candidate lists are long only; new `crash_rebound` setup with its own stop / targets / scoring and a +15 bonus;
+    long T1 capped at entry + 2 ATR; stock pages show each stock's crash history; Research page shows the study.

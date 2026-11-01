@@ -336,7 +336,7 @@ def test_simulation_target_and_conservative_stop(monkeypatch, tsettings):
     df = _path_frame([(100, 101, 99, 100), (100, 103, 99.5, 102), (102, 112, 101, 111)] + [(111, 112, 110, 111)] * 8)
     st = pd.DataFrame(False, index=df.index, columns=[f"setup_{s}" for s in
                                                       ("breakout", "pullback", "squeeze", "reclaim", "momentum",
-                                                       "breakdown", "rally_fail", "ema21_loss")])
+                                                       "breakdown", "rally_fail", "ema21_loss", "crash_rebound")])
     st.iloc[0, 0] = True
     plan = pd.DataFrame({"entry": 100.0, "stop": 98.0, "target1": 110.0, "target2": 115.0}, index=df.index)
     monkeypatch.setattr("src.scanner.backtest.plan_for_setup", lambda d, s, c: plan)
@@ -724,7 +724,7 @@ def test_research_end_to_end_with_baseline():
     assert set(base["signals"]["long"]) == {True, False}
     res = run_research(data, s, baseline=base)
     assert res["available"] and res["verdict"] and res["live"]["oos"]["n"] > 0
-    assert len(res["grid"]) == 8 * 8 * 3 * 3
+    assert len(res["grid"]) == 8 * 12 * 3 * 3
     assert "long" in res["factors"] and res["baseline"]
     key = next(k for k in res["baseline"] if not k.startswith("_"))
     assert {"baseline_oos", "edge_oos"} <= set(res["baseline"][key])
@@ -915,3 +915,90 @@ def test_implied_earnings_move_without_event_premium():
         return {"expiry": expiry, "days": days, "calls": f, "puts": f.copy()}
     imp = implied_earnings_move([chain("2026-11-06", 7, 0.60, 2.0), chain("2026-12-18", 49, 0.40, 7.0)], 100.0, date(2026, 12, 18))
     assert imp["method"] == "no_event_premium" and imp["move_pct"] is None
+
+
+# ======================================================================= crash rebound (buy the plunge)
+def _crash_frame(n: int = 400, crash_at: int = 330, depth: float = 0.25) -> pd.DataFrame:
+    px = bars(n, seed=21, drift=0.001, vol=0.006)
+    k = px.columns.get_loc
+    for i, day in enumerate(range(crash_at - 4, crash_at + 1)):       # five down days, -25% in total
+        f = (1 - depth) ** (1 / 5)
+        prev = px["close"].iat[day - 1]
+        px.iloc[day, k("open")] = prev * 0.999
+        px.iloc[day, k("close")] = prev * f
+        px.iloc[day, k("high")] = prev
+        px.iloc[day, k("low")] = prev * f * 0.995
+    after = px["close"].iat[crash_at]
+    for day in range(crash_at + 1, n):                                # then a rebound: +1%/day for 6 days
+        prev = px["close"].iat[day - 1]
+        g = 1.01 if day <= crash_at + 6 else 1.0005
+        px.iloc[day, k("open")] = prev
+        px.iloc[day, k("close")] = prev * g
+        px.iloc[day, k("high")] = prev * g * 1.002
+        px.iloc[day, k("low")] = prev * 0.998
+    px["adj_close"] = px["close"]
+    assert after < px["close"].iat[crash_at - 5]
+    return px
+
+
+def test_crash_rebound_setup_and_plan(tsettings):
+    from src.scanner.plan import plan_for_setup
+    spy = bars(400, seed=99)["adj_close"]
+    f = build_features(_crash_frame(), spy, None)
+    st = detect_setups(f)
+    on = st["setup_crash_rebound"]
+    first = int(np.flatnonzero(on.to_numpy())[0])
+    assert on.iloc[first:first + 3].all() and not on.iloc[first + 3:first + 10].any()   # 0-2 days after the first crash only
+    assert st["quality_crash_rebound"].iloc[first] > 0
+    p = plan_for_setup(f, "crash_rebound", tsettings["scanner"]).iloc[first]
+    a = f["atr"].iat[first]
+    assert p["entry"] - p["stop"] == pytest.approx(2 * a) and p["target1"] - p["entry"] == pytest.approx(1.5 * a)
+    assert p["target2"] >= p["target1"] + 0.5 * a - 1e-9
+
+
+def test_crash_rebound_scoring_bonus_and_long_only(tsettings):
+    spy = bars(400, seed=99)["adj_close"]
+    f = build_features(_crash_frame(), spy, None)
+    st = detect_setups(f)
+    i = int(np.flatnonzero(st["setup_crash_rebound"].to_numpy())[0])
+    from src.scanner.plan import plan_row
+    s = copy.deepcopy(tsettings)
+    s["scanner"]["setup_bonus"] = {"crash_rebound": 15}
+    plan = plan_row(f.iloc[: i + 1], "crash_rebound", s["scanner"], 10)
+    c = build_candidate("AAA", f.iloc[i], "crash_rebound", float(st["quality_crash_rebound"].iat[i]), plan,
+                        pd.Series({"rs_pct": 50.0, "sector_rs_pct": 50.0}), {"regime": "Neutral"}, s)
+    assert c["setup_bonus"] == 15 and "poor_reward_risk" not in c["penalties"]
+    assert c["score"] == pytest.approx(min(100, max(0, c["raw_score"] - c["penalty_total"] + 15)), abs=0.01)
+    assert any("Crash rebound" in x for x in c["supporting"]) and plan["horizon_days"] == 10
+    assert tsettings["scanner"]["directions"] == ["long"]
+
+
+def test_crash_study_events_trades_and_history():
+    from src.backtest.crash_study import _trade, analyse, baseline, collect_events, crash_history, event_masks
+    spy = bars(400, seed=99)["adj_close"]
+    f = build_features(_crash_frame(), spy, None)
+    m = event_masks(f, 1)
+    assert m["d5_20"].sum() == 1                       # consecutive crash days merged into one event
+    ev = collect_events({"AAA": f}, spy, 1)
+    d1 = ev[(ev["event"] == "d5_20") & (ev["entry"] == "d1")].iloc[0]
+    assert d1["ret5"] > 0.03          # the event fires on day 4 of the slide; entering after the last down day pays
+    # trade sim: long hits the target, short hits the stop on the same path
+    o = np.array([100.0, 101, 102, 103]); hi = o + 1; lo = o - 0.5; c = o + 0.5
+    assert _trade(o, hi, lo, c, 0, 100.0, 1.0, 0, "atr1", 1, horizon=3) == pytest.approx(0.5)
+    assert _trade(o, hi, lo, c, 0, 100.0, 1.0, 0, "atr1", -1, horizon=3) == pytest.approx(-1.0)
+    res = analyse(ev, baseline({"AAA": f}, 1))
+    assert res["available"] and "delay_curve" in res and res["grid"]
+    h = crash_history(f)
+    assert h["summary"]["n"] >= 1 and {"d0_ret5", "d1_ret5", "d2_ret5", "d0_mae10"} <= set(h["events"][-1])
+    assert h["events"][0]["date"] > h["events"][-1]["date"]          # newest first
+
+
+def test_setup_bonus_from_backtest(tsettings):
+    from src.scanner.scoring import backtest_setup_bonus
+    bt = {"session": "2026-10-30", "by_setup": {"crash_rebound": {"n": 2700, "avg_r": 0.1}, "breakout": {"n": 5000, "avg_r": 0.03},
+                                                "reclaim": {"n": 3000, "avg_r": -0.2}, "squeeze": {"n": 50, "avg_r": 0.5},
+                                                "breakdown": {"n": 4000, "avg_r": -0.1}}}
+    bonus, src = backtest_setup_bonus(bt, tsettings["scanner"])
+    assert bonus == {"crash_rebound": 15.0, "breakout": 4.5, "reclaim": -10.0} and src.startswith("backtest")
+    fb, src2 = backtest_setup_bonus(None, tsettings["scanner"])
+    assert fb == {"crash_rebound": 15} and src2 == "config"

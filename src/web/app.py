@@ -151,6 +151,11 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
                  "hist_since": f.index[0].strftime("%Y-%m-%d"), "beta": last.get("beta120"), "hv20": last.get("hv20"),
                  "hv60": last.get("hv60"), "atr": last.get("atr")}
         from src.analyst.techniques import volume_profile
+        from src.backtest.crash_study import crash_history
+        try:
+            crashes = crash_history(f)
+        except Exception:  # noqa: BLE001 - optional
+            crashes = None
         try:
             vp = volume_profile(f, 120)
             vp = {k: vp.get(k) for k in ("poc", "vah", "val", "window", "hvn", "vacuum")} if vp.get("poc") else None
@@ -169,7 +174,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
             "last": {k: last.get(k) for k in ("close", "atr", "atr_pct", "rsi6", "rsi14", "trend", "swing_structure",
                                               "volume_ratio", "extension_atr", "hv20", "high252", "low252",
                                               "from_52w_high", "rel_20d", "rel_60d", "swing_condition", "structure")},
-            "as_of": f.index[-1].strftime("%Y-%m-%d"), "quote": quote, "volume_profile": vp,
+            "as_of": f.index[-1].strftime("%Y-%m-%d"), "quote": quote, "volume_profile": vp, "crash_history": crashes,
         })
 
     @app.get("/api/minicharts")
@@ -387,6 +392,18 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         res.pop("method", None)
         return res
 
+    @app.get("/api/crash-study")
+    def api_crash_study() -> dict[str, Any]:
+        latest = backtest_dir / "latest.json"
+        if not latest.exists():
+            return {"available": False}
+        f = backtest_dir / json.loads(latest.read_text())["session"] / "crash_study.json"
+        if not f.exists():
+            return {"available": False, "reason": "No crash study yet: run python crash_study.py."}
+        res = json.loads(f.read_text(encoding="utf-8"))
+        res["available"] = True
+        return res
+
     @app.get("/api/backtest/status")
     def api_backtest_status() -> dict[str, Any]:
         return {k: (v[-30:] if k == "log" else v) for k, v in bt_state.items()}
@@ -403,11 +420,15 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         def work() -> None:
             root = Path(__file__).resolve().parents[2]
             try:
-                proc = subprocess.Popen([sys.executable, "backtest.py"], cwd=root, stdout=subprocess.PIPE,
-                                        stderr=subprocess.STDOUT, text=True, bufsize=1)
-                for line in proc.stdout or []:
-                    bt_state["log"].append(line.rstrip())
-                bt_state["status"] = "success" if proc.wait() == 0 else "failed"
+                for script in ("backtest.py", "crash_study.py"):
+                    proc = subprocess.Popen([sys.executable, script], cwd=root, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT, text=True, bufsize=1)
+                    for line in proc.stdout or []:
+                        bt_state["log"].append(line.rstrip())
+                    if proc.wait() != 0:
+                        bt_state["status"] = "failed"
+                        return
+                bt_state["status"] = "success"
             except Exception as exc:  # noqa: BLE001
                 bt_state.update(status="failed")
                 bt_state["log"].append(f"{type(exc).__name__}: {exc}")

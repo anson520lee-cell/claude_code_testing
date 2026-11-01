@@ -17,7 +17,8 @@ Long (short is the mirror image with lows <-> highs):
     Stop distance is clamped to [min_stop_atr, max_stop_atr] ATRs (default 1-3). A structural
     stop beyond the cap is flagged "wide stop" (the capped stop sits inside the structure).
     Target 1 = nearest overhead reference at least 0.75 ATR above entry among the 20-, 60- and
-               252-session highs; if none (price at highs): entry + 2 ATR.
+               252-session highs, capped at entry + 2 ATR (``max_target1_atr``: the SL/TP backtest showed
+               far targets are rarely reached); if none (price at highs): entry + 2 ATR.
     Target 2 = max(Target 1 + 1 ATR, entry + 2 x risk).
     Reward/risk = (Target 1 - entry) / (entry - stop).
     Time stop = ``plan_horizon_days`` sessions (default 7): exit at that close.
@@ -63,14 +64,18 @@ def plan_for_setup(df: pd.DataFrame, setup: str, cfg: dict[str, Any]) -> pd.Data
             "squeeze": df["low5"] - 0.25 * a,
             "reclaim": df["low3"] - 0.25 * a,
             "momentum": np.maximum(df["ema21"] - 0.5 * a, df["low5"] - 0.25 * a),
+            "crash_rebound": entry - 2.0 * a,
         }[setup]
         dist = (entry - structural) / a
         risk_atr = dist.clip(lower=min_atr, upper=max_atr)
         stop = entry - risk_atr * a
         t1 = _nearest_above(entry, 0.75 * a, [df["high20"], df["high60"], df["high252"]])
-        t1 = t1.fillna(entry + 2 * a)
+        t1 = np.minimum(t1.fillna(entry + 2 * a), entry + float(cfg.get("max_target1_atr", 2.0)) * a)
         risk = entry - stop
         t2 = np.maximum(t1 + a, entry + 2 * risk)
+        if setup == "crash_rebound":   # mean-reversion bounce: close targets (crash study: 1.5 ATR, EMA21)
+            t1 = entry + 1.5 * a
+            t2 = np.maximum(t1 + 0.5 * a, np.minimum(df["ema21"], entry + 3 * a))
         reward = t1 - entry
     else:
         entry = c
@@ -104,6 +109,7 @@ STOP_BASIS = {  # why the stop sits where it sits (shown next to every plan)
     "breakdown": "Higher of the breakdown-day high and the breakdown level (prior 20-day low), plus 0.25 ATR: a close back above it means the breakdown failed",
     "rally_fail": "Higher of the 5-day high and EMA21, plus 0.25 ATR: clearing the rally high and EMA21 damages the downtrend",
     "ema21_loss": "3-day high plus 0.25 ATR: regaining the pre-loss high means the EMA21 loss failed",
+    "crash_rebound": "Entry − 2 ATR: crash volatility is wide, and the crash study found 2 ATR gives the rebound room to work",
 }
 
 
@@ -119,11 +125,15 @@ def plan_basis(df: pd.DataFrame, setup: str, plan: dict[str, Any], cfg: dict[str
         stop += f"The structural stop is only {sdist:.1f} ATR away, inside normal daily noise, so it is widened to {cfg.get('min_stop_atr', 1.0)} ATR."
     else:
         stop += f"Distance {plan['risk_atr']:.1f} ATR ({plan['risk_pct'] * 100:.1f}% risk per share)."
+    if setup == "crash_rebound":
+        return {"stop_basis": stop, "target_basis": "T1 = entry + 1.5 ATR (a quick bounce: in the crash study 1.5–2 ATR targets "
+                "had the best out-of-sample results, win rate ~65%); T2 = back to EMA21, capped at 3 ATR. Time stop "
+                f"{plan.get('horizon_days', 10)} sessions.", "method": "Crash event study (buy 0–2 days after the first crash in 10 sessions)"}
     t1 = plan["target1"]
     names = {"high20": "20-day high", "high60": "60-day high", "high252": "52-week high"} if long else \
         {"low20": "20-day low", "low60": "60-day low", "low252": "52-week low"}
     src = next((n for col, n in names.items() if pd.notna(last.get(col)) and abs(float(last[col]) - t1) < 1e-6), None)
-    target = (f"T1 = the nearest {src} at least 0.75 ATR above (resistance)" if long else f"T1 = the nearest {src} at least 0.75 ATR below (support)") \
+    target = (f"T1 = the nearest {src} at least 0.75 ATR above (resistance), capped at entry + {cfg.get('max_target1_atr', 2.0)} ATR" if long else f"T1 = the nearest {src} at least 0.75 ATR below (support)") \
         if src else f"T1 = entry {'+' if long else '−'} 2 ATR (no 20 / 60 / 252-day {'resistance above' if long else 'support below'})"
     target += "; T2 = the further of T1 + 1 ATR and 2x risk. Time stop = exit at the close after " + str(plan.get("horizon_days", 7)) + " sessions."
     return {"stop_basis": stop, "target_basis": target,

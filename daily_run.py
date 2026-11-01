@@ -95,7 +95,9 @@ def main(argv: list[str] | None = None) -> int:
         print("\nSL/TP backtest is older than 30 days (or missing); re-running it (about 5 minutes)...")
         try:
             import backtest
+            import crash_study
             backtest.main([])
+            crash_study.main([])
         except Exception as exc:  # noqa: BLE001 - the daily report is already written
             print(f"Backtest failed (the daily report is unaffected): {type(exc).__name__}: {exc}", file=sys.stderr)
     return 0

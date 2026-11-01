@@ -366,3 +366,5 @@ table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
 @media (max-width: 700px) { .fold > summary { grid-template-columns: minmax(0, 1fr) 20px; } .fold .fs { grid-column: 1; } }
 .sv .chart.small { height: auto; }
 
+.key-crash { border-left: 3px solid var(--up); padding: 10px 14px; background: color-mix(in srgb, var(--up) 8%, transparent); font-size: 13.5px; line-height: 1.6; }
+.key-crash b { color: var(--up); margin-right: 8px; }
