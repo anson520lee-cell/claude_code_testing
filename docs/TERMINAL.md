@@ -27,7 +27,7 @@ python daily_run.py          # first run downloads ~2 years of history (2-4 minu
 ```
 
 ```bash
-python serve.py              # dashboard at http://127.0.0.1:8000
+python serve.py              # dashboard at http://127.0.0.1:8000  (password + other devices: docs/REMOTE.md)
 ```
 
 Outputs per session: `reports/daily/<YYYY-MM-DD>/report.html` (printable), `report.md`, `data.json`

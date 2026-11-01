@@ -28,6 +28,10 @@ const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValu
 async function api(path, opts) {
   if (window.__PREVIEW__) return window.__PREVIEW__(path, opts);   // static preview build (scripts/export_preview.py)
   const r = await fetch(path, opts);
+  if (r.status === 401) {   // login expired / password changed: back to the sign-in page, then here again
+    location.href = `/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
+    throw new Error("Login required");
+  }
   if (!r.ok) {
     let msg = `${r.status}`;
     try { msg = (await r.json()).detail || msg; } catch (_) { /* not json */ }
