@@ -118,6 +118,27 @@ STOP_BASIS = {  # why the stop sits where it sits (shown next to every plan)
 }
 
 
+# How and when to enter each live setup (entry-timing study 2026-11-01, daily bars, versus random entries at the
+# same timing). One full position, sized the evening before from the stop distance.
+ENTRY_RULE = {
+    "crash_rebound": "Buy before today's close or at the next open, not later: the edge is the same at the signal-day "
+                     "close, the next open and the next close, and gone by the day-2 open. One full position, sized "
+                     "tonight from the stop.",
+    "squeeze": "Buy-stop order at the trigger (20-day high + 0.1 ATR) for the next session only; no trade if it is "
+               "not hit. Buying at market without the break did worse than random entries.",
+    "breakout": "Next open. No entry timing showed an edge over random entries.",
+}
+# Honest label of what the backtests support (strategy lab, entry-timing study, account simulation).
+EVIDENCE = {
+    "crash_rebound": "Edge over random entries about +0.1 to +0.2R per trade (+0.08 to +0.17R with live-like sizing), "
+                     "t below 2.5: positive in both halves but not proven at the project's 2.5 bar.",
+    "squeeze": "Edge over random entries +0.14R out of sample but -0.02R in sample (t below 2.5): only the buy-stop "
+               "entry has an edge. Not proven.",
+    "breakout": "Unproven: about +0.01 to +0.03R over random entries at every entry timing (score bonus 0). Kept "
+                "because you asked for it.",
+}
+
+
 def plan_basis(df: pd.DataFrame, setup: str, plan: dict[str, Any], cfg: dict[str, Any]) -> dict[str, str]:
     """Plain-language reason for today's stop and targets (structure, ATR noise floor, resistance)."""
     last = df.iloc[-1]
@@ -133,7 +154,7 @@ def plan_basis(df: pd.DataFrame, setup: str, plan: dict[str, Any], cfg: dict[str
     if setup == "crash_rebound":
         return {"stop_basis": stop, "target_basis": "T1 = entry + 1.5 ATR (a quick bounce: in the crash study 1.5–2 ATR targets "
                 "had the best out-of-sample results, win rate ~65%); T2 = back to EMA21, capped at 3 ATR. Time stop "
-                f"{plan.get('horizon_days', 10)} sessions.", "method": "Crash event study (buy 0–2 days after the first crash in 10 sessions)"}
+                f"{plan.get('horizon_days', 10)} sessions.", "method": "Crash event study (first crash in 10 sessions; buy before the signal-day close or at the next open)"}
     t1 = plan["target1"]
     names = {"high20": "20-day high", "high60": "60-day high", "high252": "52-week high"} if long else \
         {"low20": "20-day low", "low60": "60-day low", "low252": "52-week low"}
@@ -203,6 +224,8 @@ def plan_row(df: pd.DataFrame, setup: str, cfg: dict[str, Any], horizon: int) ->
     hv = float(df["hv20"].iloc[-1]) if pd.notna(df["hv20"].iloc[-1]) else float("nan")
     out["expected_move_hv"] = float(df["close"].iloc[-1] * hv * np.sqrt(horizon / 252)) if np.isfinite(hv) else None
     out.update(plan_basis(df, setup, out, cfg))
+    if setup in ENTRY_RULE:
+        out["entry_rule"], out["evidence"] = ENTRY_RULE[setup], EVIDENCE[setup]
     rule = (cfg.get("exit_rules") or {}).get(setup)
     if rule:
         apply_exit_rule(out, df, setup, rule)

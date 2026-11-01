@@ -450,7 +450,7 @@ function stockCard(c, i) {
       <div class="sc-px" data-live="${esc(c.symbol)}"><div class="p">${num(t.close)}</div><div class="c ${cls(t.return_1d)}">${pct(t.return_1d, 2)}</div></div></div>
     <div class="sc-chart z1" data-mini="${esc(c.symbol)}"></div>
     <div class="sc-setup z1">${ring(c.score)}<div class="s">${esc(c.setup_name)}<div class="note">${esc(tr(t.trend))} · ${esc(tr(t.swing_structure))}</div></div></div>
-    ${c.setup === "crash_rebound" ? `<div class="sc-bias"><b class="up">Counter-trend bounce</b> · buy within 0–2 days of the crash · stop 2 ATR · T1 1.5 ATR</div>` : c.analyst ? `<div class="sc-bias"><b class="${biasClass(c.analyst.bias)}">${esc(c.analyst.bias)}</b> · confidence ${esc(c.analyst.confidence)} — ${esc(c.analyst.headline.split(": ").slice(1).join(": "))}</div>` : ""}
+    ${c.setup === "crash_rebound" ? `<div class="sc-bias"><b class="up">Counter-trend bounce</b> · signal day: buy before the close or at the next open, not later · ${esc((c.plan.exit_rule || {}).name || "")}</div>` : c.setup === "breakout" ? `<div class="sc-bias"><b class="warn">Unproven</b> · no edge over random entries in the backtests</div>` : c.analyst ? `<div class="sc-bias"><b class="${biasClass(c.analyst.bias)}">${esc(c.analyst.bias)}</b> · confidence ${esc(c.analyst.confidence)} — ${esc(c.analyst.headline.split(": ").slice(1).join(": "))}</div>` : ""}
     <div class="sc-stats z1"><div><span>Reward/risk</span><b class="${c.setup === "crash_rebound" ? "" : c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${num(c.plan.reward_risk, 1)}</b></div>
       <div><span>Risk</span>${pct(c.plan.risk_pct, 1, false)}</div><div><span>Beta</span>${num(t.beta120, 2)}</div>
       <div><span>Earnings</span><b class="${e && e.sessions_until <= 7 ? "warn" : ""}">${e ? e.sessions_until + " days" : "—"}</b></div></div>
@@ -689,8 +689,9 @@ function keyHTML(a, c) {
   const k = ss && ss.stop.startsWith("atr") ? Number(ss.stop.slice(3)) : null, sg = c && c.direction === "long" ? 1 : -1;
   return `<section class="key">
     ${crash ? `<div class="key-crash"><b>Crash rebound · counter-trend</b> The trend read below is bearish by design - this is a short bounce trade after a crash,
-      not a trend call. 5-year study: buying 0–2 days after such a crash beat random entries by ~+2.5% over 5 days.
-      Exit: ${p && p.exit_rule ? esc(p.exit_rule.name || "") : "2-ATR stop, 1.5-ATR target, 10-day time stop"}.</div>` : ""}
+      not a trend call. Buy before the signal-day close or at the next open, not later (the edge is gone by the day-2 open).
+      Edge over random entries about +0.1 to +0.2R per trade, t below 2.5: not proven.
+      Exit: ${p && p.exit_rule ? esc(p.exit_rule.name || "") : "1.5 ATR stop + 3-ATR trailing stop, max 20 sessions"}.</div>` : ""}
     ${a ? `<div class="key-head"><div class="key-bias ${biasClass(a.bias)}">${esc(a.bias)}<small>${a.bias_score > 0 ? "+" : ""}${a.bias_score.toFixed(0)} / 100 · confidence ${esc(a.confidence)}</small></div>
       <h2 class="key-hl">${esc(String(a.headline || "").replace(new RegExp("^" + a.bias + ":\\s*"), ""))}</h2></div>` : '<div class="key-head"><p class="note">Building the analyst call…</p></div>'}
     ${p ? `<div class="key-plan">
@@ -937,7 +938,12 @@ function planPanel(c) {
     ${p.exit_rule ? `<div><span>Exit rule</span><span class="num">${esc(p.exit_rule.name || "")}</span></div>` : ""}<div><span>Risk / share</span><span class="num">${pct(p.risk_pct, 2, false)}</span></div>
     <div><span>Structural stop</span><span class="num ${p.wide_stop ? "warn" : ""}">${num(p.structural_stop_atr, 1)} ATR${p.wide_stop ? " (capped)" : ""}</span></div>
     <div><span>${p.horizon_days}-day 1σ move (HV20)</span><span class="num">±${num(p.expected_move_hv)}</span></div></div>
-    <p class="note">Position size is your call. Example: risking 0.5% of a $100,000 account = $500 ÷ ${num(Math.abs(p.entry - p.stop))} ≈ ${isNum(p.entry - p.stop) && p.entry !== p.stop ? Math.floor(500 / Math.abs(p.entry - p.stop)) : "n/a"} shares (then × regime budget ×${budget}).</p>
+    ${p.entry_rule ? `<p><b>Entry</b>: ${esc(p.entry_rule)}</p>` : ""}${p.evidence ? `<p class="${c.setup === "breakout" ? "warn" : ""}"><b>Evidence</b>: ${esc(p.evidence)}</p>` : ""}
+    <p class="note">${(() => {
+      const pf = (state.snap.settings || {}).portfolio || {}, acct = pf.account_size || 100000, rk = pf.risk_per_trade ?? 0.005;
+      const d = Math.abs(p.entry - p.stop), cash = acct * rk;
+      return `One full position, sized after the close. Example: risking ${num(rk * 100, 1)}% of a $${acct.toLocaleString()} account = $${Math.round(cash).toLocaleString()} ÷ ${num(d)} ≈ ${isNum(d) && d > 0 ? Math.floor(cash / d) : "n/a"} shares (then × regime budget ×${budget}).`;
+    })()}</p>
     <div class="qa">Add alert: ${(() => {
       const L = c.direction === "long", items = [[L ? "below" : "above", p.stop, "Stop hit"]];
       if (isNum(p.target1)) items.push([L ? "above" : "below", p.target1, "Reach target"]);
@@ -1622,7 +1628,7 @@ function crashSection(cs) {
       { key: "is", label: "In sample", n: 1, sort: (x) => x.is.mean, render: (x) => `<span class="${cls(x.is.mean)}">${pct(x.is.mean, 1)}</span> <span class="muted">(${x.is.n || 0})</span>` },
       { key: "oos", label: "Out of sample", n: 1, sort: (x) => x.oos.mean, render: (x) => `<span class="${cls(x.oos.mean)}">${pct(x.oos.mean, 1)}</span> <span class="muted">(${x.oos.n || 0})</span>` }], cond)}` : ""}
     <h3>Short after a surge? <small>excess vs random shorts, out of sample</small></h3>${crashHeat(sp, snames, "oos")}
-    <p class="note">Survivorship bias applies (today's universe); events of one type within 10 sessions are merged; daily bars only. The live "Crash rebound" setup uses the strongest, most stable rules: 5-day drop ≥ 20%, 3-day drop ≥ 15% or ≥ 3 ATR below EMA21, buy within 0–2 days, stop 2 ATR, T1 1.5 ATR, 10-day time stop, and gets a +${num(((state.snap.settings || {}).scanner || {}).setup_bonus ? state.snap.settings.scanner.setup_bonus.crash_rebound : 15, 0)} score bonus.</p>
+    <p class="note">Survivorship bias applies (today's universe); events of one type within 10 sessions are merged; daily bars only. The live "Crash rebound" setup uses the strongest, most stable rules: 5-day drop ≥ 20%, 3-day drop ≥ 15% or ≥ 3 ATR below EMA21, listed on the signal day only (buy before that close or at the next open, not later), exit from the strategy lab (1.5 ATR stop + 3-ATR trailing stop, max 20 sessions), and gets a +${num(((state.snap.settings || {}).scanner || {}).setup_bonus ? state.snap.settings.scanner.setup_bonus.crash_rebound : 15, 0)} score bonus.</p>
   </section>`;
 }
 
@@ -1817,6 +1823,32 @@ function wireBacktest(b) {
 }
 
 // ------------------------------------------------------------------ views: research
+// The strategy the terminal runs (agreed 2026-11-01) and what was tested and rejected.
+function liveStrategy(s) {
+  const sc = (s.settings || {}).scanner || {}, pf = (s.settings || {}).portfolio || {}, bonus = sc.setup_bonus || {};
+  const ex = sc.exit_rules || {}, ib = sc.insider_exec_buy || {};
+  const setups = (sc.enabled_setups || ["crash_rebound", "squeeze", "breakout"]);
+  const rows = {
+    crash_rebound: ["Crash rebound", "Signal day only: buy before the close or at the next open, not later",
+      "+0.1 to +0.2R over random, t below 2.5 - positive in both halves, not proven"],
+    squeeze: ["Squeeze", "Buy-stop at 20-day high + 0.1 ATR, next session only (no market buy)",
+      "+0.14R over random out of sample, −0.02R in sample - not proven"],
+    breakout: ["Breakout", "Next open", "Unproven: no edge at any entry timing (kept by choice)"],
+  };
+  const list = setups.filter((k) => rows[k]).map((k) => ({ key: k, name: rows[k][0], entry: rows[k][1], exit: (ex[k] || {}).name || "",
+    bonus: bonus[k], evidence: rows[k][2] }));
+  return `<div class="card" style="margin-top:14px"><h2>Live strategy <small>what the daily scan does now · long only, never places orders</small></h2>
+    ${table("live", [{ key: "name", label: "Setup", render: (r) => `<b>${esc(r.name)}</b>` }, { key: "entry", label: "Entry", wrap: 1 },
+      { key: "exit", label: "Exit", wrap: 1 }, { key: "bonus", label: "Score bonus", n: 1, render: (r) => isNum(r.bonus) ? (r.bonus > 0 ? "+" : "") + num(r.bonus, 1) : "—" },
+      { key: "evidence", label: "Evidence", wrap: 1, render: (r) => `<span class="${r.key === "breakout" ? "warn" : ""}">${esc(r.evidence)}</span>` }], list)}
+    <ul class="list">
+      <li><b>Position</b>: one full entry, risk ${num((pf.risk_per_trade ?? 0.005) * 100, 1)}% of the account per trade, shares computed after the close from the stop distance (Portfolio page).</li>
+      <li><b>CEO / CFO / President buy</b>: open-market purchase ≥ $${((ib.min_value || 100000) / 1000).toFixed(0)}k within ${ib.max_age_days || 5} days = +${ib.bonus || 10} points (passes on 2010–2019 and 2020–2026 filings).</li>
+      <li><b>Not used</b> (tested, no edge or rejected): scaling in (206 schemes, single entry wins) · 2x leveraged ETFs (more risk, same Sharpe) · Bullish-only regime filter for momentum / pullback · cross-asset signals (nothing improved the setups) · momentum, pullback and reclaim as live setups · shorting · the 183-indicator model.</li>
+      <li><b>Expect</b>: the backtest's 60–70% a year is mostly survivorship and a bull market (random entries made +59%); the real edge is the excess over random entries, a few percentage points a year.</li>
+    </ul></div>`;
+}
+
 async function research() {
   const s = state.snap, bt = s.backtest;
   let full = null;
@@ -1835,6 +1867,7 @@ async function research() {
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
   app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">${bt.first_signal || ""} → ${bt.last_signal || ""} / <b>${bt.n_trades} simulated trades</b></div><h1 class="display">Research <em>&amp; backtest</em></h1>
     <p>How stops and targets are set, how accurate they were over five years, and what works better; then the daily report's setup simulation and the methodology.</p></div></div>
+    ${liveStrategy(s)}
     ${labSection(lab)}
     ${discoverySection(disc)}
     ${insiderSection(ins)}

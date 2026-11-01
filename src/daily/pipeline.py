@@ -356,6 +356,11 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         allowed = set(sc.get("directions") or ["long", "short"])
         enabled = set(sc.get("enabled_setups") or SETUP_DIRECTION)
         names = [n for n in active_setups(setups[symbol].iloc[-1]) if SETUP_DIRECTION[n] in allowed and n in enabled]
+        # signal day only (the backtest's episode start): the entry-timing study found the crash-rebound edge is
+        # gone by the day-2 open, so a crash that was already a candidate yesterday is not shown again
+        fresh_only = set(sc.get("fresh_only_setups") or [])
+        names = [n for n in names if n not in fresh_only or len(setups[symbol]) < 2
+                 or not bool(setups[symbol][f"setup_{n}"].iloc[-2])]
         if not names:
             continue
         if price < liq["min_price"] or dv < liq["min_avg_dollar_volume"]:
@@ -515,7 +520,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         "quality": {"counts": q["counts"], "coverage": q["coverage"], "symbols": q["symbols"],
                     "n_usable_stocks": len(usable_stocks), "update": update},
         "warnings": warnings,
-        "settings": {k: settings[k] for k in ("weights", "penalties", "tiers", "scanner", "liquidity")},
+        "settings": {k: settings[k] for k in ("weights", "penalties", "tiers", "scanner", "liquidity", "portfolio") if k in settings},
         "trade_count": int(len(trades_frame)) if trades_frame is not None else 0,
     }
 

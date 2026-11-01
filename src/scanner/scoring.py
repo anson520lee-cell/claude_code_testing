@@ -240,9 +240,9 @@ def technical_penalties(c: dict[str, Any], row: pd.Series, settings: dict[str, A
         c["contradicting"].append(f"RSI6 {rsi6:.0f} is at an extreme - short-term exhaustion risk.")
     rr = _f(plan.get("reward_risk"))
     if c["setup"] == "crash_rebound":
-        c["supporting"].append("Crash rebound: first crash in 10 sessions, within the 0-2 day entry window. In the 5-year "
-                               "crash study, buying then beat random entries by about +2.5% over 5 days (win rate ~57%) "
-                               "in and out of sample.")
+        c["supporting"].append("Crash rebound: first crash in 10 sessions, today is the signal day (buy before the close "
+                               "or at the next open, not later). Edge over random entries about +0.1 to +0.2R per trade "
+                               "(+2-4% per trade), positive in both halves but t below 2.5 - not proven.")
     elif np.isfinite(rr) and rr < sc["min_reward_risk"] and not plan.get("exit_rule"):
         c["penalties"]["poor_reward_risk"] = pen["poor_reward_risk"]
         c["contradicting"].append(f"Reward/risk to Target 1 is only {rr:.2f} (< {sc['min_reward_risk']}).")

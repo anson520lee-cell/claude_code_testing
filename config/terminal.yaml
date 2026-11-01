@@ -224,6 +224,8 @@ scanner:
   directions: [long]          # candidate lists: long only (short setups lose money in this high-beta universe)
   enabled_setups: [crash_rebound, squeeze, breakout]   # setups that make a candidate (user 2026-11-01); momentum,
                               # pullback and reclaim only tracked the market (edge over random entries < 0.05R)
+  fresh_only_setups: [crash_rebound]  # listed on the signal day only: buy before that close or at the next open,
+                              # not later (entry-timing study 2026-11-01: the edge is gone by the day-2 open)
   setup_bonus:                # fallback points per setup when no backtest exists yet
     crash_rebound: 15         # crash study: +2.5% excess 5-day return, holds out of sample
   setup_bonus_from_backtest:  # bonus = clip(points_per_r x setup's average R in the SL/TP backtest, min, max)

@@ -1903,3 +1903,26 @@ def test_ceo_cfo_buy_bonus(tsettings):
     apply_enrichment(c, {"positioning": {"insider_90d": s}}, st)
     assert c["bonuses"] == {"insider_exec_buy": 10.0} and c["score"] == pytest.approx(before + 10)
     assert any("Chief Executive Officer bought" in x for x in c["supporting"])
+
+
+def test_live_strategy_entry_rules_and_evidence(tsettings):
+    from src.scanner.plan import ENTRY_RULE, EVIDENCE, plan_row
+    spy = bars(400, seed=99)["adj_close"]
+    f = build_features(_crash_frame(), spy, None)
+    i = int(np.flatnonzero(detect_setups(f)["setup_crash_rebound"].to_numpy())[0])
+    plan = plan_row(f.iloc[: i + 1], "crash_rebound", tsettings["scanner"], 10)
+    assert "next open, not later" in plan["entry_rule"] and "t below 2.5" in plan["evidence"]
+    assert set(ENTRY_RULE) == set(EVIDENCE) == {"crash_rebound", "squeeze", "breakout"}
+    assert "Unproven" in EVIDENCE["breakout"] and "Buy-stop" in ENTRY_RULE["squeeze"]
+    assert load_terminal_settings()["scanner"]["fresh_only_setups"] == ["crash_rebound"]
+    src = (Path(__file__).resolve().parents[1] / "src" / "daily" / "pipeline.py").read_text()
+    assert 'sc.get("fresh_only_setups")' in src and '.iloc[-2]' in src
+
+
+def test_exec_buy_prefers_the_most_recent_buy():
+    from datetime import date as _d
+    from src.positioning.positioning import exec_buy
+    buys = pd.DataFrame({"date": pd.to_datetime(["2026-10-20", "2026-10-29"]), "Position": ["Chief Executive Officer", "CFO"],
+                         "Value": [5_000_000, 150_000], "Insider": ["A", "B"]})
+    eb = exec_buy(buys, _d(2026, 10, 30))
+    assert eb["insider"] == "B" and eb["age_days"] == 1

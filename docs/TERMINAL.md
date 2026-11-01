@@ -208,6 +208,29 @@ Leading / Weakening / Lagging / Improving.
 
 ## 6. Setups, plans and scores
 
+### 6a. Live strategy (agreed 2026-11-01)
+
+What the daily scan does now (long only, never places orders). The Research page shows the same table
+("Live strategy") with the live numbers.
+
+| Setup | Entry | Exit (strategy lab) | Evidence |
+|---|---|---|---|
+| Crash rebound | **Signal day only** (`scanner.fresh_only_setups`): buy before that close or at the next open, not later | 1.5 ATR stop + 3-ATR trailing stop, max 20 sessions | +0.1 to +0.2R per trade over random entries (+0.08 to +0.17R with live-like sizing), positive in both halves, **t below 2.5: not proven** |
+| Squeeze | Buy-stop at the 20-day high + 0.1 ATR, next session only (a market buy did worse than random) | 2 ATR stop + 3R target, max 20 sessions | +0.14R over random out of sample, −0.02R in sample: not proven |
+| Breakout | Next open | 1 ATR stop + 3-ATR trailing stop, max 20 sessions | **Unproven**: +0.01 to +0.03R over random at every entry timing (bonus 0); kept by the user's choice |
+
+* Live setups: `scanner.enabled_setups: [crash_rebound, squeeze, breakout]`. Momentum, pullback and reclaim are still
+  simulated in the backtests but never make a candidate.
+* Score bonus per setup = 150 points × its edge over random entries (−10..+20, 0 inside ±0.05R).
+* CEO / CFO / President open-market buy ≥ $100k within 5 calendar days = +10 points (`scanner.insider_exec_buy`).
+* One full entry; risk per trade `portfolio.risk_per_trade` of the account; shares computed after the close from
+  |entry − stop| (Portfolio page).
+* Tested and **not used**: scaling in (§7h), 2x leveraged ETFs (§7i), the Bullish-only regime filter for momentum /
+  pullback (§7e), cross-asset lead-lag signals (no condition improved the three setups), shorting, the 183-indicator
+  model.
+* The backtest's 60–70% a year is mostly survivorship and a bull market (random entries +59%); the strategy's own
+  edge is the excess over random entries.
+
 **Setups** combine trend context, location, volume and momentum (never a lone crossover):
 long — breakout, pullback to EMA9/21, volatility squeeze near highs (conditional entry), EMA21 reclaim,
 momentum leader near highs; short — breakdown, failed rally into a falling EMA21, EMA21 loss.
@@ -288,9 +311,10 @@ the universe-wide rule, so per-stock timing is not used (each stock page shows i
 Shorting after surges did not make money (only less than random shorts in a rising universe).
 
 Consequences in the live terminal: candidate lists are **long only** (`scanner.directions`); a new
-**crash rebound** setup (first crash in 10 sessions, entry window 0-2 days, stop 2 ATR, T1 1.5 ATR, T2
-EMA21 capped at 3 ATR, 10-day time stop) is scored on long-term trend and how oversold it is and gets
-a +15 bonus (`scanner.setup_bonus`); long Target 1 is capped at entry + 2 ATR (`max_target1_atr`).
+**crash rebound** setup (first crash in 10 sessions) is scored on long-term trend and how oversold it is;
+long Target 1 is capped at entry + 2 ATR (`max_target1_atr`). Since 2026-11-01 it is listed on the signal
+day only and uses the strategy lab's exit (see §6a; the original 0-2 day window, 2 ATR stop, 1.5 ATR target
+and 10-day time stop are only used by this study and the old SL/TP simulation).
 
 ### 7e. Strategy lab (`python strategy_lab.py`, refreshed monthly)
 
