@@ -184,3 +184,7 @@
 * Insider buying study (2026-11-01, `python insider_study.py`): SEC Form 4 open-market purchases 2020-2026 on ~1,800
   liquid stocks. None of the 3 styles passed; CEO / CFO / President buys >= $100k are a near pass (edge +0.13R in
   sample, +0.16R out of sample, t 2.2). Not used live. Research page section; `config/insider.default.json`.
+* Scaling-in study (2026-11-01, `python scale_in_study.py`): 206 ways to split the 1R budget into 2-3 tranches (time,
+  pullback, strength, confirming-close adds; shared or own stops) on crash rebound / squeeze / breakout + random
+  entries. None beats a single full entry out of sample (best in-sample picks: -0.05R / -0.06R / -0.03R per trade);
+  the edge is concentrated at the first open. Plans stay single entry. `config/scale_in.default.json`, docs 7h.

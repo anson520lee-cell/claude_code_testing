@@ -346,6 +346,29 @@ bars from Yahoo) with the discovery study's method and pass rule.
 * Delisted companies are missing (survivorship bias), which flatters every style. Not used in the live ranking.
 * The 2026-11-01 results ship as `config/insider.default.json`; the Research page shows the newest run.
 
+### 7h. Scaling in (`python scale_in_study.py`, run by hand, ~2 minutes)
+
+Does entering a trade in tranches beat one entry? Tested on the three setups the terminal keeps (crash rebound,
+squeeze, breakout) and on random entries, each with the exit the strategy lab chose for the setup. Risk is fixed: the
+whole trade has a 1R (1% of the account) budget; tranche i gets w_i of it and is sized on its own fill and the stop
+in force (`w_i / (fill - stop)`); an unfilled tranche leaves its budget unused. 206 schemes: 2 tranches with the first
+at 25 / 33 / 50 / 67%, or 3 tranches (34/33/33, 50/30/20, 20/30/50); adds by time (open of day +1 / +2 / +3 / +5), on a
+pullback (limit 0.5 / 1 / 1.5 ATR below the first fill), on strength (buy stop 0.5 / 1 / 1.5 ATR above) or on a
+confirming close (next open after a close >= +0.5 / 1 / 1.5 ATR), valid 3 or 10 sessions; all with one shared stop
+and again with each tranche's own stop. A scheme is chosen in sample by the paired difference against a single
+entry on the same trades and must beat it out of sample with t >= 2.5 (t on per-date means).
+
+* Result (2026-11-01): **no scheme beats a single full entry** on any of the three setups. Crash rebound and breakout:
+  0 of 206 schemes are better in sample or out of sample; squeeze: 8 are better in sample, 8 out of sample, none in
+  both, best +0.03R out of sample with t 1.4. The best in-sample choices lose -0.05R (crash rebound), -0.06R
+  (squeeze) and -0.03R (breakout) per trade out of sample.
+* Why: the edge is at the first open. All-in a few days later earns much less (crash rebound +0.51R at the next open,
+  +0.22R one day later; breakout +0.31R vs +0.18R). Pullback adds fill mostly on the trades that go on to lose
+  (crash rebound: the -0.5 ATR add fills on 57% of trades whose single-entry result is -0.20R vs +1.43R for the rest);
+  strength adds fill on winners but at a worse price, and the risk they save on losers is smaller than the profit
+  they give up on winners.
+* Not used live: the plan stays a single entry. The 2026-11-01 compact results ship as `config/scale_in.default.json`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the
