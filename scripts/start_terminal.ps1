@@ -1,5 +1,6 @@
 # One-click launcher on Windows (what the "Swing Terminal" shortcut runs):
-#   1. starts the dashboard server in the background if it is not running yet (restarts it after an update),
+#   1. starts the dashboard server in the background if it is not running yet (restarts it after an update;
+#      on an always-on host it starts the "Swing Terminal server" task instead),
 #   2. starts a data update in the background when a newer US session has closed (no-op otherwise),
 #   3. opens the dashboard in the default browser.
 # Research only - nothing here places orders.
@@ -45,6 +46,13 @@ if ((Test-Up) -and (Test-Stale) -and -not (Test-Busy)) {
     for ($i = 0; $i -lt 20 -and (Test-Up); $i++) { Start-Sleep -Milliseconds 500 }
 }
 
+# always-on host (scripts\setup_windows_host.ps1): the start-up task owns the server
+$HostTask = Get-ScheduledTask -TaskName "Swing Terminal server" -ErrorAction SilentlyContinue
+if (-not (Test-Up) -and $HostTask) {
+    New-Item -ItemType File -Force $Started | Out-Null
+    try { Start-ScheduledTask -TaskName "Swing Terminal server" -ErrorAction Stop } catch { }
+    for ($i = 0; $i -lt 60 -and -not (Test-Up); $i++) { Start-Sleep -Milliseconds 500 }
+}
 if (-not (Test-Up)) {
     New-Item -ItemType File -Force $Started | Out-Null
     $server = Start-Process -FilePath $Pyw -ArgumentList @("-X", "utf8", "serve.py", "--port", $Port, "--log", "data\server.log") `

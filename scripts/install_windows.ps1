@@ -28,6 +28,12 @@ function Fail([string]$Message) {
     exit 1
 }
 
+function Test-HostTask([string]$Name) {
+    # set up by setup_windows_host.ps1 to run while nobody is signed in: keep it (re-registering would undo that)
+    $t = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
+    return ($t -and "$($t.Principal.LogonType)" -eq "S4U")
+}
+
 Write-Host "== Swing Research Terminal - Windows setup =="
 Write-Host "Folder: $Repo"
 # stop a dashboard left running by an older version so the next click starts the new code
@@ -101,7 +107,9 @@ Write-Host "Created 'Swing Terminal' on the Desktop and in the Start menu."
 Write-Host "(To pin it to the taskbar: Start menu -> right-click 'Swing Terminal' -> Pin to taskbar.)"
 
 # 5. hourly background task (runs the analysis only when a new session has closed)
-if (Ask "Update data automatically in the background (hourly check, runs once per new US session)?" "y") {
+if (Test-HostTask $TaskName) {
+    Write-Host "Background task: kept (always-on host setup)."
+} elseif (Ask "Update data automatically in the background (hourly check, runs once per new US session)?" "y") {
     try {
         $action = New-ScheduledTaskAction -Execute $VenvPyw `
             -Argument "-X utf8 daily_run.py --if-new --log data\daily_run.log" -WorkingDirectory $Repo
@@ -124,7 +132,9 @@ if (Ask "Update data automatically in the background (hourly check, runs once pe
 # 5b. intraday prices every 30 minutes in market hours (9:30, 10:00, ... 16:00 New York). The task wakes
 #     every 5 minutes; intraday_run.py checks New York time itself (daylight saving and the PC's time zone
 #     do not matter) and exits at once outside market hours or when the slot was already fetched.
-if (Ask "Refresh prices every 30 minutes while the US market is open (display only; signals stay after-close)?" "y") {
+if (Test-HostTask $IntradayTask) {
+    Write-Host "Intraday task: kept (always-on host setup)."
+} elseif (Ask "Refresh prices every 30 minutes while the US market is open (display only; signals stay after-close)?" "y") {
     try {
         New-Item -ItemType Directory -Force -Path (Join-Path $Repo "data") | Out-Null
         $action = New-ScheduledTaskAction -Execute $VenvPyw `
@@ -147,6 +157,14 @@ if (Ask "Refresh prices every 30 minutes while the US market is open (display on
 # 6. first data download
 if (Ask "Download data and run the first analysis now (2-4 minutes)?" "y") {
     & $VenvPy -X utf8 daily_run.py
+}
+
+# 7. always-on host: restart its server task with the new code, or offer to set it up
+if (Get-ScheduledTask -TaskName "Swing Terminal server" -ErrorAction SilentlyContinue) {
+    try { Start-ScheduledTask -TaskName "Swing Terminal server" -ErrorAction Stop; Write-Host "Always-on server restarted with the new code." }
+    catch { Write-Host "Restart the PC (or run scripts\setup_windows_host.ps1 again) to start the always-on server." -ForegroundColor Yellow }
+} elseif (Ask "Make this PC the always-on host, reachable from your phone / Mac by a web address (asks for admin rights)?" "n") {
+    & "$Repo\scripts\setup_windows_host.ps1"
 }
 
 Write-Host ""
