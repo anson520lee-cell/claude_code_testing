@@ -300,16 +300,20 @@ table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
 .sv-sym { font-family: var(--font-display); font-weight: 800; font-stretch: 80%; font-size: clamp(34px, 3.6vw, 52px); line-height: 1; letter-spacing: -.01em; }
 .sv-name { font: 500 15px/1 var(--font); color: var(--muted); margin-left: 14px; letter-spacing: 0; }
 .sv-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.sv-top { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 28px; align-items: start; }
-@media (max-width: 1100px) { .sv-top { grid-template-columns: minmax(0, 1fr); } }
+.sv-top { display: grid; grid-template-columns: minmax(0, 1fr) 140px minmax(300px, 360px); gap: 0 24px; align-items: start; }
+.sv-chart, .sv-quote { min-width: 0; }
+@media (max-width: 1380px) { .sv-top { grid-template-columns: minmax(0, 1fr) 104px minmax(290px, 330px); gap: 0 18px; } }
+@media (max-width: 1100px) { .sv-top { grid-template-columns: minmax(0, 1fr) 96px; gap: 22px 16px; } .sv-quote { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .sv-top { grid-template-columns: minmax(0, 1fr) 64px; } }
+/* chip distribution: a column beside the chart, drawn on the chart's own price scale */
+.sv-chips { position: relative; align-self: stretch; min-height: 200px; margin-left: -16px; }
+.chips-head { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chips-head b { color: var(--fg); font-weight: 650; }
+.chips-plot { position: absolute; left: 0; right: 0; overflow: hidden; border-left: 1px solid var(--line2); }
+.chips-plot svg { display: block; }
 .sv-chart .lg { font-size: 11px; }
 .vp-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 11.5px; color: var(--muted); }
 .vp-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-.vp-strip { position: absolute; top: 0; bottom: 0; width: 12px; pointer-events: none; z-index: 3; }
-.vp-strip i { position: absolute; left: 0; right: 0; display: block; border-radius: 1px; }
-.vp-strip .va { background: rgba(167,139,250,.42); }
-.vp-strip .vah { background: #22d3ee; } .vp-strip .val { background: #fb923c; }
-.vp-strip .poc { background: #f472b6; left: -4px; right: -4px; }
 
 /* quote (Futu-style) */
 .sv-quote { padding-top: 2px; }
@@ -318,10 +322,10 @@ table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
 .q-arrow { font-size: .6em; margin-left: 6px; vertical-align: .18em; }
 .q-ch { font-weight: 650; font-size: 17px; font-variant-numeric: tabular-nums; }
 .q-time { color: var(--muted); font-size: 12px; margin: 6px 0 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line2); }
-.q-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; }
-.q-grid > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 13px; }
-.q-grid span { color: var(--muted); white-space: nowrap; }
-.q-grid b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.q-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 18px; }
+.q-grid > div { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 6px 0; font-size: 13px; min-width: 0; }
+.q-grid span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.q-grid b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; flex-shrink: 0; }
 .q-note { font-size: 11px; margin-top: 10px; }
 
 /* key points */

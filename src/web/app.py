@@ -192,7 +192,7 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
             crashes = None
         try:
             vp = volume_profile(f, 120)
-            vp = {k: vp.get(k) for k in ("poc", "vah", "val", "window", "hvn", "vacuum")} if vp.get("poc") else None
+            vp = {k: vp.get(k) for k in ("poc", "vah", "val", "window", "hvn", "vacuum", "bins", "profit_ratio")} if vp.get("poc") else None
         except Exception:  # noqa: BLE001 - optional overlay
             vp = None
         return store.jsonable({
