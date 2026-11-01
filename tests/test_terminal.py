@@ -1520,3 +1520,41 @@ def test_strategy_lab_default_copy_is_used_until_a_local_run(tmp_path):
     local.mkdir()
     (local / "strategy_lab.json").write_text(json.dumps({"session": "2026-12-01", "exits": {"chosen": {}}}))
     assert load_strategy_lab(tmp_path)["session"] == "2026-12-01"
+
+
+def test_discovery_signals_and_turn_of_month_on_the_latest_day():
+    from src.backtest import discovery as dc
+    end = date(2026, 10, 30)                     # last session of October
+    f = build_features(bars(400, end, seed=3, volume=5e6), bars(400, end, seed=10)["adj_close"], None)
+    sig = dc.stock_signals(f)
+    assert {"rsi2", "ibs", "down3", "event_drift", "gap_reversal", "high52", "nr7"} <= set(sig)
+    m = dc.market_signals({}, {}, f.index)
+    assert bool(m["turn_month"].iloc[-1])                     # known from the calendar, not from tomorrow's bar
+    assert not bool(m["turn_month"].iloc[-2])
+    # an RSI(2) signal needs a short sharp dip above EMA200
+    assert sig["rsi2"].dtype == bool and sig["rsi2"].sum() >= 0
+
+
+def test_discovery_study_small_and_index_timing(tsettings):
+    from src.backtest import discovery as dc
+    end = date(2026, 10, 30)
+    spy = bars(1300, end, seed=10, volume=5e6)
+    feats = {f"S{i}": build_features(bars(1300, end, drift=0.0006, vol=0.02, seed=50 + i, volume=5e6), spy["adj_close"], None)
+             for i in range(5)}
+    prices = {"SPY": spy, "^VIX": bars(1300, end, drift=0.0, vol=0.05, seed=99, base=18)}
+    regime_s = pd.Series("Neutral", index=spy.index)
+    data = dc.collect(feats, prices, regime_s)
+    res = dc.run(data, feats, tsettings)
+    assert res["verdict"] and res["overnight"]["out_of_sample"]["days"] > 100
+    tested = [s for s in res["styles"].values() if not s.get("skipped")]
+    assert tested and all("t_clustered" in s["oos"] or not s["oos"].get("n") for s in tested)
+    qqq = bars(1700, end, seed=11, volume=5e6)          # the index study needs >= 1500 sessions
+    study = {"index": dc.index_study({"SPY": bars(1700, end, seed=10, volume=5e6), "QQQ": qqq}, 0.001)}
+    assert "QQQ" in study["index"]["instruments"]
+    fake = {"name": "Turn of the month", "stop": "atr2.0", "target": "r2", "horizon": 20, "passes": True, "edge_is": 0.07,
+            "edge_oos": 0.06, "is": {"n": 150}, "oos": {"n": 160, "avg_r": 0.25, "win_rate": 0.53, "t_clustered": 2.2},
+            "per_year": {"2024": 0.1, "2025": -0.1}}
+    study = {"index": {"instruments": {"QQQ": {"first": "1999-03-10", "last": "2026-10-30", "styles": {"turn_month": fake}}}}}
+    rows = dc.index_timing_today({"SPY": spy, "QQQ": qqq}, study)
+    assert len(rows) == 1 and rows[0]["active"] and rows[0]["stop"] < rows[0]["close"] < rows[0]["target"]
+    assert rows[0]["years_positive"] == 1 and rows[0]["period"] == "1999-2026"

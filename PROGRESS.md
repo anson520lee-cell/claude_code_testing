@@ -170,3 +170,6 @@
   random entries. New exits (1.5 ATR stop + 3-ATR trailing stop, 20 sessions; squeeze 2 ATR + 3R) raise the
   out-of-sample result from +0.05R to about +0.29R per trade; no indicator model passed (score buckets earn the same),
   so ranking uses each setup's tested edge over random entries. See docs/TERMINAL.md 7e.
+* Strategy discovery (2026-11-01): 14 new styles tested (stocks 5 years; SPY / QQQ since 1993 / 1999). None passed on
+  the high-beta stocks; on the index ETFs QQQ internal-bar-strength passed and RSI(2) / turn of the month were
+  consistent. Market page "Index timing" card shows today's index signals. See docs/TERMINAL.md 7f.

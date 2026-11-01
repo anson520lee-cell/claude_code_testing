@@ -1080,10 +1080,25 @@ function sparkLine(vals, w = 120, h = 28) {
   return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="var(${v[v.length - 1] >= v[0] ? "--up" : "--down"})" stroke-width="1.4"/></svg>`;
 }
 
+function indexTiming(s) {
+  const it = s.index_timing || [];
+  if (!it.length) return "";
+  const act = it.filter((x) => x.active);
+  return `<div class="card" style="margin-top:12px"><h2>Index timing <small>SPY / QQQ styles from the discovery study · ${act.length ? `<b class="up">${act.length} active today</b>` : "nothing active today"}</small></h2>
+    ${table("idxt", [{ key: "symbol", label: "ETF", render: (x) => `<b>${esc(x.symbol)}</b>` },
+      { key: "name", label: "Style", render: (x) => `${esc(x.name)} ${x.passes ? '<b class="tag up">PASS</b>' : '<span class="tag">near pass</span>'}` },
+      { key: "active", label: "Today", sort: (x) => (x.active ? 1 : 0), render: (x) => (x.active ? '<b class="up">ACTIVE</b>' : '<span class="muted">no</span>') },
+      { key: "plan", label: "Plan (buy next open)", render: (x) => (x.active ? `stop ${num(x.stop)}${x.target ? ` · target ${num(x.target)}` : ` · trail ${num(x.trail_atr, 1)} ATR`} · ${x.horizon}d` : `<span class="muted">${x.horizon}d max</span>`) },
+      { key: "oos", label: "Since 2013", n: 1, sort: (x) => x.oos.avg_r, render: (x) => `<span class="${cls(x.oos.avg_r)}">${num(x.oos.avg_r)}R</span> <span class="muted">${x.oos.n} trades · win ${pct(x.oos.win_rate, 0, false)}</span>` },
+      { key: "edge_oos", label: "Edge vs random", n: 1, render: (x) => `<span class="${cls(x.edge_oos)}">${x.edge_oos > 0 ? "+" : ""}${num(x.edge_oos)}R</span>` },
+      { key: "years_positive", label: "Years +", n: 1, render: (x) => `${x.years_positive}/${x.years}` }], it, { sortKey: "active" })}
+    <p class="note">Tested on SPY since 1993 and QQQ since 1999: rules chosen before 2013, judged on 2013 onwards. The edges are small (about 0.05–0.2R per trade) - useful for timing index exposure (QQQ, or TQQQ with 3× the risk), not as a stand-alone system. Research only.</p></div>`;
+}
+
 function marketExtras(s) {
   const m = s.macro || [], ad = s.advance_decline || {}, groups = s.industry_groups || [];
-  if (!m.length && !ad.available && !groups.length) return "";
-  return `<div class="grid g2" style="margin-top:12px">
+  if (!m.length && !ad.available && !groups.length) return indexTiming(s);
+  return `${indexTiming(s)}<div class="grid g2" style="margin-top:12px">
     <div class="card"><h2>Cross-asset <small>dollar · oil · gold · Bitcoin (context only, not in the regime score)</small></h2>${table("mac", [
       { key: "name", label: "Asset", render: (x) => `<b>${esc(x.name)}</b> <span class="muted mono">${esc(x.symbol)}</span>` },
       { key: "spark", label: "60d", render: (x) => sparkLine(x.spark) },
@@ -1424,6 +1439,28 @@ function setupWeighting(s) {
       weighting only tilts the ranking toward what has worked. A fuller model (setup + indicator factors, fitted in sample) did not rank trades reliably out of sample, so it is not used.</p></section>`;
 }
 
+function discoverySection(ds) {
+  if (!ds || !ds.available) return "";
+  const rows = Object.entries(ds.styles || {}).filter(([, s]) => !s.skipped).map(([k, s]) => ({ key: k, name: s.name, exit: `${s.stop.replace("atr", "")} ATR stop · ${s.target.startsWith("trail") ? s.target.replace("trail", "") + "-ATR trail" : s.target.replace("atr", "") + (s.target.startsWith("r") ? "" : " ATR")} · ${s.horizon}d`,
+    is_e: s.edge_is, oos_r: (s.oos || {}).avg_r, oos_e: s.edge_oos, n: (s.oos || {}).n, days: (s.oos || {}).n_dates, t: (s.oos || {}).t_clustered, pass: s.passes }));
+  const r = (v) => `<span class="${cls(v)}">${isNum(v) ? (v > 0 ? "+" : "") + num(v) : "—"}</span>`;
+  const on = (ds.overnight || {}).out_of_sample;
+  return `<section class="note-block"><div class="note-head"><div><div class="eyebrow">${ds.n_stocks} stocks · ${ds.first} → ${ds.last} · in sample to ${ds.cutoff}</div>
+      <div class="hl">Strategy discovery: styles the terminal does not use</div></div>
+      <div class="meta">Passed<b>${rows.filter((x) => x.pass).length} / ${rows.length}</b>strict test</div></div>
+    ${table("disc", [{ key: "name", label: "Style" }, { key: "exit", label: "Best exit (in sample)" }, { key: "is_e", label: "Edge in sample", n: 1, render: (x) => r(x.is_e) },
+      { key: "oos_r", label: "Out of sample", n: 1, render: (x) => r(x.oos_r) }, { key: "oos_e", label: "Edge out of sample", n: 1, render: (x) => r(x.oos_e) },
+      { key: "n", label: "Trades", n: 1 }, { key: "days", label: "Signal days", n: 1 }, { key: "t", label: "t (by date)", n: 1, render: (x) => num(x.t, 1) },
+      { key: "pass", label: "Result", render: (x) => (x.pass ? '<b class="up">PASS</b>' : '<span class="muted">fail</span>') }], rows, { sortKey: "oos_e" })}
+    ${ds.index ? (() => { const ir = []; for (const [sym, v] of Object.entries(ds.index.instruments || {})) for (const [, st] of Object.entries(v.styles || {})) if (!st.skipped) ir.push({ sym, name: st.name, is_e: st.edge_is, oos_e: st.edge_oos, n: (st.oos || {}).n, t: (st.oos || {}).t_clustered, yp: Object.values(st.per_year || {}).filter((z) => z > 0).length + "/" + Object.keys(st.per_year || {}).length, pass: st.passes, both: st.edge_is > 0 && st.edge_oos > 0 });
+      return `<h3 class="sub">The same styles on SPY (1993–) and QQQ (1999–) <small>in sample before ${esc(ds.index.split)}, judged after</small></h3>${table("disci", [{ key: "sym", label: "ETF" }, { key: "name", label: "Style" },
+        { key: "is_e", label: "Edge in sample", n: 1, render: (x) => r(x.is_e) }, { key: "oos_e", label: "Edge out of sample", n: 1, render: (x) => r(x.oos_e) }, { key: "n", label: "Trades (OOS)", n: 1 },
+        { key: "t", label: "t", n: 1, render: (x) => num(x.t, 1) }, { key: "yp", label: "Years +" }, { key: "pass", label: "Result", render: (x) => (x.pass ? '<b class="up">PASS</b>' : x.both ? '<span class="warn">consistent</span>' : '<span class="muted">fail</span>') }], ir, { sortKey: "oos_e" })}`; })() : ""}
+    ${on ? `<p class="note">Overnight vs intraday, average stock, out of sample: close → open ${pct(on.overnight_daily, 3)} per day (t ${num(on.overnight_t, 1)}), open → close ${pct(on.intraday_daily, 3)} (t ${num(on.intraday_t, 1)}).</p>` : ""}
+    <p class="note">Edge = average R minus random entries with the same exit. A style passes only with an edge ≥ 0.05R in AND out of sample and an out-of-sample t ≥ 2.5 counted by signal date (market-wide styles enter many stocks on one day). Styles that fire on only a handful of days cannot be judged on 5 years.</p>
+  </section>`;
+}
+
 function labFeatureName(f) {
   const g = { f: "", d: "vs ", t: "technique: ", v: "chips: ", m: "" }[f[0]] || "";
   return g + f.slice(2).replace(/^setup_/, "setup = ").replace(/_/g, " ");
@@ -1693,12 +1730,15 @@ async function research() {
   let crash = null, lab = null;
   try { crash = await api("/api/crash-study"); } catch (_) { crash = null; }
   try { lab = await api("/api/strategy-lab"); } catch (_) { lab = null; }
+  let disc = null;
+  try { disc = await api("/api/discovery"); } catch (_) { disc = null; }
   const rows = Object.entries(bt.by_setup || {}).map(([k, v]) => ({ key: k, name: s.setup_names[k] || tr(k), ...v })).filter((r) => r.n);
   const regimes = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
   app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">${bt.first_signal || ""} → ${bt.last_signal || ""} / <b>${bt.n_trades} simulated trades</b></div><h1 class="display">Research <em>&amp; backtest</em></h1>
     <p>How stops and targets are set, how accurate they were over five years, and what works better; then the daily report's setup simulation and the methodology.</p></div></div>
     ${labSection(lab)}
+    ${discoverySection(disc)}
     ${setupWeighting(s)}
     ${crashSection(crash)}
     ${slTpExplainer(full)}

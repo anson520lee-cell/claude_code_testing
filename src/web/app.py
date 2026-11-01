@@ -493,6 +493,11 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
             res["adopted_model"] = {k: v for k, v in res["adopted_model"].items() if k in ("kind", "top_weights", "n_train")}
         return res
 
+    @app.get("/api/discovery")
+    def api_discovery() -> dict[str, Any]:
+        from src.daily.pipeline import load_discovery
+        return load_discovery(backtest_dir) or {"available": False}
+
     @app.get("/api/crash-study")
     def api_crash_study() -> dict[str, Any]:
         latest = backtest_dir / "latest.json"
@@ -521,7 +526,7 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
         def work() -> None:
             root = Path(__file__).resolve().parents[2]
             try:
-                for script in ("backtest.py", "crash_study.py", "strategy_lab.py"):
+                for script in ("backtest.py", "crash_study.py", "strategy_lab.py", "discover.py"):
                     proc = subprocess.Popen([sys.executable, script], cwd=root, stdout=subprocess.PIPE,
                                             stderr=subprocess.STDOUT, text=True, bufsize=1)
                     for line in proc.stdout or []:

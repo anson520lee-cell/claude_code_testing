@@ -128,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
             crash_study.main([])
             print("Strategy lab: exits per setup and indicator weights (about 15-40 minutes)...")
             strategy_lab.main([])
+            import discover
+            discover.main([])
             failed_marker.unlink(missing_ok=True)
         except Exception as exc:  # noqa: BLE001 - the daily report is already written
             failed_marker.parent.mkdir(parents=True, exist_ok=True)
