@@ -107,6 +107,10 @@ def build_markdown(d: dict[str, Any]) -> str:
         out.append(_table(["Rank", "Group", "5d change", "Members", "5d", "20d", "Leaders"],
                           [[x["rank"], x["group"], f"{x['rank_change']:+d}", x["n"], _pct(x["ret_5d"]), _pct(x["ret_20d"]),
                             ", ".join(x["leaders"])] for x in g[:10]]))
+    if d.get("market_news"):
+        out.append("### Market headlines\n")
+        out.append("\n".join(f"- [{x['title']}]({x['url']}) — {x.get('publisher') or ''}" + (f" ({x['topic']})" if x.get("topic") else "")
+                              for x in d["market_news"][:10]) + "\n")
     if d.get("alerts_recent"):
         out.append("### Price alerts triggered in the last 7 days\n")
         out.append(_table(["Symbol", "Condition", "Level", "Triggered", "Price", "Note"],
@@ -219,6 +223,10 @@ def candidate_detail(c: dict[str, Any], deep: dict[str, Any]) -> str:
     if c.get("group"):
         g = c["group"]
         lines.append(f"- **Industry group:** {g['group']}, RS rank {g['rank']} of {g['of']}")
+    nw = c.get("news") or {}
+    if nw.get("items"):
+        lines.append(f"- **News ({nw['n_recent']} in {nw['days']} days{', ' + ', '.join(nw['flags']) if nw.get('flags') else ''}):** "
+                     + " · ".join(f"[{x['title']}]({x['url']})" for x in nw["items"][:3]))
     es = (deep or {}).get("earnings_study") or {}
     if es.get("available"):
         lines.append(f"- **Earnings reactions:** {es.get('note', '')} {es.get('drift_note', '')}")

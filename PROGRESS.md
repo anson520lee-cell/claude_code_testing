@@ -154,3 +154,5 @@
     holds out of sample); per-stock timing does not; shorting after spikes does not pay.
   - Candidate lists are long only; new `crash_rebound` setup with its own stop / targets / scoring and a +15 bonus;
     long T1 capped at entry + 2 ATR; stock pages show each stock's crash history; Research page shows the study.
+* News (2026-11-01): automatic RSS headlines (Yahoo Finance + Nasdaq for the whole universe, Google News for candidates
+  and market topics), tagged and stored; refreshed after each run and hourly; News tab, stock-page news, crash news.

@@ -47,6 +47,8 @@ def main() -> None:
         "/api/run/status": {"running": False, "status": None, "log": []},
         "/api/backtest": get("/api/backtest"),
         "/api/crash-study": get("/api/crash-study"),
+        "news_market": get("/api/news?symbol=_MARKET&days=3&limit=60"),
+        "news_all": get("/api/news?days=7&limit=1500"),
         "/api/journal": {"trades": [], "stats": {"n_closed": 0, "n_open": 0}},
         "/api/alerts": {"alerts": [], "fired": [], "kinds": {}},
         "/api/backtest/status": {"running": False, "status": None, "log": []},
@@ -55,6 +57,8 @@ def main() -> None:
     for sym in cands:
         data[f"/api/chart/{sym}"] = get(f"/api/chart/{sym}?days=160&session={session}")
         data[f"/api/candidate-history/{sym}"] = get(f"/api/candidate-history/{sym}")
+        stored = get(f"/api/news?symbol={sym}&days=21&limit=40")["items"]
+        data[f"/api/news/{sym}/live"] = {"symbol": sym, "items": stored, "summary": {"n_recent": len(stored), "days": 21, "flags": []}}
     css = (STATIC / "style.css").read_text(encoding="utf-8")
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     body = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -67,6 +71,8 @@ window.__PREVIEW_DATA__ = %s;
 window.__PREVIEW__ = async (path) => {
   const D = window.__PREVIEW_DATA__, p = path.split("?")[0];
   if (p === "/api/minicharts") return D["/api/minicharts"];
+  if (p === "/api/news") return /symbol=_MARKET/.test(path) ? D.news_market : { ...D.news_all, refresh: { running: false, message: "Preview: headlines as of the export" } };
+  if (p.startsWith("/api/news/") && !(p in D)) return { items: [], summary: { n_recent: 0, days: 21, flags: [] } };
   if (p.startsWith("/api/analyst/")) {
     const sym = decodeURIComponent(p.slice(13)).toUpperCase();
     const c = [...D["/api/snapshot"].candidates.long, ...D["/api/snapshot"].candidates.short].find((x) => x.symbol === sym);

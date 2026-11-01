@@ -275,6 +275,20 @@ Consequences in the live terminal: candidate lists are **long only** (`scanner.d
 EMA21 capped at 3 ATR, 10-day time stop) is scored on long-term trend and how oversold it is and gets
 a +15 bonus (`scanner.setup_bonus`); long Target 1 is capped at entry + 2 ATR (`max_target1_atr`).
 
+### 7d. News (automatic)
+
+`src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the
+universe**, Google News for the listed candidates and for market topics (stock market, the Fed,
+semiconductors / AI, Nasdaq / tech, the economy). Headlines are de-duplicated across feeds, kept for 21
+days in the database (`news` table, so history accumulates), tagged by keyword rules (earnings, guidance,
+analyst, M&A, offering, legal, FDA, contract, product, insider, macro, big move) and given a keyword
+tone. They are refreshed after every daily run and **every hour by the background job** while the Mac is
+on (`news.hourly_refresh`; `python daily_run.py --news-only` does it by hand); each feed is cached for 50
+minutes. The News tab shows the market feed, today's candidates' news and every universe headline with
+filters; stock pages fetch their headlines live and, for crash rebounds, show the news around the crash
+("why did it crash?"). Offering / legal / guidance headlines appear as contradicting evidence on a
+candidate; news never changes the score (there is no historical news to back-test that).
+
 ---
 
 ## 8. Dashboard

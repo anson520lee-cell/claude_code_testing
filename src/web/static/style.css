@@ -368,3 +368,20 @@ table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
 
 .key-crash { border-left: 3px solid var(--up); padding: 10px 14px; background: color-mix(in srgb, var(--up) 8%, transparent); font-size: 13.5px; line-height: 1.6; }
 .key-crash b { color: var(--up); margin-right: 8px; }
+
+/* ---------- news */
+.nwl { list-style: none; margin: 0; padding: 0; }
+.nw { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.nw-t { color: var(--dim); width: 34px; flex: none; font-size: 11px; }
+.nw-s { font: 600 12px var(--font-mono); min-width: 52px; border: 0; }
+.nw-d { font-size: 9px; flex: none; }
+.nw-h { flex: 1 1 380px; border: 0; color: var(--fg); line-height: 1.45; }
+.nw-h:hover { text-decoration: underline; }
+.nw-p { color: var(--muted); font-size: 11.5px; }
+.nw-tag { font-size: 10.5px; padding: 0 6px; }
+.nw-cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 18px 28px; }
+@media (max-width: 700px) { .nw-cands { grid-template-columns: 1fr; } }
+.nw-ch { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding-bottom: 6px; border-bottom: 1px solid var(--line2); }
+.key-news h3 { margin: 0 0 4px; font-size: 13px; font-family: var(--font-mono); letter-spacing: .1em; font-weight: 600; }
+.key-news h3 small { color: var(--muted); letter-spacing: 0; font-family: var(--font); font-weight: 400; margin-left: 8px; }
+.why { margin-bottom: 18px; }

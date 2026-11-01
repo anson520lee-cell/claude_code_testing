@@ -12,6 +12,8 @@ Endpoints (JSON unless noted):
     GET  /api/methodology           the documented rules (module docstrings)
     GET/POST /api/journal, PUT/DELETE /api/journal/{id}     your own trade journal (manual records)
     GET/POST /api/alerts, DELETE /api/alerts/{id}, POST /api/alerts/{id}/rearm   price alerts
+    GET  /api/news?symbol=&tag=     stored headlines (universe + "_MARKET"); GET /api/news/{sym}/live fetches fresh
+    POST /api/news/refresh          refresh all headlines in the background
     GET  /api/backtest              latest SL / TP validation backtest (python backtest.py)
     GET  /api/backtest/status, POST /api/backtest/run   re-run that backtest in the background
     GET  /api/run/status, POST /api/run    run the daily pipeline in the background
@@ -391,6 +393,58 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
                         "is": {k: g["is"].get(k) for k in keep}, "oos": {k: g["oos"].get(k) for k in keep}} for g in res.get("grid", [])]
         res.pop("method", None)
         return res
+
+    news_state: dict[str, Any] = {"running": False, "finished_at": None, "message": None}
+
+    @app.get("/api/news")
+    def api_news(symbol: str | None = None, tag: str | None = None, limit: int = Query(300, ge=1, le=2000),
+                 days: int = Query(14, ge=1, le=365)) -> dict[str, Any]:
+        from src.catalysts import news as news_mod
+        conn = tconn()
+        try:
+            items = news_mod.load(conn, symbol.upper() if symbol and symbol != "_MARKET" else symbol, limit, days, tag)
+        finally:
+            conn.close()
+        return {"items": items, "refresh": news_state}
+
+    @app.get("/api/news/{symbol}/live")
+    def api_news_live(symbol: str) -> dict[str, Any]:
+        from src.catalysts import news as news_mod
+        cfg = settings.get("news") or {}
+        client = news_mod.NewsClient(path(settings, "cache_dir"), cache_minutes=int(cfg.get("cache_minutes", 50)),
+                                     max_age_days=int(cfg.get("max_age_days", 21)))
+        symbol = symbol.upper()
+        items = client.symbol_news(symbol, None, google=True)
+        conn = tconn()
+        try:
+            news_mod.save(conn, symbol, items)
+        finally:
+            conn.close()
+        return {"symbol": symbol, "items": items, "summary": news_mod.summarize(items)}
+
+    @app.post("/api/news/refresh")
+    def api_news_refresh() -> dict[str, Any]:
+        with lock:
+            if news_state["running"]:
+                return {"started": False, "reason": "A news refresh is already running."}
+            news_state.update(running=True, message="Refreshing...")
+
+        def work() -> None:
+            import io
+            from contextlib import redirect_stdout
+            try:
+                import daily_run
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    daily_run.news_only(settings)
+                news_state["message"] = buf.getvalue().strip().splitlines()[-1] if buf.getvalue().strip() else "Done."
+            except Exception as exc:  # noqa: BLE001
+                news_state["message"] = f"Failed: {type(exc).__name__}: {exc}"
+            finally:
+                news_state.update(running=False, finished_at=datetime.now(timezone.utc).isoformat())
+
+        threading.Thread(target=work, daemon=True).start()
+        return {"started": True}
 
     @app.get("/api/crash-study")
     def api_crash_study() -> dict[str, Any]:

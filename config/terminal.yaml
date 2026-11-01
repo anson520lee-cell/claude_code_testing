@@ -171,6 +171,13 @@ universe_builder:
   refresh_days: 30
   min_avg_shares: 500000      # coarse screener pass before the real dollar-volume rule
 
+# News (free RSS: Yahoo Finance + Nasdaq per stock, Google News for candidates and market topics)
+news:
+  enabled: true
+  cache_minutes: 50           # each feed is re-fetched at most this often (hourly job + page views)
+  max_age_days: 21
+  hourly_refresh: true        # the hourly background job refreshes news even when no new session closed
+
 # Position sizing / total heat on the portfolio page (defaults; the page lets you change them).
 portfolio:
   account_size: 100000

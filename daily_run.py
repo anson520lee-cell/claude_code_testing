@@ -33,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--offline", action="store_true", help="use stored data only (no downloads)")
     parser.add_argument("--skip-deep", action="store_true", help="skip fundamentals / options / positioning / catalysts")
     parser.add_argument("--skip-backtest", action="store_true", help="do not refresh the monthly SL / TP validation backtest")
+    parser.add_argument("--news-only", action="store_true", help="only refresh news headlines (universe + market)")
     parser.add_argument("--if-new", action="store_true", help="exit if the session was already processed successfully")
     parser.add_argument("--rebuild-universe", action="store_true",
                         help="rebuild config/universe_auto.yaml now (otherwise automatically every 30 days)")
@@ -49,6 +50,9 @@ def main(argv: list[str] | None = None) -> int:
     if session and not calendar.is_trading_day(session):
         print(f"{session} is not a US trading day.", file=sys.stderr)
         return 2
+    if args.news_only:
+        news_only(settings)
+        return 0
     if args.if_new:
         target = session or calendar.latest_completed_session(settle_minutes=settings["data"].get("settle_minutes", 30))
         db_file = path(settings, "database")
@@ -60,7 +64,9 @@ def main(argv: list[str] | None = None) -> int:
                 except sqlite3.OperationalError:
                     done = None
             if done:
-                print(f"Session {target} already processed - nothing to do.")
+                print(f"Session {target} already processed.")
+                if (settings.get("news") or {}).get("hourly_refresh", True):
+                    news_only(settings)
                 return 0
     builder = settings.get("universe_builder") or {}
     if not args.offline and builder.get("enabled", True):
@@ -101,6 +107,32 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # noqa: BLE001 - the daily report is already written
             print(f"Backtest failed (the daily report is unaffected): {type(exc).__name__}: {exc}", file=sys.stderr)
     return 0
+
+
+def news_only(settings: dict) -> None:
+    """Refresh headlines for the whole universe (+ Google News for the latest candidates) and the market."""
+    import json
+    from src.catalysts import news as news_mod
+    from src.daily import store
+    cfg = settings.get("news") or {}
+    client = news_mod.NewsClient(path(settings, "cache_dir"), cache_minutes=int(cfg.get("cache_minutes", 50)),
+                                 max_age_days=int(cfg.get("max_age_days", 21)))
+    cands: set[str] = set()
+    reports = path(settings, "reports_dir")
+    latest = sorted((p for p in reports.iterdir() if (p / "data.json").exists()), reverse=True) if reports.exists() else []
+    if latest:
+        snap = json.loads((latest[0] / "data.json").read_text())
+        cands = {c["symbol"] for side in snap.get("candidates", {}).values() for c in side}
+    conn = store.connect(path(settings, "database"), path(settings, "backups_dir"))
+    try:
+        per = client.many(list(settings["universe"]), google_for=cands)
+        for sym, items in per.items():
+            news_mod.save(conn, sym, items)
+        market = client.market_news()
+        news_mod.save(conn, "_MARKET", market)
+    finally:
+        conn.close()
+    print(f"News refreshed: {sum(len(v) for v in per.values())} stock headlines, {len(market)} market headlines.")
 
 
 def notify_alerts(fired: list[dict]) -> None:

@@ -149,7 +149,7 @@ function route() {
   disposeCharts(state.charts);
   const [, view = "overview", arg] = (location.hash || "#/overview").split("/");
   document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
-  const views = { overview, scanner, universe, catalysts, portfolio, research, quality, ticker };
+  const views = { overview, scanner, universe, catalysts, news, portfolio, research, quality, ticker };
   (views[view] || overview)(arg);
   window.scrollTo(0, 0);
 }
@@ -664,6 +664,7 @@ function keyHTML(a, c) {
       ${ss && k && isNum(p.atr) ? `<div class="alt"><span>Backtest's pick: ${k} ATR stop + trailing stop</span><b class="down">${num(p.entry - sg * k * p.atr)}</b><small>Out of sample ${num(ss.oos.avg_r)}R</small></div>` : ""}
     </div>` : ""}
     <div class="key-cols"><div class="bull"><h3>BULL CASE</h3><ol>${f.bull}</ol></div><div class="bear"><h3>BEAR CASE</h3><ol>${f.bear}</ol></div></div>
+    ${c && c.news && c.news.items && c.news.items.length ? `<div class="key-news"><h3>Latest news <small>${c.news.n_recent} in ${c.news.days} days${(c.news.flags || []).length ? " · " + c.news.flags.join(", ") : ""}</small></h3>${newsList(c.news.items.slice(0, 3), false)}</div>` : ""}
     ${pens || (a && a.watch && a.watch.length) ? `<div class="key-foot">${pens}${a && a.watch ? a.watch.slice(0, 3).map((x) => `<span class="chip">Watch: ${esc(x)}</span>`).join("") : ""}</div>` : ""}
   </section>`;
 }
@@ -732,7 +733,8 @@ function stockShell(sym, c, deep, opts = {}) {
     </div>
     <div id="${p}-key">${keyHTML(c && c.analyst, c)}</div>
     <div id="${p}-folds">${foldsHTML(sym, c, deep, c && c.analyst, (opts.extra || ""),
-      fold("Crash history · buy the plunge", `<span id="${p}-crash-teaser">loading…</span>`, `<div id="${p}-crash" class="note">Loading…</div>`, !!(c && c.setup === "crash_rebound")))}</div>
+      fold("News", `<span id="${p}-news-teaser">${c && c.news ? `${c.news.n_recent} headlines in ${c.news.days} days` : "loading…"}</span>`, `<div id="${p}-news" class="note">Loading…</div>`)
+      + fold("Crash history · buy the plunge", `<span id="${p}-crash-teaser">loading…</span>`, `<div id="${p}-crash" class="note">Loading…</div>`, !!(c && c.setup === "crash_rebound")))}</div>
   </div>`;
 }
 
@@ -745,6 +747,16 @@ async function fillStock(sym, c, deep, p, bucket, big, isCurrent = () => true) {
       const fa = document.querySelector(`#${p}-folds .fold-analyst`); if (fa) fa.innerHTML = analystPanel(r.note);
     }).catch(() => { const k = $(`#${p}-key .key-head`); if (k) k.innerHTML = '<p class="note">Could not build the analyst call.</p>'; });
   }
+  api(`/api/news/${encodeURIComponent(sym)}/live`).then((r) => {
+    if (!isCurrent()) return;
+    const el = $(`#${p}-news`), t = $(`#${p}-news-teaser`);
+    if (el) el.innerHTML = newsList(r.items, false, "No headlines in the last three weeks.");
+    if (t) t.textContent = `${r.summary.n_recent} in ${r.summary.days} days · ${r.items.length} in 3 weeks` + ((r.summary.flags || []).length ? ` · ${r.summary.flags.join(", ")}` : "");
+    if (c && c.setup === "crash_rebound") {
+      const ce = $(`#${p}-crash`); const recent = r.items.filter((x) => x.published && Date.now() - Date.parse(x.published) < 6 * 864e5);
+      if (ce && !ce.querySelector(".why")) ce.insertAdjacentHTML("afterbegin", `<div class="why"><h3>Why did it crash? <small>headlines from the last 6 days</small></h3>${newsList(recent.slice(0, 8), false, "No headlines found around the crash - possibly a market-wide or sector move.")}</div>`);
+    }
+  }).catch(() => { const el = $(`#${p}-news`); if (el) el.innerHTML = c && c.news ? newsList(c.news.items, false) : '<p class="note">News unavailable.</p>'; });
   try {
     const d = await api(`/api/chart/${encodeURIComponent(sym)}?days=180&session=${state.session}`);
     if (!isCurrent()) return null;
@@ -753,7 +765,7 @@ async function fillStock(sym, c, deep, p, bucket, big, isCurrent = () => true) {
     const vp = d.volume_profile, t = $(`#${p}-vp-txt`);
     if (t) t.textContent = vp ? `Last ${vp.window}d: VA ${num(vp.val)}–${num(vp.vah)} · POC ${num(vp.poc)}` : "";
     const ch = d.crash_history, ce = $(`#${p}-crash`), ct = $(`#${p}-crash-teaser`);
-    if (ce && ch) { ce.innerHTML = crashHistoryHTML(ch); if (ct) ct.textContent = crashTeaser(ch); }
+    if (ce && ch) { const why = ce.querySelector(".why"); ce.innerHTML = crashHistoryHTML(ch); if (why) ce.prepend(why); if (ct) ct.textContent = crashTeaser(ch); }
     return d;
   } catch (err) {
     const el = $(`#${p}-price`); if (el) el.innerHTML = `<div class="empty">Could not load the chart: ${esc(err.message)}</div>`;
@@ -1280,6 +1292,73 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-qa]");
   if (b) quickAlert(b.dataset.sym, b.dataset.kind, Number(b.dataset.level), b.dataset.qa);
 });
+
+// ------------------------------------------------------------------ news (free RSS: Yahoo Finance, Nasdaq, Google News)
+function ago(iso) {
+  if (!iso) return "";
+  const m = (Date.now() - Date.parse(iso)) / 60000;
+  return m < 60 ? `${Math.max(1, Math.round(m))}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
+}
+function newsRow(x, showSym = true) {
+  const dot = x.sentiment === "positive" ? "up" : x.sentiment === "negative" ? "down" : "muted";
+  return `<li class="nw"><span class="nw-t mono">${ago(x.published)}</span>
+    ${showSym && x.symbol && x.symbol !== "_MARKET" ? `<a class="nw-s" href="#/ticker/${esc(x.symbol)}">${esc(x.symbol)}</a>` : x.topic ? `<span class="nw-s muted">${esc(x.topic)}</span>` : ""}
+    <span class="nw-d ${dot}">●</span>
+    <a class="nw-h" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>
+    <span class="nw-p">${esc(x.publisher || x.feed || "")}</span>
+    ${(x.tags || []).map((t) => `<span class="chip nw-tag">${esc(t)}</span>`).join("")}</li>`;
+}
+function newsList(items, showSym = true, empty = "No headlines.") {
+  return items && items.length ? `<ul class="nwl">${items.map((x) => newsRow(x, showSym)).join("")}</ul>` : `<p class="note">${empty}</p>`;
+}
+
+async function news() {
+  const s = state.snap, cands = [...s.candidates.long, ...(s.candidates.short || [])];
+  const nd = s.news_digest || {};
+  app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">Yahoo Finance · Nasdaq · Google News · ${nd.headlines ? `${nd.headlines.toLocaleString()} headlines for ${nd.with_news} stocks at the last run` : "fetched automatically"}</div>
+    <h1 class="display">News <em>flow</em></h1>
+    <p>Every stock in the universe and the market, fetched after each run and every hour by the background job while your Mac is on. Tags and tone are keyword rules - a reading aid, not a signal.</p></div>
+    <div><button id="nw-refresh" class="primary">Refresh now</button> <span id="nw-status" class="note"></span></div></div>
+    <section class="note-block"><div class="note-head"><div><div class="eyebrow">Market</div><div class="hl">What the market is reading</div></div></div><div id="nw-market" class="note">Loading…</div></section>
+    <section class="note-block"><div class="note-head"><div><div class="eyebrow">Today's candidates</div><div class="hl">News on the names you are looking at</div></div></div>
+      <div class="nw-cands">${cands.filter((c) => c.news && c.news.items && c.news.items.length).map((c) => `<div class="nw-c"><div class="nw-ch"><a href="#/ticker/${c.symbol}"><b>${c.symbol}</b></a>
+        <span class="muted">${esc(c.setup_name)}</span>${(c.news.flags || []).map((f) => `<span class="chip warn">${esc(f)}</span>`).join("")}
+        <span class="note">${c.news.n_recent} in ${c.news.days} days · <span class="up">${c.news.positive}+</span> / <span class="down">${c.news.negative}−</span></span></div>
+        ${newsList(c.news.items.slice(0, 4), false)}</div>`).join("") || '<p class="note">No candidate news stored for this session.</p>'}</div></section>
+    <section class="note-block"><div class="note-head"><div><div class="eyebrow">Universe</div><div class="hl">All headlines</div></div></div>
+      <div class="filters"><label>Tag <select id="nw-tag"><option value="">All</option>${["earnings", "guidance", "analyst", "M&A", "offering", "legal", "FDA", "contract", "product", "insider", "macro", "big move"].map((t) => `<option>${t}</option>`).join("")}</select></label>
+        <label>Tone <select id="nw-tone"><option value="">All</option><option value="positive">Positive</option><option value="negative">Negative</option></select></label>
+        <label><input type="checkbox" id="nw-cand"> Candidates only</label>
+        <label>Search <input id="nw-q" style="width:140px"></label><span id="nw-count" class="note"></span></div>
+      <div id="nw-all" class="note">Loading…</div></section>`;
+  const candSet = new Set(cands.map((c) => c.symbol));
+  let all = [];
+  const draw = () => {
+    const tag = $("#nw-tag").value, tone = $("#nw-tone").value, only = $("#nw-cand").checked, q = $("#nw-q").value.trim().toLowerCase();
+    const rows = all.filter((x) => (!tag || (x.tags || []).includes(tag)) && (!tone || x.sentiment === tone) && (!only || candSet.has(x.symbol))
+      && (!q || x.title.toLowerCase().includes(q) || (x.symbol || "").toLowerCase() === q));
+    $("#nw-count").textContent = `${rows.length.toLocaleString()} headlines`;
+    $("#nw-all").innerHTML = newsList(rows.slice(0, 400));
+  };
+  const load = async () => {
+    try { $("#nw-market").innerHTML = newsList((await api("/api/news?symbol=_MARKET&days=3&limit=60")).items); } catch (err) { $("#nw-market").textContent = err.message; }
+    try { all = (await api("/api/news?days=7&limit=1500")).items.filter((x) => x.symbol !== "_MARKET"); draw(); } catch (err) { $("#nw-all").textContent = err.message; }
+  };
+  ["#nw-tag", "#nw-tone", "#nw-cand"].forEach((id) => $(id).addEventListener("change", draw));
+  $("#nw-q").addEventListener("input", draw);
+  const btn = $("#nw-refresh");
+  if (window.__PREVIEW__) { btn.disabled = true; btn.title = "Not available in the preview"; }
+  btn.addEventListener("click", async () => {
+    try { await api("/api/news/refresh", { method: "POST" }); } catch (err) { $("#nw-status").textContent = err.message; return; }
+    const poll = async () => {
+      const r = (await api("/api/news?limit=1")).refresh;
+      $("#nw-status").textContent = r.running ? "Refreshing all headlines…" : (r.message || "Done");
+      if (r.running) setTimeout(poll, 3000); else load();
+    };
+    poll();
+  });
+  load();
+}
 
 // ------------------------------------------------------------------ crash-rebound / spike-fade study (python crash_study.py)
 const CS_ENTRIES = ["d0", "d1", "d2", "d3", "d4", "d5", "d7", "d10", "green", "hold_hi"];

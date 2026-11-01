@@ -115,6 +115,20 @@ CREATE TABLE IF NOT EXISTS price_alerts (
     triggered_session TEXT,
     triggered_price   REAL
 );
+CREATE TABLE IF NOT EXISTS news (
+    symbol     TEXT NOT NULL,
+    url        TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    publisher  TEXT,
+    feed       TEXT,
+    published  TEXT,
+    tags       TEXT,
+    sentiment  TEXT,
+    topic      TEXT,
+    fetched_at TEXT,
+    PRIMARY KEY (symbol, url)
+);
+CREATE INDEX IF NOT EXISTS news_published ON news (published);
 CREATE TABLE IF NOT EXISTS data_quality (
     session_date TEXT NOT NULL,
     symbol       TEXT NOT NULL,

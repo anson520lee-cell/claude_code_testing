@@ -341,6 +341,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
                                      int(pcfg.get("candidates_per_side", 10)))
     except Exception as exc:  # noqa: BLE001
         portfolio = {"error": f"{type(exc).__name__}: {exc}"}
+    news_market, news_digest = refresh_news(conn, settings, list(features), final, deep, offline, say)
     fired = journal.check_alerts(conn)
     alerts_recent = journal.recent_triggers(conn, target - timedelta(days=7))
     for a in fired:
@@ -378,6 +379,8 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         "industry_groups": groups,
         "portfolio": portfolio,
         "alerts_fired": fired,
+        "market_news": news_market,
+        "news_digest": news_digest,
         "alerts_recent": alerts_recent,
         "candidates": final,
         "deep_dive": deep,
@@ -461,6 +464,43 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
                                                "beta", "fullTimeEmployees", "website", "sharesOutstanding", "floatShares",
                                                "trailingPE", "forwardPE", "priceToBook", "dividendYield", "trailingAnnualDividendYield")}
     return out
+
+
+def refresh_news(conn, settings: dict[str, Any], symbols: list[str], final: dict[str, list], deep: dict[str, Any],
+                 offline: bool, say: Callable[[str], None]) -> tuple[list[dict], dict[str, Any]]:
+    """Fetch news for every universe stock (+ Google News for listed candidates) and the market; store it,
+    attach a digest to each candidate. Never fails the run."""
+    from src.catalysts import news as news_mod
+    cfg = settings.get("news") or {}
+    if not cfg.get("enabled", True):
+        return [], {}
+    try:
+        client = news_mod.NewsClient(path(settings, "cache_dir"), cache_minutes=int(cfg.get("cache_minutes", 50)),
+                                     max_age_days=int(cfg.get("max_age_days", 21)), offline=offline)
+        listed = [c for side in final.values() for c in side]
+        names = {s: ((deep.get(s) or {}).get("profile") or {}).get("longName") for s in symbols}
+        say(f"News: fetching headlines for {len(symbols)} stocks and the market")
+        per = client.many(symbols, names, google_for={c["symbol"] for c in listed})
+        for sym, items in per.items():
+            news_mod.save(conn, sym, items)
+        market = client.market_news()
+        news_mod.save(conn, "_MARKET", market)
+        for c in listed:
+            items = per.get(c["symbol"], [])
+            c["news"] = {**news_mod.summarize(items), "items": items[:12]}
+            for flag, text in (("offering", "a share offering / dilution"), ("legal", "a lawsuit or investigation"),
+                               ("guidance", "a guidance change")):
+                hits = [x for x in items[:12] if flag in x["tags"] and x["sentiment"] == "negative"]
+                if hits and flag in c["news"]["flags"]:
+                    c["contradicting"].append(f"News in the last {c['news']['days']} days mentions {text}: \"{hits[0]['title']}\" ({hits[0].get('publisher') or ''}).")
+        total = sum(len(v) for v in per.values())
+        digest = {"stocks": len(per), "headlines": total, "with_news": sum(1 for v in per.values() if v),
+                  "fetched_at": store.utc_now(), "sources": ["Yahoo Finance", "Nasdaq", "Google News"]}
+        say(f"News: {total} headlines for {digest['with_news']} stocks, {len(market)} market headlines")
+        return market[:60], digest
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("news refresh failed: %s", exc)
+        return [], {"error": f"{type(exc).__name__}: {exc}"}
 
 
 def thesis(c: dict[str, Any]) -> str:

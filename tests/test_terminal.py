@@ -7,7 +7,7 @@ from __future__ import annotations
 import copy
 import json
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -65,6 +65,7 @@ def tsettings(tmp_path: Path) -> dict:
     s["data"]["sec_user_agent"] = None
     s["liquidity"]["min_avg_dollar_volume"] = 1e6
     s["universe_filter"]["enabled"] = False   # synthetic stocks are calm; the filter has its own tests
+    s["news"]["enabled"] = False              # no network in tests; news has its own tests
     s["leveraged_etfs"] = []
     return s
 
@@ -1002,3 +1003,73 @@ def test_setup_bonus_from_backtest(tsettings):
     assert bonus == {"crash_rebound": 15.0, "breakout": 4.5, "reclaim": -10.0} and src.startswith("backtest")
     fb, src2 = backtest_setup_bonus(None, tsettings["scanner"])
     assert fb == {"crash_rebound": 15} and src2 == "config"
+
+
+
+# ======================================================================= news
+RSS_Y = """<?xml version="1.0"?><rss><channel>
+<item><title>Acme beats estimates, raises full-year guidance</title><link>https://ex.com/a</link><pubDate>{d1}</pubDate></item>
+<item><title>Acme announces $500 million convertible offering</title><link>https://ex.com/b</link><pubDate>{d2}</pubDate></item>
+<item><title>Old story about Acme</title><link>https://ex.com/old</link><pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate></item>
+</channel></rss>"""
+RSS_G = """<?xml version="1.0"?><rss><channel>
+<item><title>Acme beats estimates, raises full-year guidance - Reuters</title><link>https://g.com/1</link><pubDate>{d1}</pubDate><source url="https://reuters.com">Reuters</source></item>
+<item><title>Unrelated company shares plunge - CNBC</title><link>https://g.com/2</link><pubDate>{d1}</pubDate><source>CNBC</source></item>
+</channel></rss>"""
+
+
+def _rss_getter(calls):
+    from email.utils import format_datetime
+    now = datetime.now(timezone.utc)
+    d1, d2 = format_datetime(now - timedelta(hours=3)), format_datetime(now - timedelta(days=1))
+    def get(url):
+        calls.append(url)
+        if "news.google.com" in url:
+            return RSS_G.format(d1=d1)
+        if "nasdaq.com" in url:
+            return None
+        return RSS_Y.format(d1=d1, d2=d2)
+    return get
+
+
+def test_news_parse_classify_dedupe_and_store(tsettings, tmp_path):
+    from src.catalysts import news as nm
+    calls = []
+    client = nm.NewsClient(tmp_path / "cache", getter=_rss_getter(calls), max_age_days=21)
+    items = client.symbol_news("ACME", "Acme Corp", google=True)
+    titles = [x["title"] for x in items]
+    assert len(items) == 2 and "Old story about Acme" not in titles          # dedupe across feeds + age filter
+    assert all("Unrelated" not in t for t in titles)                          # Google relevance filter
+    beat = next(x for x in items if x["title"].startswith("Acme beats"))
+    assert {"earnings", "guidance"} <= set(beat["tags"]) and beat["sentiment"] == "positive"
+    off = next(x for x in items if "offering" in x["title"])
+    assert "offering" in off["tags"] and off["sentiment"] == "negative"
+    n = len(calls)
+    client.symbol_news("ACME", "Acme Corp", google=True)                      # served from the disk cache
+    assert len(calls) == n
+    summ = nm.summarize(items)
+    assert summ["n_recent"] == 2 and "offering" in summ["flags"]
+    from src.daily import store as st
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    nm.save(conn, "ACME", items)
+    nm.save(conn, "ACME", items)                                              # idempotent
+    rows = nm.load(conn, "ACME")
+    assert len(rows) == 2 and nm.load(conn, "ACME", tag="offering")[0]["title"].startswith("Acme announces")
+
+
+def test_news_api(tsettings, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from src.catalysts import news as nm
+    from src.daily import store as st
+    from src.web.app import create_app
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    client = nm.NewsClient(tmp_path / "c2", getter=_rss_getter([]))
+    nm.save(conn, "ACME", client.symbol_news("ACME", "Acme Corp"))
+    nm.save(conn, "_MARKET", [{"title": "Stocks rally", "url": "https://m.com/1", "published": None, "publisher": "X", "feed": "Google News",
+                               "tags": ["big move"], "sentiment": "positive", "topic": "Stock market"}])
+    conn.close()
+    api = TestClient(create_app(tsettings))
+    assert len(api.get("/api/news?symbol=ACME").json()["items"]) == 2
+    assert api.get("/api/news?symbol=_MARKET").json()["items"][0]["topic"] == "Stock market"
+    assert api.get("/api/news?tag=offering").json()["items"][0]["symbol"] == "ACME"
