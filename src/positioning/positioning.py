@@ -93,8 +93,10 @@ EXEC_TITLE = r"\bceo\b|\bcfo\b|chief executive|chief financial|president"
 
 
 def exec_buy(buys: pd.DataFrame, as_of: date, min_value: float = 100_000, max_age_days: int = 14) -> dict[str, Any] | None:
-    """Largest open-market purchase by the CEO / CFO / President worth >= ``min_value`` in the last ``max_age_days``
-    calendar days (insider buying study: such buys beat random entries by +0.07-0.15R in 2010-2019 AND 2020-2026)."""
+    """Most recent open-market purchase (the largest that day) by the CEO / CFO / President worth >= ``min_value`` in the
+    last ``max_age_days`` calendar days (insider buying study: such buys beat random entries by +0.07-0.15R in 2010-2019
+    AND 2020-2026). The most recent one is returned so the score's 5-day freshness check (scanner.insider_exec_buy)
+    is not hidden by an older, bigger buy."""
     if buys is None or buys.empty:
         return None
     pos = buys.get("Position", pd.Series("", index=buys.index)).fillna("").astype(str).str.lower()
@@ -103,7 +105,7 @@ def exec_buy(buys: pd.DataFrame, as_of: date, min_value: float = 100_000, max_ag
     m = pos.str.contains(EXEC_TITLE) & ~pos.str.contains("vice president") & (val >= min_value) & (age <= max_age_days) & (age >= 0)
     if not m.any():
         return None
-    r = buys[m].assign(_v=val[m]).sort_values("_v", ascending=False).iloc[0]
+    r = buys[m].assign(_v=val[m], _age=age[m]).sort_values(["_age", "_v"], ascending=[True, False]).iloc[0]
     return {"date": r["date"].strftime("%Y-%m-%d"), "insider": r.get("Insider"), "position": r.get("Position"),
             "value": float(r["_v"]), "age_days": int((pd.Timestamp(as_of) - r["date"]).days)}
 

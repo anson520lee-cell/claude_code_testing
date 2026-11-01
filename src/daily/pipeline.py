@@ -349,6 +349,11 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         allowed = set(sc.get("directions") or ["long", "short"])
         enabled = set(sc.get("enabled_setups") or SETUP_DIRECTION)
         names = [n for n in active_setups(setups[symbol].iloc[-1]) if SETUP_DIRECTION[n] in allowed and n in enabled]
+        # signal day only (the backtest's episode start): the entry-timing study found the crash-rebound edge is
+        # gone by the day-2 open, so a crash that was already a candidate yesterday is not shown again
+        fresh_only = set(sc.get("fresh_only_setups") or [])
+        names = [n for n in names if n not in fresh_only or len(setups[symbol]) < 2
+                 or not bool(setups[symbol][f"setup_{n}"].iloc[-2])]
         if not names:
             continue
         if price < liq["min_price"] or dv < liq["min_avg_dollar_volume"]:
@@ -508,7 +513,7 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
         "quality": {"counts": q["counts"], "coverage": q["coverage"], "symbols": q["symbols"],
                     "n_usable_stocks": len(usable_stocks), "update": update},
         "warnings": warnings,
-        "settings": {k: settings[k] for k in ("weights", "penalties", "tiers", "scanner", "liquidity")},
+        "settings": {k: settings[k] for k in ("weights", "penalties", "tiers", "scanner", "liquidity", "portfolio") if k in settings},
         "trade_count": int(len(trades_frame)) if trades_frame is not None else 0,
     }
 
@@ -570,10 +575,33 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
         out["earnings_study"] = {"available": False, "reason": f"Earnings study failed: {exc}"}
     out["ftd"] = analyze_ftd(ftd, symbol, f["volume"]) if ftd is not None else {
         "available": False, "reason": "No SEC fails-to-deliver data: set SEC_USER_AGENT in .env."}
-    info = raw.get("info") or {}
-    out["profile"] = {k: info.get(k) for k in ("longName", "sector", "industry", "marketCap", "exchange",
-                                               "beta", "fullTimeEmployees", "website", "sharesOutstanding", "floatShares",
-                                               "trailingPE", "forwardPE", "priceToBook", "dividendYield", "trailingAnnualDividendYield")}
+    out["profile"] = company_profile(raw.get("info") or {})
+    return out
+
+
+PROFILE_FIELDS = ("longName", "sector", "industry", "marketCap", "exchange", "beta", "fullTimeEmployees", "website",
+                  "sharesOutstanding", "floatShares", "trailingPE", "forwardPE", "priceToBook", "dividendYield",
+                  "trailingAnnualDividendYield", "country", "city", "state", "quoteType")
+
+
+def company_profile(info: dict[str, Any], summary_chars: int = 1600) -> dict[str, Any]:
+    """Company profile for the stock page: quote fields plus the business description and the CEO
+    (from Yahoo's info dictionary). The description is clipped so the daily report stays small."""
+    out = {k: info.get(k) for k in PROFILE_FIELDS}
+    text = " ".join(str(info.get("longBusinessSummary") or "").split())
+    if len(text) > summary_chars:
+        cut = text[:summary_chars].rsplit(" ", 1)[0]
+        text = cut.rstrip(",;:") + "…"
+    out["summary"] = text or None
+    ceo = None
+    for officer in info.get("companyOfficers") or []:
+        if not isinstance(officer, dict):
+            continue
+        title = str(officer.get("title") or "")
+        if "CEO" in title or "Chief Executive" in title:
+            ceo = {"name": " ".join(str(officer.get("name") or "").split()) or None, "title": title}
+            break
+    out["ceo"] = ceo
     return out
 
 

@@ -198,3 +198,10 @@
   tight stops hurt squeeze; no scaling-in plan beats one entry. Crash rebound with half the stop + 2x exposure doubles
   CAGR in the account simulation but with -64% to -66% drawdowns and no better Sharpe. Not used live. Research page
   section; `config/leverage.default.json`; docs/TERMINAL.md section 7i.
+* Live strategy aligned with the agreed conclusions (2026-11-01): crash rebound is listed on the signal day only
+  (`scanner.fresh_only_setups`; the entry-timing study found the edge gone by the day-2 open, and the backtests only
+  test the episode's first day); every plan carries an entry rule and an honest evidence label (crash rebound
+  +0.1 to +0.2R over random, t below 2.5; squeeze only out of sample, buy-stop only; breakout unproven); stale
+  "0-2 day window, 2 ATR stop, 1.5 ATR target, 10 days" texts replaced by the strategy lab's exits; the position-size
+  example uses `portfolio.risk_per_trade`; the CEO/CFO buy check now looks at the most recent qualifying buy (an
+  older, bigger one hid the 5-day freshness check); Research page "Live strategy" card; docs/TERMINAL.md section 6a.
