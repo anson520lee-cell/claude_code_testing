@@ -35,7 +35,15 @@ def _write(target: Path, content: bytes | str) -> None:
     """Temporary file + rename: an interrupted run never leaves half a cached file behind."""
     tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
     tmp.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
-    os.replace(tmp, target)
+    for attempt in range(25):             # Windows: the target may be open in another process for a moment
+        try:
+            os.replace(tmp, target)
+            return
+        except PermissionError:
+            if attempt == 24:
+                tmp.unlink(missing_ok=True)
+                raise
+            time.sleep(0.1)
 
 
 def _complete(name: str, content: bytes | None) -> bool:

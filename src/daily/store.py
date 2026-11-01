@@ -153,7 +153,22 @@ def write_atomic(target: Path, content: str | bytes) -> None:
         tmp.write_bytes(content)
     else:
         tmp.write_text(content, encoding="utf-8")
-    os.replace(tmp, target)
+    replace_retrying(tmp, target)
+
+
+def replace_retrying(tmp: Path, target: Path, attempts: int = 25) -> None:
+    """os.replace, retried briefly: on Windows a file that another process (the dashboard) is reading at
+    that moment cannot be replaced."""
+    import time
+    for attempt in range(attempts):
+        try:
+            os.replace(tmp, target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                Path(tmp).unlink(missing_ok=True)
+                raise
+            time.sleep(0.1)
 
 
 def jsonable(value: Any) -> Any:

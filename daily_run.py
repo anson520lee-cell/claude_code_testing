@@ -24,6 +24,7 @@ from src.config import ConfigError
 from src.daily.pipeline import DailyRunError, run_daily
 from src.daily.settings import load_terminal_settings, path
 from src.market import calendar
+from src.platform_compat import ensure_utf8, redirect_output
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -39,8 +40,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="re-import journal trades and price alerts from data/backups/user_data_*.json")
     parser.add_argument("--rebuild-universe", action="store_true",
                         help="rebuild config/universe_auto.yaml now (otherwise automatically every 30 days)")
+    parser.add_argument("--log", metavar="FILE", help="append all output to FILE (used by the Windows background task)")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
+    redirect_output(args.log)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
@@ -187,20 +190,14 @@ def news_only(settings: dict, full: bool = False) -> None:
     """Refresh headlines: every call does the latest candidates (+ Google News) and the market; the whole
     universe is refreshed at most every ``universe_every_hours`` (default 6) unless ``full`` - so the hourly
     job stays at ~60 requests instead of ~500. A second refresh while one is running is skipped."""
-    import fcntl
     import json
     import time as _time
     from src.catalysts import news as news_mod
-    from src.daily import store
+    from src.daily import locks, store
     cfg = settings.get("news") or {}
-    lock_path = path(settings, "database").parent / ".news.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    lock = open(lock_path, "w")
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
+    lock = locks.acquire(path(settings, "database").parent / ".news.lock")
+    if lock is None:
         print("Another news refresh is running - skipped.")
-        lock.close()
         return
     marker = path(settings, "cache_dir") / "news" / "last_universe_refresh"
     every = float(cfg.get("universe_every_hours", 6)) * 3600
@@ -229,7 +226,7 @@ def news_only(settings: dict, full: bool = False) -> None:
             marker.touch()
     finally:
         conn.close()
-        lock.close()
+        locks.release(lock)
     print(f"News refreshed ({'whole universe' if full else 'candidates + market'}): "
           f"{sum(len(v) for v in per.values())} stock headlines, {len(market)} market headlines.")
 
@@ -264,4 +261,5 @@ def backtest_stale(settings: dict, max_age_days: int = 30) -> bool:
 
 
 if __name__ == "__main__":
+    ensure_utf8()
     sys.exit(main())

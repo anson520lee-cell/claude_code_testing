@@ -164,17 +164,25 @@ def run(settings: dict[str, Any], conn=None, today: date | None = None) -> dict[
     reports = path(settings, "reports_dir")
     cache = path(settings, "cache_dir")
     data_dir = path(settings, "database").parent
-    out = {
-        "reports_compressed": compress_old_reports(reports, int(cfg.get("keep_plain_sessions", 30))),
-        "backtests_removed": prune_backtests(reports.parent / "backtest", int(cfg.get("keep_backtests", 6))),
-        "finra_files": prune_dated_files(cache / "finra", r"regsho_(\d{8})\.txt", "%Y%m%d", 45, today),
-        "ftd_files": prune_dated_files(cache / "sec" / "files", r"cnsfails(\d{6})[ab]\.zip(?:\.missing)?", "%Y%m", 200, today),
-        "news_cache_files": prune_old_files(cache / "news", 7),
+    steps = {
+        "reports_compressed": lambda: compress_old_reports(reports, int(cfg.get("keep_plain_sessions", 30))),
+        "backtests_removed": lambda: prune_backtests(reports.parent / "backtest", int(cfg.get("keep_backtests", 6))),
+        "finra_files": lambda: prune_dated_files(cache / "finra", r"regsho_(\d{8})\.txt", "%Y%m%d", 45, today),
+        "ftd_files": lambda: prune_dated_files(cache / "sec" / "files", r"cnsfails(\d{6})[ab]\.zip(?:\.missing)?",
+                                               "%Y%m", 200, today),
+        "news_cache_files": lambda: prune_old_files(cache / "news", 7),
         # SEC filings / XBRL facts of names deep-dived once and never again (a few MB each)
-        "sec_cache_files": prune_old_files(cache / "sec", 30),
-        "logs_trimmed": int(trim_log(data_dir / "daily_run.log")) + int(trim_log(data_dir / "server.log")),
-        "tmp_files": sum(prune_tmp(d) for d in (reports, reports.parent / "backtest", cache)),
+        "sec_cache_files": lambda: prune_old_files(cache / "sec", 30),
+        "logs_trimmed": lambda: int(trim_log(data_dir / "daily_run.log")) + int(trim_log(data_dir / "server.log")),
+        "tmp_files": lambda: sum(prune_tmp(d) for d in (reports, reports.parent / "backtest", cache)),
     }
+    out = {}
+    for name, step in steps.items():
+        try:
+            out[name] = step()
+        except OSError as exc:            # e.g. Windows: a file is open in the dashboard right now
+            logger.warning("housekeeping step %s skipped: %s", name, exc)
+            out[name] = 0
     if conn is not None:
         try:
             out["news_rows"] = prune_news(conn, int(cfg.get("news_days", 180)))

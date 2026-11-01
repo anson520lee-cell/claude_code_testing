@@ -18,3 +18,5 @@ uvicorn>=0.29,<1
 requests>=2.31
 # FastAPI test client (tests only)
 httpx>=0.27
+# Time-zone database: Windows has none built in (macOS / Linux use the system one)
+tzdata>=2024.1; sys_platform == "win32"
