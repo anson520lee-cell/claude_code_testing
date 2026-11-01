@@ -199,7 +199,7 @@ housekeeping:
 # Position sizing / total heat on the portfolio page (defaults; the page lets you change them).
 portfolio:
   account_size: 100000
-  risk_per_trade: 0.005        # 0.5% of the account lost if the stop is hit
+  risk_per_trade: 0.01         # 1% of the account lost if the stop is hit (user 2026-11-01: best CAGR / Sharpe of 0.5-5% in the account simulation)
   max_position_pct: 0.25       # no single position above 25% of the account
   max_heat: 0.04               # total open risk if every stop is hit together
   candidates_per_side: 10
