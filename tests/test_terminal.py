@@ -1636,6 +1636,8 @@ def test_insider_study_small_and_shipped_copy(tsettings, tmp_path):
     assert first["date"] <= ev.loc[ev["sym"] == first["symbol"], "filing_date"].min() + pd.Timedelta(days=4)
     res = insider.run(data, 0.001)
     assert res["verdict"] and res["robustness"] and set(res["styles"]) == set(insider.STYLE_NAMES)
+    pc = insider.period_check(data, 0.001, style=list(insider.STYLE_NAMES)[0], split="2024-01-01")
+    assert {"rows", "passes", "edge_min", "main_exit"} <= set(pc) and isinstance(pc["passes"], bool)
     shipped = load_insider(tmp_path)
     assert INSIDER_DEFAULT.exists() and shipped["styles"] and not any(s.get("passes") for s in shipped["styles"].values())
     pc = shipped["period_check"]
