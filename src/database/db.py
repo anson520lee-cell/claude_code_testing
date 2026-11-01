@@ -85,8 +85,10 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
     if str(db_path) != ":memory:":
         path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=30)   # the hourly job, the dashboard and a run may overlap
     conn.row_factory = sqlite3.Row
+    if str(db_path) != ":memory:":
+        conn.execute("PRAGMA journal_mode=WAL")       # readers never block the writer and vice versa
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
     _add_missing_event_columns(conn)

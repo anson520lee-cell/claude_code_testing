@@ -28,7 +28,10 @@ from src.market import calendar
 INDEX_LIKE = ("^",)  # index symbols (VIX...) have no volume
 
 
-def check_symbol(symbol: str, frame: pd.DataFrame | None, session: date, min_history: int = 260) -> dict[str, Any]:
+def check_symbol(symbol: str, frame: pd.DataFrame | None, session: date, min_history: int = 260,
+                 closures: set[date] | None = None) -> dict[str, Any]:
+    """``closures``: calendar sessions the provider has no SPY bar for (unscheduled market closures such as
+    a national day of mourning) - not counted as missing data."""
     issues: list[str] = []
     status = "ok"
     if frame is None or frame.empty:
@@ -43,7 +46,8 @@ def check_symbol(symbol: str, frame: pd.DataFrame | None, session: date, min_his
         issues.append(f"Only {len(frame)} sessions of history (< {min_history}); long EMAs / percentiles unreliable.")
         status = "excluded"
 
-    expected = calendar.trading_days(max(frame.index[0].date(), _sessions_back(session, 252)), session)
+    expected = [d for d in calendar.trading_days(max(frame.index[0].date(), _sessions_back(session, 252)), session)
+                if d not in (closures or set())]
     present = set(frame.index.date)
     missing = [d for d in expected if d not in present]
     if missing:
@@ -90,7 +94,12 @@ def _worse(a: str, b: str) -> str:
 
 def check_universe(prices: dict[str, pd.DataFrame], symbols: list[str], session: date,
                    min_history: int = 260) -> dict[str, Any]:
-    rows = [check_symbol(s, prices.get(s), session, min_history) for s in symbols]
+    spy = prices.get("SPY")
+    closures: set[date] = set()
+    if spy is not None and len(spy) > 252:
+        have = set(spy.index.date)
+        closures = {d for d in calendar.trading_days(_sessions_back(session, 252), session) if d not in have and d != session}
+    rows = [check_symbol(s, prices.get(s), session, min_history, closures) for s in symbols]
     counts = {k: sum(r["status"] == k for r in rows) for k in ("ok", "warning", "excluded")}
     coverage = (counts["ok"] + counts["warning"]) / len(rows) if rows else 0.0
     return {"session": session.isoformat(), "symbols": rows, "counts": counts, "coverage": coverage,

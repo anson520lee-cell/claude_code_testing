@@ -22,6 +22,8 @@ ask() {  # ask "question" default(y/n)
 
 echo "== Swing Research Terminal - macOS setup =="
 echo "Folder: $REPO"
+# stop a dashboard left running by an older version so the next click starts the new code
+bash "$REPO/scripts/stop_terminal.sh" >/dev/null 2>&1 || true
 
 # 1. Python >= 3.10
 PYTHON=""
@@ -44,7 +46,8 @@ echo
 echo "Installing dependencies (pandas, numpy, yfinance, FastAPI ... about 150 MB on the first run)."
 echo "On a slow connection this can take 10 minutes - the progress bars below keep moving while it downloads."
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements.txt
+# --upgrade: every update also brings yfinance to its latest release (Yahoo changes break old versions)
+.venv/bin/python -m pip install --upgrade -r requirements.txt
 .venv/bin/python -c "import pandas, numpy, yfinance, fastapi, uvicorn, matplotlib, yaml" \
   || { echo "Dependency installation failed - scroll up for the ERROR lines and re-run this script."; exit 1; }
 echo "Dependencies installed."

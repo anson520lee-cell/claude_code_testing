@@ -156,3 +156,13 @@
     long T1 capped at entry + 2 ATR; stock pages show each stock's crash history; Research page shows the study.
 * News (2026-11-01): automatic RSS headlines (Yahoo Finance + Nasdaq for the whole universe, Google News for candidates
   and market topics), tagged and stored; refreshed after each run and hourly; News tab, stock-page news, crash news.
+* Long-term robustness review (2026-11-01):
+  - Fixed: provider fallback marked the requested session as done; dashboard server kept running old code after an
+    update; unbounded analyst cache; disk growth (reports, FINRA, SEC, news, logs); news volume that could get the IP
+    rate-limited; tracked generated universe file blocking `git pull`; FOMC list ending after 2026 (now warns); SQLite
+    lock contention; unpinned major versions; unscheduled market closures flagged as data gaps; price alerts set during
+    the Asian day skipped the next US session (UTC vs New York date); half-written files after a crash; truncated SEC
+    downloads cached forever; universe rebuild could shrink on a screener glitch; failing backtest / rebuild retried on
+    every run; alert / journal symbols stopped updating after leaving the universe; duplicate headlines.
+  - Added: yfinance self-upgrade when downloads fail broadly, daily journal / alert export with `--restore-user-data`,
+    delisted-symbol warning, bundled chart library. See docs/TERMINAL.md section 10.

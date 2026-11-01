@@ -9,6 +9,8 @@ earnings, guidance, analyst, M&A, offering (dilution), legal, FDA / clinical, co
 insider, macro, big move. Sentiment is a keyword heuristic (positive / negative / neutral) - a reading
 aid, not a model; it never changes the score (there is no historical news to back-test it on).
 Every fetch is cached on disk for ``cache_minutes`` so the hourly job and page views stay light.
+Politeness (these are free endpoints shared with the price data): at most 4 parallel requests, and a host
+that answers 429 / 403 / 503 is left alone for an hour (recorded on disk so every process respects it).
 """
 
 from __future__ import annotations
@@ -109,16 +111,39 @@ class NewsClient:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.getter = getter or self._http
         self.cache_minutes, self.max_age_days, self.offline = cache_minutes, max_age_days, offline
+        self.blocked_file = self.dir / "blocked_hosts.json"
 
-    @staticmethod
-    def _http(url: str) -> str | None:
+    def _blocked(self) -> dict[str, float]:
+        try:
+            data = json.loads(self.blocked_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return {h: t for h, t in data.items() if t > time.time()}
+
+    def _block(self, host: str, seconds: int = 3600) -> None:
+        data = self._blocked()
+        data[host] = time.time() + seconds
+        try:
+            self.blocked_file.write_text(json.dumps(data))
+        except OSError:
+            pass
+
+    def _http(self, url: str) -> str | None:
         import requests
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc
+        if host in self._blocked():
+            return None
         try:
             r = requests.get(url, headers=UA, timeout=15)
-            return r.text if r.status_code == 200 else None
         except Exception as exc:  # noqa: BLE001
             logger.debug("news fetch failed %s: %s", url, exc)
             return None
+        if r.status_code in (403, 429, 503):
+            logger.warning("news host %s answered %s - pausing it for an hour", host, r.status_code)
+            self._block(host)
+            return None
+        return r.text if r.status_code == 200 else None
 
     def _cached(self, url: str, source: str) -> list[dict[str, Any]]:
         f = self.dir / (hashlib.sha1(url.encode()).hexdigest()[:20] + ".json")
@@ -172,7 +197,7 @@ class NewsClient:
         return self._finish(out)[:80]
 
     def many(self, symbols: list[str], names: dict[str, str] | None = None, google_for: set[str] | None = None,
-             workers: int = 8) -> dict[str, list[dict[str, Any]]]:
+             workers: int = 4) -> dict[str, list[dict[str, Any]]]:
         names, google_for = names or {}, google_for or set()
         with ThreadPoolExecutor(max_workers=workers) as pool:
             res = pool.map(lambda s: self.symbol_news(s, names.get(s), s in google_for), symbols)
@@ -215,6 +240,12 @@ def load(conn, symbol: str | None = None, limit: int = 300, since_days: int = 30
         args.append(f"%,{tag},%")
     sql += " ORDER BY COALESCE(published, fetched_at) DESC LIMIT ?"
     args.append(limit)
-    rows = [r for r in conn.execute(sql, args).fetchall() if _usable(r[2], r[3])]
+    rows, seen = [], set()
+    for r in conn.execute(sql, args).fetchall():
+        key = (r[0], _norm_title(r[2]))           # the same story stored from two feeds (different URLs)
+        if key in seen or not _usable(r[2], r[3]):
+            continue
+        seen.add(key)
+        rows.append(r)
     cols = ["symbol", "url", "title", "publisher", "feed", "published", "tags", "sentiment", "topic"]
     return [{**dict(zip(cols, r)), "tags": [t for t in (r[6] or "").split(",") if t]} for r in rows]

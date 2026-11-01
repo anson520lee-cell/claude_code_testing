@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import shutil
 import sqlite3
 from datetime import date, datetime, timezone
@@ -36,7 +37,8 @@ CREATE TABLE IF NOT EXISTS terminal_runs (
     n_candidates  INTEGER,
     report_path   TEXT,
     warnings      TEXT,                   -- JSON list
-    error         TEXT
+    error         TEXT,
+    requested_session TEXT                -- the session asked for; session_date = the one actually analysed
 );
 CREATE TABLE IF NOT EXISTS regime_history (
     date        TEXT PRIMARY KEY,
@@ -143,6 +145,17 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def write_atomic(target: Path, content: str | bytes) -> None:
+    """Write via a temporary file + rename, so the dashboard (or a crash mid-write) never sees half a file."""
+    target = Path(target)
+    tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    if isinstance(content, bytes):
+        tmp.write_bytes(content)
+    else:
+        tmp.write_text(content, encoding="utf-8")
+    os.replace(tmp, target)
+
+
 def jsonable(value: Any) -> Any:
     """Recursively convert numpy / pandas values to JSON-safe Python (NaN / inf -> None)."""
     if isinstance(value, dict):
@@ -176,14 +189,17 @@ def connect(db_path: Path, backups_dir: Path) -> sqlite3.Connection:
         shutil.copy2(db_path, target)
         logger.info("Database backed up to %s before adding terminal tables", target)
     conn.executescript(SCHEMA)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(terminal_runs)")}
+    if "requested_session" not in cols:          # non-destructive upgrade of databases created before this column
+        conn.execute("ALTER TABLE terminal_runs ADD COLUMN requested_session TEXT")
     conn.commit()
     return conn
 
 
 def start_run(conn: sqlite3.Connection, session: date) -> int:
     with conn:
-        cur = conn.execute("INSERT INTO terminal_runs (session_date, started_at, status) VALUES (?, ?, 'running')",
-                           (session.isoformat(), utc_now()))
+        cur = conn.execute("INSERT INTO terminal_runs (session_date, requested_session, started_at, status) "
+                           "VALUES (?, ?, ?, 'running')", (session.isoformat(), session.isoformat(), utc_now()))
     return int(cur.lastrowid)
 
 
@@ -253,3 +269,14 @@ def save_quality(conn: sqlite3.Connection, session: date, report: dict[str, Any]
                          "SET status=excluded.status, issues=excluded.issues",
                          [(session.isoformat(), r["symbol"], r["status"], json.dumps(r["issues"]))
                           for r in report["symbols"]])
+
+
+def read_snapshot(folder: Path) -> dict[str, Any]:
+    """A session's data.json, or data.json.gz once housekeeping has compressed it."""
+    import gzip
+    plain, packed = folder / "data.json", folder / "data.json.gz"
+    if plain.exists():
+        return json.loads(plain.read_text(encoding="utf-8"))
+    if packed.exists():
+        return json.loads(gzip.decompress(packed.read_bytes()).decode("utf-8"))
+    raise FileNotFoundError(plain)

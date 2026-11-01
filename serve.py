@@ -20,7 +20,8 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--config", help="terminal settings file (default config/terminal.yaml)")
     args = parser.parse_args()
-    app = create_app(load_terminal_settings(args.config))
+    # live_reload: pick up config/universe changes (monthly rebuild) without a restart
+    app = create_app(load_terminal_settings(args.config), live_reload=True, config_path=args.config)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 

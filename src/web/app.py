@@ -25,6 +25,7 @@ No endpoint places orders or talks to a broker - this is a research terminal.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 import traceback
@@ -35,11 +36,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from fastapi import Body, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from src.daily import store
-from src.daily.settings import load_terminal_settings, path
+from src.daily.settings import DEFAULT_PATH, load_terminal_settings, path
 from src.database import db
 from src.market import calendar
 from src.scanner import setups as setups_module
@@ -49,10 +50,32 @@ from src.technical.indicators import adjusted_ohlcv, ema
 from src.technical.structure import support_resistance
 
 STATIC = Path(__file__).with_name("static")
+logger = logging.getLogger(__name__)
 
 
-def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
-    settings = settings or load_terminal_settings()
+def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None = None,
+               config_path: str | None = None) -> FastAPI:
+    """``live_reload``: re-read config/terminal.yaml and the auto universe when they change on disk, so a
+    long-running server picks up the monthly universe rebuild (default: on when settings are not injected)."""
+    base_settings = settings or load_terminal_settings(config_path)
+    live_reload = (settings is None) if live_reload is None else live_reload
+    from src.market.universe_builder import AUTO_PATH, DEFAULT_AUTO_PATH
+    config_files = [Path(config_path) if config_path else DEFAULT_PATH, AUTO_PATH, DEFAULT_AUTO_PATH]
+    live = {"stamp": None, "settings": base_settings}
+
+    def cfg() -> dict[str, Any]:
+        if not live_reload:
+            return base_settings
+        stamp = tuple(f.stat().st_mtime if f.exists() else 0.0 for f in config_files)
+        if stamp != live["stamp"]:
+            try:
+                live["settings"] = load_terminal_settings(config_path)
+            except Exception:  # noqa: BLE001 - keep the last good settings if the file is mid-write / invalid
+                logger.warning("settings reload failed; keeping the previous settings", exc_info=True)
+            live["stamp"] = stamp
+        return live["settings"]
+
+    settings = base_settings
     reports_dir = path(settings, "reports_dir")
     db_path = path(settings, "database")
     app = FastAPI(title="Swing Research Terminal", version="1.0",
@@ -65,14 +88,19 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
     def connect() -> sqlite3.Connection:
         if not db_path.exists():
             raise HTTPException(404, "No database yet - run `python daily_run.py` first.")
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         return conn
 
     def sessions() -> list[str]:
         if not reports_dir.exists():
             return []
-        return sorted((p.name for p in reports_dir.iterdir() if (p / "data.json").exists()), reverse=True)
+        return sorted((p.name for p in reports_dir.iterdir()
+                       if (p / "data.json").exists() or (p / "data.json.gz").exists()), reverse=True)
+
+    def load_snapshot(session: str) -> dict[str, Any]:
+        """A session's data.json (older sessions are stored gzip-compressed to save disk)."""
+        return store.read_snapshot(reports_dir / session)
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> FileResponse:
@@ -83,14 +111,18 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         return {"sessions": sessions()}
 
     @app.get("/api/snapshot")
-    def api_snapshot(session: str | None = None) -> FileResponse:
+    def api_snapshot(session: str | None = None) -> Response:
         available = sessions()
         if not available:
             raise HTTPException(404, "No daily report yet - run `python daily_run.py` (or press Run in the header).")
         chosen = session or available[0]
         if chosen not in available:
             raise HTTPException(404, f"No report for session {chosen}")
-        return FileResponse(reports_dir / chosen / "data.json", media_type="application/json")
+        plain = reports_dir / chosen / "data.json"
+        if plain.exists():
+            return FileResponse(plain, media_type="application/json")
+        return Response((reports_dir / chosen / "data.json.gz").read_bytes(), media_type="application/json",
+                        headers={"Content-Encoding": "gzip"})
 
     @app.get("/reports/{session}/report.html", response_class=HTMLResponse)
     def report_html(session: str) -> FileResponse:
@@ -105,7 +137,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         try:
             prices = db.load_prices(conn, symbol)
             spy = db.load_prices(conn, "SPY")
-            etf = settings["universe"].get(symbol)
+            etf = cfg()["universe"].get(symbol)
             sector = db.load_prices(conn, etf) if etf else None
         finally:
             conn.close()
@@ -208,7 +240,8 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         from src.i18n.zh import LABELS
         return LABELS
 
-    analyst_cache: dict[tuple, Any] = {}
+    from collections import OrderedDict
+    analyst_cache: OrderedDict[tuple, Any] = OrderedDict()   # bounded LRU: the server may run for months
 
     @app.get("/api/analyst/{symbol}")
     def api_analyst(symbol: str, session: str | None = None, live: bool = False) -> dict[str, Any]:
@@ -222,12 +255,13 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         chosen = session if session in available else (available[0] if available else None)
         key = (symbol, chosen, live)
         if key in analyst_cache:
+            analyst_cache.move_to_end(key)
             return analyst_cache[key]
-        snap = json.loads((reports_dir / chosen / "data.json").read_text()) if chosen else {}
+        snap = load_snapshot(chosen) if chosen else {}
         conn = connect()
         try:
             prices, spy = db.load_prices(conn, symbol), db.load_prices(conn, "SPY")
-            etf = settings["universe"].get(symbol)
+            etf = cfg()["universe"].get(symbol)
             sector_p = db.load_prices(conn, etf) if etf else None
         finally:
             conn.close()
@@ -244,10 +278,11 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         if deep is None and live:
             from src.daily.enrichment import YahooSecEnrichment
             sess_date = pd.Timestamp(chosen).date() if chosen else f.index[-1].date()
-            fetcher = YahooSecEnrichment(settings["data"].get("sec_user_agent"), path(settings, "cache_dir"), sess_date)
+            s_now = cfg()
+            fetcher = YahooSecEnrichment(s_now["data"].get("sec_user_agent"), path(s_now, "cache_dir"), sess_date)
             conn2 = store.connect(db_path, path(settings, "backups_dir"))
             try:
-                deep = enrich(symbol, fetcher.fetch(symbol), f, sess_date, settings, conn2, fetcher.finra)
+                deep = enrich(symbol, fetcher.fetch(symbol), f, sess_date, s_now, conn2, fetcher.finra)
             finally:
                 conn2.close()
         sector_row = next((x for x in snap.get("sectors", []) if x["symbol"] == etf), None)
@@ -255,6 +290,8 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         note = analyze(symbol, f, cand, deep, snap.get("regime"), sector_row, spy_close, (uni or {}).get("rs_pct"))
         out = store.jsonable({"note": note, "deep": deep, "candidate": cand})
         analyst_cache[key] = out
+        while len(analyst_cache) > 96:
+            analyst_cache.popitem(last=False)
         return out
 
     @app.get("/api/regime/history")
@@ -309,7 +346,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
     def api_methodology() -> dict[str, Any]:
         from src.i18n.zh import methodology
         return {**methodology(),
-                "weights": settings["weights"], "penalties": settings["penalties"], "tiers": settings["tiers"]}
+                "weights": cfg()["weights"], "penalties": cfg()["penalties"], "tiers": cfg()["tiers"]}
 
     def tconn() -> sqlite3.Connection:
         return store.connect(db_path, path(settings, "backups_dir"))
@@ -410,9 +447,9 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
     @app.get("/api/news/{symbol}/live")
     def api_news_live(symbol: str) -> dict[str, Any]:
         from src.catalysts import news as news_mod
-        cfg = settings.get("news") or {}
-        client = news_mod.NewsClient(path(settings, "cache_dir"), cache_minutes=int(cfg.get("cache_minutes", 50)),
-                                     max_age_days=int(cfg.get("max_age_days", 21)))
+        ncfg = cfg().get("news") or {}
+        client = news_mod.NewsClient(path(settings, "cache_dir"), cache_minutes=int(ncfg.get("cache_minutes", 50)),
+                                     max_age_days=int(ncfg.get("max_age_days", 21)))
         symbol = symbol.upper()
         items = client.symbol_news(symbol, None, google=True)
         conn = tconn()
@@ -436,7 +473,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
                 import daily_run
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    daily_run.news_only(settings)
+                    daily_run.news_only(cfg(), full=True)
                 news_state["message"] = buf.getvalue().strip().splitlines()[-1] if buf.getvalue().strip() else "Done."
             except Exception as exc:  # noqa: BLE001
                 news_state["message"] = f"Failed: {type(exc).__name__}: {exc}"
@@ -499,9 +536,20 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
     def already_current() -> str | None:
         """Reason to skip an ``if_new`` run: the latest completed session is already reported,
         or a run finished in the last 30 minutes (the provider may not have published yet)."""
-        target = calendar.latest_completed_session(settle_minutes=settings["data"].get("settle_minutes", 30))
+        target = calendar.latest_completed_session(settle_minutes=cfg()["data"].get("settle_minutes", 30))
         if target.isoformat() in sessions():
             return f"Session {target} is already up to date."
+        if db_path.exists():
+            c = sqlite3.connect(db_path, timeout=30)
+            try:
+                tries = c.execute("SELECT COUNT(*) FROM terminal_runs WHERE requested_session = ? AND session_date != ? "
+                                  "AND status LIKE 'success%'", (target.isoformat(), target.isoformat())).fetchone()[0]
+            except sqlite3.OperationalError:
+                tries = 0
+            finally:
+                c.close()
+            if tries >= 6:
+                return f"The provider still has no data for {target} after {tries} attempts."
         if db_path.exists():
             conn = sqlite3.connect(db_path)
             try:
@@ -531,7 +579,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         def work() -> None:
             from src.daily.pipeline import run_daily
             try:
-                result = run_daily(settings, offline=offline, skip_deep=skip_deep,
+                result = run_daily(cfg(), offline=offline, skip_deep=skip_deep,
                                    progress=lambda m: run_state["log"].append(m))
                 run_state.update(status=result["status"], message=f"Session {result['session']['date']} done")
             except Exception as exc:  # noqa: BLE001

@@ -1073,3 +1073,371 @@ def test_news_api(tsettings, tmp_path):
     assert len(api.get("/api/news?symbol=ACME").json()["items"]) == 2
     assert api.get("/api/news?symbol=_MARKET").json()["items"][0]["topic"] == "Stock market"
     assert api.get("/api/news?tag=offering").json()["items"][0]["symbol"] == "ACME"
+
+
+# ======================================================================= long-term robustness
+def test_provider_fallback_is_retried_not_marked_done(tsettings):
+    """If the provider has not published the target session, the run analyses the latest available one,
+    records THAT session, and --if-new keeps retrying the target (at most 6 times)."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import daily_run
+    from src.daily.pipeline import run_daily
+    frames = {s: f[f.index < pd.Timestamp(SESSION)] for s, f in market_frames(tsettings).items()}   # nobody has 10-30
+    res = run_daily(tsettings, session=SESSION, downloader=FakeDownloader(frames), enrichment=FakeEnrichment(),
+                    fred_getter=fake_fred, progress=lambda m: None)
+    assert res["session"]["date"] == "2026-10-29"
+    db_file = Path(tsettings["paths"]["database"])
+    conn = sqlite3.connect(db_file)
+    row = conn.execute("SELECT session_date, requested_session FROM terminal_runs ORDER BY run_id DESC LIMIT 1").fetchone()
+    conn.close()
+    assert row == ("2026-10-29", "2026-10-30")
+    done, tries = daily_run.session_status(db_file, SESSION)
+    assert not done and tries == 1
+    done29, _ = daily_run.session_status(db_file, date(2026, 10, 29))
+    assert done29
+
+
+def test_quality_ignores_unscheduled_market_closures(tsettings):
+    frames = market_frames(tsettings)
+    closed = pd.Timestamp("2026-06-17")                   # pretend the market shut that day: SPY has no bar
+    frames = {s: f[f.index != closed] for s, f in frames.items()}
+    q = quality.check_universe(frames, ["SPY", "AAA"], SESSION)
+    aaa = next(r for r in q["symbols"] if r["symbol"] == "AAA")
+    assert not any("missing" in i for i in aaa["issues"])
+    frames["AAA"] = frames["AAA"][frames["AAA"].index != pd.Timestamp("2026-06-18")]   # a real gap is still caught
+    aaa = next(r for r in quality.check_universe(frames, ["SPY", "AAA"], SESSION)["symbols"] if r["symbol"] == "AAA")
+    assert any("1 expected session" in i for i in aaa["issues"])
+
+
+def test_housekeeping_compresses_prunes_and_api_reads_gz(tsettings, tmp_path):
+    import gzip
+
+    from fastapi.testclient import TestClient
+
+    from src.daily import housekeeping, store as st
+    from src.web.app import create_app
+    reports = Path(tsettings["paths"]["reports_dir"])
+    for i in range(5):
+        d = reports / f"2026-10-{20 + i:02d}"
+        d.mkdir(parents=True)
+        (d / "data.json").write_text(json.dumps({"session": {"date": d.name}, "n": i}))
+    assert housekeeping.compress_old_reports(reports, keep_plain=2) == 3
+    assert (reports / "2026-10-20" / "data.json.gz").exists() and not (reports / "2026-10-20" / "data.json").exists()
+    assert st.read_snapshot(reports / "2026-10-20")["n"] == 0 and st.read_snapshot(reports / "2026-10-24")["n"] == 4
+    client = TestClient(create_app(tsettings))
+    assert "2026-10-20" in client.get("/api/sessions").json()["sessions"]
+    assert client.get("/api/snapshot?session=2026-10-20").json()["n"] == 0
+    # dated caches, backtests, logs, news
+    fin = tmp_path / "finra"
+    fin.mkdir()
+    (fin / "regsho_20260101.txt").write_text("x")
+    (fin / "regsho_20261029.txt").write_text("x")
+    assert housekeeping.prune_dated_files(fin, r"regsho_(\d{8})\.txt", "%Y%m%d", 45, date(2026, 10, 30)) == 1
+    bt = tmp_path / "backtest"
+    for m in range(1, 10):
+        (bt / f"2026-{m:02d}-01").mkdir(parents=True)
+    assert housekeeping.prune_backtests(bt, keep=6) == 3 and len(list(bt.iterdir())) == 6
+    log = tmp_path / "x.log"
+    log.write_bytes(b"line\n" * 2_000_000)
+    assert housekeeping.trim_log(log, max_bytes=5_000_000, keep_bytes=1_000_000) and log.stat().st_size < 1_100_000
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    conn.execute("INSERT INTO news (symbol, url, title, published) VALUES ('A', 'u1', 't', '2020-01-01T00:00:00Z')")
+    conn.execute("INSERT INTO news (symbol, url, title, published) VALUES ('A', 'u2', 't', ?)",
+                 (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),))
+    conn.commit()
+    assert housekeeping.prune_news(conn, 180) == 1
+    assert conn.execute("SELECT COUNT(*) FROM news").fetchone()[0] == 1
+    assert gzip  # imported for clarity of the compressed format
+
+
+def test_news_host_backoff(tmp_path, monkeypatch):
+    from src.catalysts import news as nm
+    calls = []
+
+    class R:
+        def __init__(self, code):
+            self.status_code, self.text = code, ""
+    def fake_get(url, headers=None, timeout=None):
+        calls.append(url)
+        return R(429)
+    import requests
+    monkeypatch.setattr(requests, "get", fake_get)
+    client = nm.NewsClient(tmp_path)
+    assert client._http("https://feeds.finance.yahoo.com/rss/x") is None
+    assert client._http("https://feeds.finance.yahoo.com/rss/y") is None     # host paused: no second request
+    assert len(calls) == 1 and "feeds.finance.yahoo.com" in client._blocked()
+    assert nm.NewsClient(tmp_path)._blocked()                                 # remembered across processes
+
+
+def test_universe_default_file_fallback(tmp_path, monkeypatch):
+    from src.market import universe_builder as ub
+    monkeypatch.setattr(ub, "AUTO_PATH", tmp_path / "missing.yaml")
+    default = tmp_path / "default.yaml"
+    default.write_text("generated_for: '2026-10-31'\nsymbols: {AAA: XLK}\n")
+    monkeypatch.setattr(ub, "DEFAULT_AUTO_PATH", default)
+    assert ub.load_auto(ub.AUTO_PATH)["symbols"] == {"AAA": "XLK"}
+    assert ub.load_auto(tmp_path / "other.yaml") is None
+
+
+@pytest.mark.parametrize("end", [date(2027, 12, 31), date(2028, 2, 29)])
+def test_pipeline_runs_in_future_years(tsettings, end):
+    """Year boundaries (New Year 2028 falls on a Saturday and is not observed on Friday Dec 31) and leap days."""
+    from src.daily.pipeline import run_daily
+    assert calendar.is_trading_day(end)
+    res = run_daily(tsettings, session=end, downloader=FakeDownloader(market_frames(tsettings, end=end)),
+                    enrichment=FakeEnrichment(), fred_getter=fake_fred, progress=lambda m: None)
+    assert res["session"]["date"] == end.isoformat() and res["status"].startswith("success")
+    assert any("FOMC dates only up to" in w for w in res["warnings"])      # the FOMC list (2027) has run out
+    assert calendar.next_trading_day(date(2027, 12, 31)) == date(2028, 1, 3)
+
+
+def test_universe_rebuild_refuses_to_shrink(tsettings, tmp_path):
+    """A screener / download glitch that returns only a handful of names must not replace the universe."""
+    from src.market import universe_builder as ub
+    s = copy.deepcopy(tsettings)
+    s["universe_filter"].update({"min_beta": -99.0, "min_hv60": 0.0})
+    s["data"]["min_history_days"] = 100
+    auto = tmp_path / "auto.yaml"
+    auto.write_text("generated_for: '2026-09-01'\nsymbols: {" + ", ".join(f"S{i}: XLK" for i in range(20)) + "}\n")
+    frames = {"SPY": bars(300, SESSION, seed=1)}
+    for i in range(3):
+        frames[f"N{i}"] = bars(300, SESSION, seed=20 + i, volume=5e6)
+    quotes = [{"symbol": f"N{i}", "regularMarketPrice": 100.0, "averageDailyVolume3Month": 5e6, "marketCap": 5e9}
+              for i in range(3)]
+
+    def screener(offset):
+        return {"quotes": quotes if offset == 0 else [], "total": len(quotes)}
+
+    def profile(sym):
+        return {"sector": "Technology", "industry": "Software", "name": sym}
+
+    def build():
+        return ub.build_universe(s, downloader=FakeDownloader(frames), screener=screener, profile=profile,
+                                 progress=lambda m: None, path=auto)
+    with pytest.raises(RuntimeError, match="data glitch"):
+        build()
+    assert "S19" in auto.read_text()                                   # the previous list is kept
+    auto.write_text("generated_for: '2026-09-01'\nsymbols: {S0: XLK, S1: XLK}\n")
+    assert set(build()["symbols"]) == {"N0", "N1", "N2"}               # a genuine small change is accepted
+
+
+def test_backtest_and_universe_failures_cool_down(tsettings, monkeypatch):
+    import os
+    import sys
+    import time
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import daily_run
+    from src.daily.pipeline import DailyRunError
+    from src.market import universe_builder as ub
+    bt = Path(tsettings["paths"]["reports_dir"]).parent / "backtest"
+    assert daily_run.backtest_stale(tsettings)                         # never run
+    bt.mkdir(parents=True)
+    (bt / "last_failure").write_text("x")
+    assert not daily_run.backtest_stale(tsettings)                     # failed today: not retried for 3 days
+    old = time.time() - 4 * 86400
+    os.utime(bt / "last_failure", (old, old))
+    assert daily_run.backtest_stale(tsettings)
+    # universe rebuild: one failure, then quiet for 3 days (an explicit --rebuild-universe still runs)
+    calls = []
+
+    def failing_build(settings, progress=None):
+        calls.append(1)
+        raise RuntimeError("screener down")
+
+    def stop(*a, **k):
+        raise DailyRunError("stop here")
+    monkeypatch.setattr(daily_run, "load_terminal_settings", lambda *_: copy.deepcopy(tsettings))
+    monkeypatch.setattr(daily_run, "run_daily", stop)
+    monkeypatch.setattr(ub, "build_universe", failing_build)
+    monkeypatch.setattr(ub, "is_stale", lambda *a: True)
+    assert daily_run.main(["--skip-backtest"]) == 3 and len(calls) == 1
+    assert (Path(tsettings["paths"]["database"]).parent / ".universe_rebuild_failed").exists()
+    assert daily_run.main(["--skip-backtest"]) == 3 and len(calls) == 1
+    assert daily_run.main(["--skip-backtest", "--rebuild-universe"]) == 3 and len(calls) == 2
+
+
+def test_alert_and_open_trade_symbols_keep_updating(tsettings):
+    """Names that left the universe (monthly rebuild) but have an alert / open trade still get prices."""
+    from src.daily import store as st
+    from src.daily.pipeline import run_daily
+    from src.portfolio import journal
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    journal.add_alert(conn, "ZZZ", "above", 1e9)
+    journal.add_trade(conn, {"symbol": "YYY", "direction": "long", "entry_price": 10, "stop": 9})
+    conn.close()
+    frames = market_frames(tsettings)
+    frames["ZZZ"] = bars(520, SESSION, seed=77)
+    frames["YYY"] = bars(520, SESSION, seed=78)
+    dl = FakeDownloader(frames)
+    res = run_daily(tsettings, session=SESSION, downloader=dl, enrichment=FakeEnrichment(), fred_getter=fake_fred,
+                    progress=lambda m: None)
+    asked = {s for call in dl.calls for s in call[0]}
+    assert {"ZZZ", "YYY"} <= asked
+    assert "ZZZ" not in {c["symbol"] for side in res["candidates"].values() for c in side}
+    conn = sqlite3.connect(tsettings["paths"]["database"])
+    assert conn.execute("SELECT COUNT(*) FROM price_data WHERE ticker = 'ZZZ'").fetchone()[0] > 0
+    conn.close()
+
+
+def test_alert_watch_from_uses_new_york_date(tsettings):
+    """An alert set in the Hong Kong morning (= the US evening before) must watch the next US session."""
+    from src.daily import store as st
+    from src.data import market_data
+    from src.database import db
+    from src.portfolio import journal
+    assert journal.watch_from("2026-10-30T02:00:00Z") == "2026-10-29"   # 22:00 ET on the 29th
+    assert journal.watch_from("2026-10-30T15:00:00Z") == "2026-10-30"   # mid-session: from the next session
+    assert journal.watch_from("2026-10-30T12:00:00Z") == "2026-10-29"   # pre-market: today's session counts
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    db.upsert_stock(conn, "AAA")
+    db.upsert_prices(conn, "AAA", bars(5, SESSION, seed=3), market_data.SOURCE)
+    for created in ("2026-10-30T02:00:00Z", "2026-10-30T15:00:00Z"):
+        conn.execute("INSERT INTO price_alerts (created_at, symbol, kind, level) VALUES (?, 'AAA', 'close_above', 1)",
+                     (created,))
+    conn.commit()
+    fired = journal.check_alerts(conn)
+    conn.close()
+    assert [(a["created_at"], a["triggered_session"]) for a in fired] == [("2026-10-30T02:00:00Z", "2026-10-30")]
+
+
+def test_news_load_dedupes_same_story_from_two_feeds(tsettings):
+    from src.catalysts import news as nm
+    from src.daily import store as st
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    item = {"tags": [], "sentiment": "positive", "published": now}
+    nm.save(conn, "AAA", [{**item, "url": "https://yahoo/1", "title": "Acme beats estimates, raises outlook"},
+                          {**item, "url": "https://nasdaq/2", "title": "Acme Beats Estimates, Raises Outlook - Nasdaq"},
+                          {**item, "url": "https://yahoo/3", "title": "Acme names a new CFO"}])
+    nm.save(conn, "BBB", [{**item, "url": "https://yahoo/1", "title": "Acme beats estimates, raises outlook"}])
+    rows = nm.load(conn)
+    conn.close()
+    assert sorted((r["symbol"], r["url"]) for r in rows) == [("AAA", "https://yahoo/1"), ("AAA", "https://yahoo/3"),
+                                                             ("BBB", "https://yahoo/1")] or \
+        sorted((r["symbol"], r["url"]) for r in rows) == [("AAA", "https://nasdaq/2"), ("AAA", "https://yahoo/3"),
+                                                          ("BBB", "https://yahoo/1")]
+
+
+def test_sec_cache_never_keeps_a_truncated_zip(tmp_path):
+    import io
+    import zipfile
+
+    from src.data.sec import SecClient
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("cnsfails.txt", "SETTLEMENT DATE|CUSIP|SYMBOL|QUANTITY (FAILS)|DESCRIPTION|PRICE\n")
+    good = buf.getvalue()
+
+    class Resp:
+        status_code = 200
+        content = good[:20]                            # connection dropped mid-download
+
+        def raise_for_status(self):
+            pass
+
+    class Http:
+        n = 0
+
+        def get(self, url, headers=None, timeout=None):
+            Http.n += 1
+            return Resp()
+    client = SecClient("Swing Terminal test test@example.com", tmp_path, today=date(2026, 10, 30), session=Http())
+    cached = tmp_path / "sec" / "files" / "cnsfails202610a.zip"
+    assert client.get_file("https://example.invalid/cnsfails202610a.zip", cached.name) is None
+    assert not cached.exists()
+    Resp.content = good
+    assert client.get_file("https://example.invalid/cnsfails202610a.zip", cached.name) == good and cached.exists()
+    cached.write_bytes(b"PK broken")                    # an older version left a broken file behind
+    assert client.get_file("https://example.invalid/cnsfails202610a.zip", cached.name) == good and Http.n == 3
+    assert not list(cached.parent.glob(".*.tmp"))
+
+
+def test_atomic_writes_and_tmp_cleanup(tmp_path):
+    import os
+    import time
+
+    from src.daily import housekeeping, store as st
+    target = tmp_path / "data.json"
+    st.write_atomic(target, '{"a": 1}')
+    st.write_atomic(target, b'{"a": 2}')
+    assert json.loads(target.read_text()) == {"a": 2} and not list(tmp_path.glob(".*.tmp"))
+    stale = tmp_path / "s" / ".data.json.123.tmp"
+    stale.parent.mkdir()
+    stale.write_text("half")
+    fresh = tmp_path / "s" / ".report.html.456.tmp"
+    fresh.write_text("being written")
+    old = time.time() - 2 * 86400
+    os.utime(stale, (old, old))
+    assert housekeeping.prune_tmp(tmp_path) == 1 and fresh.exists() and not stale.exists()
+
+
+def test_yfinance_self_repair_when_every_download_fails(tsettings, monkeypatch):
+    import subprocess
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import daily_run
+    broken = {"quality": {"update": {"failed": [f"S{i}" for i in range(40)], "incremental": ["SPY"], "full": []}}}
+    fine = {"quality": {"update": {"failed": ["S1"], "incremental": [f"S{i}" for i in range(40)], "full": []}}}
+    assert daily_run.provider_broken(broken) and not daily_run.provider_broken(fine)
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert daily_run.maybe_upgrade_yfinance(tsettings)
+    assert calls[0][-1] == "yfinance" and "--upgrade" in calls[0]
+    data_dir = Path(tsettings["paths"]["database"]).parent
+    assert (data_dir / ".deps_updated").exists()                     # the launcher restarts the dashboard
+    assert not daily_run.maybe_upgrade_yfinance(tsettings) and len(calls) == 1   # at most once a day
+
+
+def test_user_data_export_and_restore(tsettings):
+    from src.daily import housekeeping, store as st
+    from src.portfolio import journal
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    journal.add_trade(conn, {"symbol": "AAA", "direction": "long", "entry_price": 10, "stop": 9, "notes": "first"})
+    journal.add_alert(conn, "BBB", "below", 50)
+    backups = Path(tsettings["paths"]["backups_dir"])
+    for day in range(1, 20):
+        housekeeping.export_user_data(conn, backups, date(2026, 10, day), keep=14)
+    files = sorted(backups.glob("user_data_*.json"))
+    assert len(files) == 14 and files[-1].name == "user_data_20261019.json"
+    conn.execute("DELETE FROM trade_journal")
+    conn.execute("DELETE FROM price_alerts")
+    conn.commit()
+    assert housekeeping.restore_user_data(conn, files[-1]) == 2
+    assert housekeeping.restore_user_data(conn, files[-1]) == 0            # idempotent
+    assert conn.execute("SELECT notes FROM trade_journal").fetchone()[0] == "first"
+    assert conn.execute("SELECT symbol FROM price_alerts").fetchone()[0] == "BBB"
+    conn.close()
+
+
+def test_delisted_symbol_gets_its_own_warning(tsettings):
+    from src.daily import store as st
+    from src.daily.pipeline import run_daily
+    from src.data import market_data
+    from src.database import db
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    db.upsert_stock(conn, "DDD")
+    db.upsert_prices(conn, "DDD", bars(300, date(2026, 9, 1), seed=5), market_data.SOURCE)   # last bar 2026-09-01
+    conn.close()
+    frames = market_frames(tsettings)
+    frames.pop("DDD")                                                     # the provider no longer has it
+    res = run_daily(tsettings, session=SESSION, downloader=FakeDownloader(frames), enrichment=FakeEnrichment(),
+                    fred_getter=fake_fred, progress=lambda m: None)
+    assert any(w.startswith("No data for 3+ weeks") and "DDD" in w for w in res["warnings"])
+    assert not any(w.startswith("No fresh data") and "DDD" in w for w in res["warnings"])
+    assert "DDD" not in {c["symbol"] for side in res["candidates"].values() for c in side}
+
+
+def test_chart_library_is_served_locally(tsettings):
+    from fastapi.testclient import TestClient
+
+    from src.web.app import create_app
+    client = TestClient(create_app(tsettings))
+    page = client.get("/").text
+    assert "unpkg.com" not in page and "/static/vendor/lightweight-charts-4.1.3" in page
+    lib = client.get("/static/vendor/lightweight-charts-4.1.3.standalone.production.js")
+    assert lib.status_code == 200 and "LightweightCharts" in lib.text[:200000]

@@ -335,3 +335,26 @@ expiration and the (estimated) employment report are included.
 `config/terminal.yaml`: universe (ticker → sector / industry ETF; quote tickers YAML reads as booleans,
 e.g. `"ON"`), market symbols, liquidity limits, scanner parameters, score weights (must sum to 100),
 penalties and tiers. Settings are validated at start-up.
+
+## 10. Long-term operation (what maintains itself)
+
+The terminal is meant to run unattended for years. What it does on its own, and what is left to you:
+
+| Risk over months / years | What the program does |
+|---|---|
+| Yahoo changes its site and old yfinance versions return nothing | When ≥ 80% of downloads fail, the hourly job runs `pip install --upgrade yfinance` in `.venv` (at most once a day); the Dock launcher then restarts the dashboard. `install_mac.sh` also upgrades on every update. |
+| Provider has not published the latest session yet | The run analyses the latest available session, records it, and `--if-new` keeps retrying (at most 6 times per session). |
+| A stock is delisted, acquired or renamed | Excluded by the quality check, named in its own warning; the monthly universe rebuild drops it (core list: edit `config/terminal.yaml`). |
+| Screener glitch returns only a few stocks | The monthly universe rebuild refuses to shrink the list below half and keeps the previous one; a failed rebuild waits 3 days before retrying. |
+| A backtest keeps failing | Retried after 3 days instead of on every run (`reports/backtest/last_failure`). |
+| Disk growth | After every run: reports older than 30 sessions are gzipped, 6 backtests kept, FINRA / SEC / FTD / news caches pruned, news rows older than 180 days deleted, logs over 5 MB trimmed. |
+| Database damaged or deleted | The trade journal and price alerts are exported daily to `data/backups/user_data_YYYYMMDD.json` (14 kept). Restore with `python daily_run.py --restore-user-data data/backups/user_data_YYYYMMDD.json`. Prices are simply downloaded again. |
+| Crash or power loss in the middle of writing | Reports, snapshots, backtests and SEC files are written to a temporary file and renamed, so the dashboard never reads half a file; leftovers are deleted. |
+| Two updates at the same time (Dock app + hourly job) | A file lock lets only one run write; news refreshes have their own lock. |
+| Alerts or open trades on stocks that left the universe | Their prices keep updating, so alerts still trigger and open trades stay marked to market. |
+| Internet / CDN outage | The chart library is bundled (`src/web/static/vendor/`), so the dashboard works offline on stored data. |
+| News sources rate-limit | Each host is paused for an hour after a 403 / 429 / 503 so price downloads are never put at risk. |
+
+What still needs you: add the 2028 FOMC meeting dates to `config/macro_events.yaml` when the Fed
+publishes them (the run warns 45 days before the list runs out), and `git pull` + `bash scripts/install_mac.sh`
+to take updates.

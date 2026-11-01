@@ -13,3 +13,13 @@ events:
   - {date: "2026-09-16", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
   - {date: "2026-10-28", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
   - {date: "2026-12-09", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
+  # FOMC 2027 - published schedule (federalreserve.gov, checked 2026-11-01). The Fed calls each date tentative
+  # until it is confirmed at the meeting before it.
+  - {date: "2027-01-27", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2027-03-17", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2027-04-28", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2027-06-09", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2027-07-28", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2027-09-15", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2027-10-27", event: "FOMC rate decision", source: "federalreserve.gov", status: Confirmed, importance: high}
+  - {date: "2027-12-08", event: "FOMC rate decision (with projections)", source: "federalreserve.gov", status: Confirmed, importance: high}

@@ -26,8 +26,27 @@ if [ ! -x "$PY" ]; then
 fi
 
 up() { curl -s -o /dev/null --max-time 2 "$URL/api/sessions"; }
+STARTED="$REPO/data/server.started"
+
+# A server started before the code or config changed (git pull + install, monthly universe rebuild) is
+# restarted, unless it is in the middle of a run.
+stale() {
+  [ ! -f "$STARTED" ] && return 0
+  [ "$REPO/data/.deps_updated" -nt "$STARTED" ] && return 0     # yfinance was upgraded automatically
+  [ -n "$(find "$REPO/src" "$REPO/serve.py" "$REPO/config" -newer "$STARTED" \( -name '*.py' -o -name '*.yaml' \) -print -quit 2>/dev/null)" ]
+}
+busy() { curl -s --max-time 2 "$URL/api/run/status" | grep -q '"running": *true'; }
+if up && stale && ! busy; then
+  bash "$REPO/scripts/stop_terminal.sh" >/dev/null 2>&1
+  for _ in $(seq 1 20); do up || break; sleep 0.5; done
+fi
 
 if ! up; then
+  # keep the server log small over months of use
+  if [ -f "$REPO/data/server.log" ] && [ "$(wc -c < "$REPO/data/server.log")" -gt 5000000 ]; then
+    tail -c 1000000 "$REPO/data/server.log" > "$REPO/data/server.log.tmp" && mv "$REPO/data/server.log.tmp" "$REPO/data/server.log"
+  fi
+  touch "$STARTED"
   nohup "$PY" serve.py --port "$PORT" >> "$REPO/data/server.log" 2>&1 &
   echo $! > "$REPO/data/server.pid"
   for _ in $(seq 1 60); do up && break; sleep 0.5; done

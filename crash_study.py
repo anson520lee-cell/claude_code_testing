@@ -26,6 +26,7 @@ def load_features(settings, session, cache: Path | None = None):
         return pickle.loads(cache.read_bytes())
     conn = store.connect(path(settings, "database"), path(settings, "backups_dir"))
     prices = market_data.load_universe_prices(conn, all_symbols(settings), session, max_days=1500)
+    conn.close()
     spy = prices["SPY"]["adj_close"]
     feats = {}
     for sym, etf in settings["universe"].items():
@@ -53,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     res["elapsed_seconds"] = round(time.time() - t0, 1)
     out = path(settings, "reports_dir").parent / "backtest" / session.isoformat()
     out.mkdir(parents=True, exist_ok=True)
-    (out / "crash_study.json").write_text(json.dumps(store.jsonable(res), ensure_ascii=False, indent=1), encoding="utf-8")
+    store.write_atomic(out / "crash_study.json", json.dumps(store.jsonable(res), ensure_ascii=False, indent=1))
     print(f"Done in {res['elapsed_seconds']} s -> {out}/crash_study.json")
     return 0
 

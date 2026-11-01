@@ -30,7 +30,8 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-AUTO_PATH = Path(__file__).resolve().parents[2] / "config" / "universe_auto.yaml"
+AUTO_PATH = Path(__file__).resolve().parents[2] / "config" / "universe_auto.yaml"            # generated (git-ignored)
+DEFAULT_AUTO_PATH = Path(__file__).resolve().parents[2] / "config" / "universe_auto.default.yaml"  # shipped copy
 SECTOR_ETF = {
     "Technology": "XLK", "Communication Services": "XLC", "Consumer Cyclical": "XLY", "Consumer Defensive": "XLP",
     "Energy": "XLE", "Financial Services": "XLF", "Healthcare": "XLV", "Industrials": "XLI",
@@ -136,6 +137,12 @@ def build_universe(settings: dict[str, Any], downloader: Any = None, screener: C
     core = list(settings.get("core_universe") or settings["universe"])
     room = max(0, max_size - len(core))
     chosen = [s for s in passed if s not in core][:room]
+    previous = (load_auto(path) or {}).get("symbols") or {}
+    expected = min(len(previous), room)          # a deliberately lower max_size is not a glitch
+    if expected and len(chosen) < 0.5 * expected:
+        # a screener / download glitch must not wipe out half the universe: keep the previous list
+        raise RuntimeError(f"only {len(chosen)} names passed (previous list {len(previous)}) - looks like a data glitch, "
+                           "keeping the previous universe")
     say(f"{len(passed)} pass beta >= {uf['min_beta']}, volatility >= {uf['min_hv60'] * 100:.0f}%, dollar volume >= ${min_dv / 1e6:.0f}M; "
         f"adding {len(chosen)} (core list {len(core)}, cap {max_size}). Reading industries...")
 
@@ -170,6 +177,10 @@ def build_universe(settings: dict[str, Any], downloader: Any = None, screener: C
 
 
 def load_auto(path: Path = AUTO_PATH) -> dict[str, Any] | None:
+    """The generated universe; falls back to the shipped default until the first monthly rebuild writes one
+    (the generated file is git-ignored so a rebuild never blocks ``git pull``)."""
+    if not path.exists() and path == AUTO_PATH and DEFAULT_AUTO_PATH.exists():
+        path = DEFAULT_AUTO_PATH
     if not path.exists():
         return None
     try:

@@ -15,12 +15,13 @@ Alert kinds (checked on every daily bar after the alert was created, first hit w
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import numpy as np
 
 from src.daily.store import utc_now
+from src.market.calendar import NEW_YORK
 
 ALERT_KINDS = {"above": "Trades above", "below": "Trades below", "close_above": "Closes above", "close_below": "Closes below"}
 JOURNAL_FIELDS = ("symbol", "direction", "setup", "entry_date", "entry_price", "stop", "target", "shares",
@@ -157,11 +158,23 @@ def _hit(kind: str, level: float, bar: tuple) -> float | None:
     return None
 
 
+def watch_from(created_at: str) -> str:
+    """Bars dated after this session are checked. The cut-off is the NEW YORK date of creation, not the UTC
+    date: an alert set during the Asian day (= the US night before) must still watch the next US session.
+    Set before the 09:30 ET open, the same day's session counts too."""
+    try:
+        ts = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+    except ValueError:
+        return str(created_at)[:10]
+    ny = (ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)).astimezone(NEW_YORK)
+    return (ny.date() - timedelta(days=1)).isoformat() if (ny.hour, ny.minute) < (9, 30) else ny.date().isoformat()
+
+
 def check_alerts(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Trigger active alerts against stored bars dated after the alert's creation. Returns newly triggered."""
     fired = []
     for a in _rows(conn, "SELECT * FROM price_alerts WHERE active = 1"):
-        since = a["created_at"][:10]
+        since = watch_from(a["created_at"])
         bars = conn.execute("SELECT date, open, high, low, close FROM price_data WHERE ticker = ? AND date > ? ORDER BY date",
                             (a["symbol"], since)).fetchall()
         for bar in bars:

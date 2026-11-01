@@ -176,7 +176,14 @@ news:
   enabled: true
   cache_minutes: 50           # each feed is re-fetched at most this often (hourly job + page views)
   max_age_days: 21
-  hourly_refresh: true        # the hourly background job refreshes news even when no new session closed
+  hourly_refresh: true        # the hourly background job refreshes candidates' + market news every hour
+  universe_every_hours: 6     # ...and the whole universe at most this often (politeness to the free feeds)
+
+# Disk housekeeping after every daily run (prices, journal, alerts and history are never touched)
+housekeeping:
+  keep_plain_sessions: 30     # older daily snapshots are gzip-compressed (~8x smaller, still viewable)
+  keep_backtests: 6           # monthly backtest folders kept
+  news_days: 180              # headlines kept in the database
 
 # Position sizing / total heat on the portfolio page (defaults; the page lets you change them).
 portfolio:

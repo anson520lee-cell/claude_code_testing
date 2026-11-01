@@ -10,9 +10,12 @@ Responses are cached on disk per calendar day (data/cache/sec/), so a re-run is 
 
 from __future__ import annotations
 
+import io
 import json
 import logging
+import os
 import time
+import zipfile
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -26,6 +29,19 @@ SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
 FILING_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{document}"
 MIN_INTERVAL = 0.12  # seconds between requests (< 10 per second)
+
+
+def _write(target: Path, content: bytes | str) -> None:
+    """Temporary file + rename: an interrupted run never leaves half a cached file behind."""
+    tmp = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    tmp.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+    os.replace(tmp, target)
+
+
+def _complete(name: str, content: bytes | None) -> bool:
+    if not content:
+        return False
+    return zipfile.is_zipfile(io.BytesIO(content)) if name.endswith(".zip") else True
 
 
 class SecClient:
@@ -48,7 +64,10 @@ class SecClient:
         path = self.cache_dir / "files" / cache_name
         missing = path.with_suffix(path.suffix + ".missing")
         if path.exists():
-            return path.read_bytes()
+            content = path.read_bytes()
+            if _complete(cache_name, content):
+                return content
+            path.unlink(missing_ok=True)          # truncated download from an earlier run: fetch it again
         if self.offline or (missing.exists() and missing.read_text().strip() == self.today.isoformat()):
             return None
         wait = MIN_INTERVAL - (time.monotonic() - self._last)
@@ -68,8 +87,11 @@ class SecClient:
             self.last_error = f"{type(exc).__name__}: {exc}"
             logger.warning("SEC file request failed (%s): %s", url, exc)
             return None
+        if not _complete(cache_name, response.content):
+            self.last_error = f"incomplete download: {url}"
+            return None
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(response.content)
+        _write(path, response.content)
         return response.content
 
     def _get_json(self, url: str, cache_name: str, max_age_days: int = 0) -> Any | None:
@@ -77,7 +99,10 @@ class SecClient:
         path = self.cache_dir / f"{cache_name}.json"
         meta = self.cache_dir / f"{cache_name}.date"
         if path.exists() and meta.exists():
-            cached = date.fromisoformat(meta.read_text().strip())
+            try:
+                cached = date.fromisoformat(meta.read_text().strip())
+            except ValueError:
+                cached = date.min
             if self.offline or (self.today - cached).days <= max_age_days:
                 try:
                     return json.loads(path.read_text())
@@ -101,10 +126,13 @@ class SecClient:
             self.last_error = f"{type(exc).__name__}: {exc}"
             logger.warning("SEC request failed (%s): %s", url, exc)
             if path.exists():
-                return json.loads(path.read_text())  # stale copy is better than nothing (dates are kept)
+                try:
+                    return json.loads(path.read_text())  # stale copy is better than nothing (dates are kept)
+                except (OSError, ValueError):
+                    return None
             return None
-        path.write_text(json.dumps(data))
-        meta.write_text(stamp)
+        _write(path, json.dumps(data))
+        _write(meta, stamp)
         return data
 
     def cik(self, ticker: str) -> int | None:

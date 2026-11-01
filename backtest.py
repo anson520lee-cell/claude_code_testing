@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
                     db.upsert_stock(conn, sym)
                     db.upsert_prices(conn, sym, frame, market_data.SOURCE)
     prices = market_data.load_universe_prices(conn, symbols, session, max_days=300 * args.years)
+    conn.close()
     if "SPY" not in prices:
         print("No SPY data - cannot backtest.", file=sys.stderr)
         return 3
@@ -80,8 +81,8 @@ def main(argv: list[str] | None = None) -> int:
                 "survivorship_note": "Only stocks in today's universe are tested (survivorship bias), so results may look better than reality."})
     out = path(settings, "reports_dir").parent / "backtest" / session.isoformat()
     out.mkdir(parents=True, exist_ok=True)
-    (out / "backtest.json").write_text(json.dumps(store.jsonable(res), ensure_ascii=False, indent=1), encoding="utf-8")
-    (out.parent / "latest.json").write_text(json.dumps({"session": session.isoformat()}), encoding="utf-8")
+    store.write_atomic(out / "backtest.json", json.dumps(store.jsonable(res), ensure_ascii=False, indent=1))
+    store.write_atomic(out.parent / "latest.json", json.dumps({"session": session.isoformat()}))
     print("\n".join(["", "= Verdict =", *res.get("verdict", [])]))
     print(f"\nDone in {res['elapsed_seconds']} s -> {out}/backtest.json")
     return 0

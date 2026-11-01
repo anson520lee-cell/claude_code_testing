@@ -117,13 +117,22 @@ def _run_daily(settings, now, session, offline, downloader, enrichment, fred_get
         result["elapsed_seconds"] = round(time.time() - t0, 1)
         out_dir = write_outputs(result, settings)
         status = "success_with_warnings" if warnings else "success"
-        store.finish_run(conn, run_id, status, regime_label=result["regime"]["label"],
+        # record the session that was ACTUALLY analysed: when the provider had not published the requested
+        # session yet (or the network was down) the run fell back to an older one, and --if-new must retry
+        store.finish_run(conn, run_id, status, session_date=result["session"]["date"], regime_label=result["regime"]["label"],
                          regime_score=result["regime"]["composite"], n_universe=len(settings["universe"]),
                          n_usable=result["quality"]["n_usable_stocks"],
                          n_candidates=len(result["candidates"]["long"]) + len(result["candidates"]["short"]),
                          report_path=str(out_dir), warnings=warnings)
         result["status"] = status
         result["output_dir"] = str(out_dir)
+        try:
+            from src.daily import housekeeping
+            hk = housekeeping.run(settings, conn)
+            if any(hk.values()):
+                say("Housekeeping: " + ", ".join(f"{k} {v}" for k, v in hk.items() if v))
+        except Exception as exc:  # noqa: BLE001 - never fail a finished run over clean-up
+            logger.warning("housekeeping failed: %s", exc)
         say(f"Done in {result['elapsed_seconds']}s -> {out_dir}")
         return result
     except Exception as exc:
@@ -140,11 +149,34 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
     sc = settings["scanner"]
 
     # 2. data update
-    say(f"Updating prices for {len(symbols)} symbols{' (offline: skipped)' if offline else ''}")
-    update = market_data.update_prices(conn, symbols, target, settings, downloader=downloader, offline=offline,
+    # symbols with an active price alert or an open journal trade keep updating even after they leave the
+    # universe (monthly rebuild), so alerts still trigger and open trades stay marked to market
+    try:
+        tracked = {r[0] for r in conn.execute("SELECT symbol FROM price_alerts WHERE active = 1 UNION "
+                                              "SELECT symbol FROM trade_journal WHERE status != 'closed'")}
+    except Exception:  # noqa: BLE001
+        tracked = set()
+    extra = sorted(tracked - set(symbols))
+    say(f"Updating prices for {len(symbols) + len(extra)} symbols{' (offline: skipped)' if offline else ''}")
+    update = market_data.update_prices(conn, symbols + extra, target, settings, downloader=downloader, offline=offline,
                                        progress=say)
-    if update["failed"]:
-        warnings.append(f"No fresh data for {len(update['failed'])} symbol(s): {', '.join(update['failed'][:15])}")
+    failed = update["failed"]
+    if not offline and len(failed) >= max(20, 0.8 * (len(symbols) + len(extra))):
+        warnings.append("Almost every price download failed: no internet connection, or Yahoo changed its site and "
+                        "yfinance needs an update (the hourly job upgrades it automatically).")
+    elif failed:
+        # names with no bar for 3+ weeks were delisted / acquired / renamed: they are excluded by the quality
+        # check; the monthly rebuild drops them from the generated universe (core list: edit terminal.yaml)
+        cutoff = (target - timedelta(days=21)).isoformat()
+        dead = [s for s in failed
+                if (last := conn.execute("SELECT MAX(date) FROM price_data WHERE ticker = ?", (s,)).fetchone()[0])
+                and str(last)[:10] < cutoff]
+        rest = [s for s in failed if s not in dead]
+        if rest:
+            warnings.append(f"No fresh data for {len(rest)} symbol(s): {', '.join(rest[:15])}")
+        if dead:
+            warnings.append(f"No data for 3+ weeks (probably delisted, acquired or renamed - skipped): "
+                            f"{', '.join(dead[:15])}")
     if update["readjusted"]:
         warnings.append(f"Corporate action detected (history re-downloaded): {', '.join(update['readjusted'])}")
     prices = market_data.load_universe_prices(conn, symbols, target)
@@ -363,7 +395,12 @@ def _run(conn, settings, target, offline, downloader, enrichment, fred_getter, s
             "leveraged": symbol in set(settings.get("leveraged_etfs") or []),
             "data_quality": status_by_symbol.get(symbol)})
 
-    events = macro_events(target, _load_macro())
+    configured = _load_macro()
+    events = macro_events(target, configured)
+    fomc = sorted(str(e.get("date")) for e in configured if "FOMC" in str(e.get("event", "")))
+    if fomc and fomc[-1] < (target + timedelta(days=45)).isoformat():
+        warnings.append(f"config/macro_events.yaml lists FOMC dates only up to {fomc[-1]}: add the next year's meetings "
+                        "(federalreserve.gov/monetarypolicy/fomccalendars.htm) so rate decisions keep showing as events.")
     upcoming_earnings = sorted(
         [{"symbol": s, **d["catalysts"]["next_earnings"]} for s, d in deep.items()
          if d.get("catalysts", {}).get("next_earnings")], key=lambda e: e["date"])
@@ -485,6 +522,9 @@ def refresh_news(conn, settings: dict[str, Any], symbols: list[str], final: dict
             news_mod.save(conn, sym, items)
         market = client.market_news()
         news_mod.save(conn, "_MARKET", market)
+        marker = path(settings, "cache_dir") / "news" / "last_universe_refresh"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
         for c in listed:
             items = per.get(c["symbol"], [])
             c["news"] = {**news_mod.summarize(items), "items": items[:12]}
@@ -530,9 +570,10 @@ def write_outputs(result: dict[str, Any], settings: dict[str, Any]) -> Path:
     out_dir = path(settings, "reports_dir") / result["session"]["date"]
     out_dir.mkdir(parents=True, exist_ok=True)
     data = store.jsonable(result)
-    (out_dir / "data.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
-    (out_dir / "report.md").write_text(build_markdown(data), encoding="utf-8")
-    (out_dir / "report.html").write_text(build_html(data), encoding="utf-8")
-    latest = path(settings, "reports_dir") / "latest.json"
-    latest.write_text(json.dumps({"session": result["session"]["date"], "path": str(out_dir)}), encoding="utf-8")
+    (out_dir / "data.json.gz").unlink(missing_ok=True)       # a re-run of an old, compressed session
+    store.write_atomic(out_dir / "data.json", json.dumps(data, indent=1))
+    store.write_atomic(out_dir / "report.md", build_markdown(data))
+    store.write_atomic(out_dir / "report.html", build_html(data))
+    store.write_atomic(path(settings, "reports_dir") / "latest.json",
+                       json.dumps({"session": result["session"]["date"], "path": str(out_dir)}))
     return out_dir

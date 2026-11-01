@@ -115,7 +115,7 @@ function applyTheme(t) { document.documentElement.dataset.theme = t; localStorag
 $("#theme-btn").onclick = () => { applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); route(); };
 $("#jump").onsubmit = (e) => { e.preventDefault(); const v = $("#jump-input").value.trim().toUpperCase(); if (v) location.hash = `#/ticker/${v}`; };
 $("#run-btn").onclick = async () => {
-  if (window.__PREVIEW__) { const b = $("#banner"); b.classList.remove("hidden"); b.textContent = "This is a read-only preview of the 2026-10-30 analysis; data cannot be refreshed here. Use the Swing Terminal app in the Dock on your Mac to update."; return; }
+  if (window.__PREVIEW__) { const b = $("#banner"); b.classList.remove("hidden"); b.textContent = `This is a read-only preview of the ${state.session || "latest"} analysis; data cannot be refreshed here. Use the Swing Terminal app in the Dock on your Mac to update.`; return; }
   if (!confirm("Run the daily pipeline now? It downloads market data and takes a few minutes.")) return;
   try { await api("/api/run", { method: "POST" }); watchRun(false); } catch (err) { alert(err.message); }
 };

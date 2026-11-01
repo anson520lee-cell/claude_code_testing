@@ -1,8 +1,10 @@
-# Market data and fundamentals (Yahoo Finance, unofficial API)
+# Market data and fundamentals (Yahoo Finance, unofficial API) - left open so a re-install picks up the
+# fixes yfinance ships whenever Yahoo changes its site
 yfinance>=1.7
-# Data handling and maths
-pandas>=2.0
-numpy>=1.24
+# Data handling and maths - capped below the next major versions, which remove APIs this code relies on
+# (tested with pandas 3.0 and numpy 2.5; pandas 4 / numpy 3 must be tested before raising the caps)
+pandas>=2.0,<4
+numpy>=1.24,<3
 # Charts
 matplotlib>=3.7
 # Reading config/settings.yaml
@@ -10,8 +12,8 @@ PyYAML>=6.0
 # Running the automated tests
 pytest>=7.0
 # Research terminal web dashboard (serve.py)
-fastapi>=0.110
-uvicorn>=0.29
+fastapi>=0.110,<1
+uvicorn>=0.29,<1
 # Downloads from SEC EDGAR / FINRA / FRED
 requests>=2.31
 # FastAPI test client (tests only)
