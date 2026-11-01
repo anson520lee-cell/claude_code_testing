@@ -139,6 +139,23 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
         markers.sort(key=lambda m: m["time"])
         levels = support_resistance(f, 60, 3)
         last = f.iloc[-1]
+        prev_close = float(f["close"].iloc[-2]) if len(f) > 1 else None
+        hi, lo, cl, op, vo = (float(last[k]) for k in ("high", "low", "close", "open", "volume"))
+        year = f.tail(252)
+        quote = {"open": op, "high": hi, "low": lo, "close": cl, "prev_close": prev_close,
+                 "change": cl - prev_close if prev_close else None, "change_pct": cl / prev_close - 1 if prev_close else None,
+                 "volume": vo, "dollar_volume": vo * (hi + lo + cl) / 3, "avg_price": (hi + lo + cl) / 3,
+                 "amplitude": (hi - lo) / prev_close if prev_close else None, "volume_ratio": last.get("volume_ratio"),
+                 "high52": float(year["high"].max()), "low52": float(year["low"].min()),
+                 "hist_high": float(f["high"].max()), "hist_low": float(f["low"].min()),
+                 "hist_since": f.index[0].strftime("%Y-%m-%d"), "beta": last.get("beta120"), "hv20": last.get("hv20"),
+                 "hv60": last.get("hv60"), "atr": last.get("atr")}
+        from src.analyst.techniques import volume_profile
+        try:
+            vp = volume_profile(f, 120)
+            vp = {k: vp.get(k) for k in ("poc", "vah", "val", "window", "hvn", "vacuum")} if vp.get("poc") else None
+        except Exception:  # noqa: BLE001 - optional overlay
+            vp = None
         return store.jsonable({
             "symbol": symbol, "sector_etf": etf, "candles": candles, "volume": volume,
             "ema9": series("ema9"), "ema21": series("ema21"), "ema50": series("ema50"), "ema200": series("ema200"),
@@ -152,7 +169,7 @@ def create_app(settings: dict[str, Any] | None = None) -> FastAPI:
             "last": {k: last.get(k) for k in ("close", "atr", "atr_pct", "rsi6", "rsi14", "trend", "swing_structure",
                                               "volume_ratio", "extension_atr", "hv20", "high252", "low252",
                                               "from_52w_high", "rel_20d", "rel_60d", "swing_condition", "structure")},
-            "as_of": f.index[-1].strftime("%Y-%m-%d"),
+            "as_of": f.index[-1].strftime("%Y-%m-%d"), "quote": quote, "volume_profile": vp,
         })
 
     @app.get("/api/minicharts")

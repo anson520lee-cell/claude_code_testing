@@ -445,7 +445,8 @@ def enrich(symbol: str, raw: dict[str, Any], f: pd.DataFrame, session: date, set
         "available": False, "reason": "未取得 SEC 交收失敗（FTD）數據：需要在 .env 設定 SEC_USER_AGENT。"}
     info = raw.get("info") or {}
     out["profile"] = {k: info.get(k) for k in ("longName", "sector", "industry", "marketCap", "exchange",
-                                               "beta", "fullTimeEmployees", "website")}
+                                               "beta", "fullTimeEmployees", "website", "sharesOutstanding", "floatShares",
+                                               "trailingPE", "forwardPE", "priceToBook", "dividendYield", "trailingAnnualDividendYield")}
     return out
 
 

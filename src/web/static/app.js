@@ -196,7 +196,7 @@ function chartBlock(p, big = 420) {
 const fmtVol = (v) => (!isNum(v) ? "n/a" : v >= 1e9 ? (v / 1e9).toFixed(2) + "B" : v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : (v / 1e3).toFixed(1) + "K");
 const timeKey = (t) => (typeof t === "object" && t ? `${t.year}-${String(t.month).padStart(2, "0")}-${String(t.day).padStart(2, "0")}` : t);
 
-function renderTickerCharts(d, c, p = "c", bucket = undefined, big = 420) {
+function renderTickerCharts(d, c, p = "c", bucket = undefined, big = 420, sub = 104) {
   const P = PAL(), dp = (d.last && d.last.close < 10) ? 3 : 2;
   const opt = { bucket };
   const price = makeChart($(`#${p}-price`), big, { ...opt, timeVisible: false });
@@ -207,20 +207,21 @@ function renderTickerCharts(d, c, p = "c", bucket = undefined, big = 420) {
   line(price, d.ema250, P.ema250, 1.4); line(price, d.ema200, P.ema200, 1.4); line(price, d.ema50, P.ema50, 1.4); line(price, d.ema21, P.ema21, 1.5); line(price, d.ema9, P.ema9, 1.5);
   const recent = new Set(d.markers.slice(-3).map((m) => m.time + m.setup));
   candles.setMarkers(d.markers.map((m) => ({ time: m.time, position: m.direction === "long" ? "belowBar" : "aboveBar", color: m.direction === "long" ? P.up : P.down, shape: m.direction === "long" ? "arrowUp" : "arrowDown", text: recent.has(m.time + m.setup) ? m.setup.replace("_", " ") : "" })));
+  if (d.volume_profile) { price.timeScale().applyOptions({ rightOffset: 9 }); vpOverlay(price, candles, $(`#${p}-price`), d.volume_profile); }
   if (c) {
     const pl = (v, color, title, style = 0) => candles.createPriceLine({ price: v, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
     const pp = c.plan;
     pl(pp.entry, P.neutral, pp.conditional_entry ? "trigger" : "ref", 2); pl(pp.stop, P.down, "stop"); pl(pp.target1, P.up, "T1"); pl(pp.target2, P.up, "T2", 2);
   }
   const upAt = new Map(d.candles.map((k) => [k.time, k.close >= k.open]));
-  const vol = makeChart($(`#${p}-vol`), 104, { ...opt, timeVisible: false });
+  const vol = makeChart($(`#${p}-vol`), sub, { ...opt, timeVisible: false });
   vol.addHistogramSeries({ priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false })
     .setData(d.volume.map((x) => ({ time: x.time, value: x.value, color: upAt.get(x.time) ? P.up : P.down })));
   line(vol, d.mavol20, P.neutral, 1.2);
-  const macd = makeChart($(`#${p}-macd`), 104, { ...opt, timeVisible: false });
+  const macd = makeChart($(`#${p}-macd`), sub, { ...opt, timeVisible: false });
   macd.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false }).setData(d.macd_hist.map((x) => ({ ...x, color: x.value >= 0 ? P.up : P.down })));
   line(macd, d.macd, P.dif, 1.3); line(macd, d.macd_signal, P.dea, 1.3);
-  const rsi = makeChart($(`#${p}-rsi`), 104, opt);
+  const rsi = makeChart($(`#${p}-rsi`), sub + 20, opt);
   const r6 = line(rsi, d.rsi6, P.rsi6, 1.3); line(rsi, d.rsi14, P.rsi14, 1.3);
   [80, 50, 20].forEach((v) => r6.createPriceLine({ price: v, color: cssVar("--line2"), lineWidth: 1, lineStyle: 2, axisLabelVisible: false }));
   const all = [price, vol, macd, rsi];
@@ -504,26 +505,8 @@ function quickFacts(c, deep) {
 }
 
 function focusHTML(list, i) {
-  const c = list[i], t = c.technical, deep = state.snap.deep_dive[c.symbol] || {};
-  const name = (deep.profile || {}).longName || "";
-  return `<div class="focus-body">
-    <div class="focus-head">
-      <div><div class="eyebrow">${esc(tr(c.direction))} · ${String(c.rank).padStart(2, "0")} / <b>${esc(c.setup_name)}</b></div>
-        <div class="display sym">${esc(c.symbol)} <em style="font-size:.42em;color:var(--muted)">${esc(name)}</em></div></div>
-      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-        <div style="text-align:right"><div class="px">${num(t.close)}</div><div class="${cls(t.return_1d)}" style="font-weight:650">今日 ${pct(t.return_1d, 2)}</div></div>
-        ${ring(c.score, 58)}${tier(c.tier)}
-        <div class="focus-tools"><button data-act="prev" aria-label="上一檔" title="上一檔（←）">‹</button><button data-act="next" aria-label="下一檔" title="下一檔（→）">›</button>
-          <button class="wide" data-act="full">完整研究頁 ↗</button><button data-act="close" aria-label="關閉" title="關閉（Esc）">✕</button></div>
-      </div></div>
-    ${c.analyst ? analystPanel(c.analyst, { compact: true }) : '<div id="f-analyst"></div>'}
-    <div class="card" style="margin-top:22px">${chartBlock("f", 380)}</div>
-    <div style="margin:14px 0">${quickFacts(c, deep)}</div>
-    ${c.analyst ? `<div class="eyebrow" style="margin-top:22px">詳細分析</div><div class="sections">${c.analyst.sections.map((x) => {
-      const sig = x.signals; return `<div class="sec"><h4>${esc(x.title)}</h4>${x.body.map((t, i) => `<p>${sig ? `<span class="sig ${sig[i] && sig[i].signal > 0 ? "up" : sig[i] && sig[i].signal < 0 ? "down" : "muted"}">${sig[i] && sig[i].signal > 0 ? "+" : sig[i] && sig[i].signal < 0 ? "−" : "·"}</span>` : ""}${esc(t)}</p>`).join("")}</div>`; }).join("")}</div>` : ""}
-    <div class="grid g-side"><div class="grid" style="align-content:start">${candidatePanels(c, deep)}</div>
-      <div class="grid" style="align-content:start">${planPanel(c)}${earningsPanel(deep.earnings_study)}${deep.catalysts ? catalystsPanel(deep.catalysts) : ""}${ftdPanel(deep.ftd)}</div></div>
-  </div>`;
+  const c = list[i], deep = state.snap.deep_dive[c.symbol] || {};
+  return `<div class="focus-body">${stockShell(c.symbol, c, deep, { focus: true, prefix: "f", big: 460 })}</div>`;
 }
 
 async function fillFocus(bd, list, i) {
@@ -539,11 +522,8 @@ async function fillFocus(bd, list, i) {
     else if (act === "full") { const sym = list[i].symbol; closeFocus(true); location.hash = `#/ticker/${sym}`; }
     else fillFocus(bd, list, (i + (act === "next" ? 1 : -1) + list.length) % list.length);
   }));
-  if (!list[i].analyst) { const el = panel.querySelector("#f-analyst"); if (el) loadAnalyst(list[i].symbol, el); }
-  try {
-    const d = await api(`/api/chart/${encodeURIComponent(list[i].symbol)}?days=160&session=${state.session}`);
-    if (Number(bd.dataset.i) === i && bd.isConnected) renderTickerCharts(d, list[i], "f", state.focusCharts, 380);
-  } catch (err) { const el = panel.querySelector("#f-price"); if (el) el.innerHTML = `<div class="empty">無法載入圖表：${esc(err.message)}</div>`; }
+  const c = list[i];
+  fillStock(c.symbol, c, state.snap.deep_dive[c.symbol] || {}, "f", state.focusCharts, 460, () => Number(bd.dataset.i) === i && bd.isConnected);
 }
 
 function openFocus(list, i, fromEl) {
@@ -586,6 +566,171 @@ function closeFocus(instant = false) {
   setTimeout(() => bd.remove(), 320);
 }
 
+// ------------------------------------------------------------------ stock page (focus view + full page share one layout)
+// Top: big K-line (left) + Futu-style quote (right). Then the key points only: verdict, plan numbers, top
+// bull / bear factors. Everything else sits in collapsed sections the user opens on demand.
+const VPC = { va: "rgba(167,139,250,.42)", vah: "#22d3ee", poc: "#f472b6", val: "#fb923c" };   // value area / VAH / POC / VAL
+const fmtCN = (v) => (!isNum(v) ? "—" : Math.abs(v) >= 1e12 ? (v / 1e12).toFixed(2) + "萬億" : Math.abs(v) >= 1e8 ? (v / 1e8).toFixed(2) + "億"
+  : Math.abs(v) >= 1e4 ? (v / 1e4).toFixed(2) + "萬" : num(v, 0));
+const clip = (t, n = 64) => { t = String(t || ""); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+
+function vpOverlay(chart, series, el, vp) {
+  if (!vp || !isNum(vp.poc)) return;
+  el.style.position = "relative";
+  const box = document.createElement("div");
+  box.className = "vp-strip";
+  box.innerHTML = `<i class="va"></i><i class="vah"></i><i class="poc"></i><i class="val"></i>`;
+  el.appendChild(box);
+  const [va, vah, poc, val] = box.querySelectorAll("i");
+  const place = () => {
+    if (chart._gone) return;
+    const y = (p) => series.priceToCoordinate(p);
+    const yh = y(vp.vah), yl = y(vp.val), yp = y(vp.poc);
+    const w = el.clientWidth - chart.priceScale("right").width();
+    box.style.left = `${Math.max(0, w - 64)}px`;   // in the right-offset gap, clear of the price-line titles
+    const set = (node, top, h) => { if (top === null || !isFinite(top)) { node.style.display = "none"; return; } node.style.display = ""; node.style.top = `${top}px`; node.style.height = `${h}px`; };
+    if (yh !== null && yl !== null) set(va, Math.min(yh, yl), Math.max(2, Math.abs(yl - yh))); else va.style.display = "none";
+    set(vah, yh - 1, 2); set(val, yl - 1, 2); set(poc, yp - 1.5, 3);
+  };
+  const line = (price, color, title) => series.createPriceLine({ price, color, lineWidth: 1, lineStyle: 3, lineVisible: false, axisLabelVisible: true, title });
+  line(vp.vah, VPC.vah, "VAH"); line(vp.poc, VPC.poc, "POC"); line(vp.val, VPC.val, "VAL");
+  const tick = () => requestAnimationFrame(place);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(tick);
+  chart.subscribeCrosshairMove(tick);
+  new ResizeObserver(tick).observe(el);
+  setTimeout(place, 60);
+}
+
+function quoteHTML(d, deep, c, uni) {
+  const q = d.quote || {}, prof = deep.profile || {}, pos = deep.positioning || {}, fm = (deep.fundamentals || {}).metrics || {}, o = deep.options || {};
+  const pc = q.prev_close, col = (v) => (isNum(v) && isNum(pc) ? (v > pc ? "up" : v < pc ? "down" : "") : "");
+  const shares = prof.sharesOutstanding || pos.shares_outstanding || fm.shares_outstanding;
+  const flt = prof.floatShares || pos.float_shares;
+  const cap = prof.marketCap || (uni || {}).market_cap || fm.market_cap || (isNum(shares) ? shares * q.close : null);
+  const pe = isNum(prof.trailingPE) ? num(prof.trailingPE, 1) : isNum(fm.pe_ttm) ? (fm.pe_ttm > 0 ? num(fm.pe_ttm, 1) : "虧損") : isNum(fm.eps_ttm) && fm.eps_ttm < 0 ? "虧損" : "—";
+  const fpe = isNum(prof.forwardPE) ? (prof.forwardPE > 0 ? num(prof.forwardPE, 1) : "虧損") : "—";
+  const dy = prof.trailingAnnualDividendYield;
+  const sinceY = (q.hist_since || "").slice(0, 4);
+  const e = (deep.catalysts || {}).next_earnings;
+  const rows = [
+    ["最高", num(q.high), col(q.high)], ["最低", num(q.low), col(q.low)],
+    ["開市", num(q.open), col(q.open)], ["前收", num(pc), "muted"],
+    ["成交量", fmtCN(q.volume), ""], ["成交額", fmtCN(q.dollar_volume), ""],
+    ["市值", fmtCN(cap), ""], ["總股本", fmtCN(shares), ""],
+    ["流通值", fmtCN(isNum(flt) ? flt * q.close : null), ""], ["流通股", fmtCN(flt), ""],
+    ["市盈率 TTM", pe, ""], ["市盈率（預測）", fpe, ""],
+    ["市淨率", num(prof.priceToBook, 2), ""], ["股息率 TTM", isNum(dy) && dy > 0 ? pct(dy, 2, false) : "—", ""],
+    ["量比", num(q.volume_ratio, 2), ""], ["振幅", pct(q.amplitude, 2, false), ""],
+    ["52 週最高", num(q.high52), "up"], ["52 週最低", num(q.low52), "down"],
+    [`${sinceY ? sinceY + " 年起" : "歷史"}最高`, num(q.hist_high), "up"], [`${sinceY ? sinceY + " 年起" : "歷史"}最低`, num(q.hist_low), "down"],
+    ["均價（估算）", num(q.avg_price), col(q.avg_price)], ["換手率", isNum(flt) && flt > 0 ? pct(q.volume / flt, 2, false) : "—", ""],
+    ["Beta", num(q.beta, 3), ""], ["IV", o.available ? pct(o.atm_iv, 2, false) : "—", ""],
+    ["IV Rank", isNum(o.iv_rank) ? num(o.iv_rank, 0) : "—", ""], ["做空佔流通", pct(pos.short_percent_float, 1, false), pos.short_percent_float >= 0.15 ? "warn" : ""],
+    ["ATR(14)", num(q.atr), ""], ["下次財報", e ? `${e.date.slice(5)}（${e.sessions_until} 日）` : "—", e && e.sessions_until <= 7 ? "warn" : ""],
+  ];
+  return `<div class="q-top"><div class="q-px ${cls(q.change)}">${num(q.close, q.close < 10 ? 3 : 2)}<span class="q-arrow">${q.change > 0 ? "↑" : q.change < 0 ? "↓" : ""}</span></div>
+      <div class="q-ch ${cls(q.change)}">${isNum(q.change) ? (q.change > 0 ? "+" : "") + num(q.change, q.close < 10 ? 3 : 2) : ""}　${pct(q.change_pct, 2)}</div></div>
+    <div class="q-time">收盤價 ${esc(d.as_of)} 16:00（美東）</div>
+    <div class="q-grid">${rows.map(([k, v, cl]) => `<div><span>${k}</span><b class="${cl}">${v === "n/a" || v === "n/a%" ? "—" : v}</b></div>`).join("")}</div>
+    ${isNum(o.iv_rank) ? "" : `<p class="note q-note">IV Rank 需要累積 60 個交易日的引伸波幅紀錄（目前 ${o.iv_history_n ?? 0} 日）。均價以 (高 + 低 + 收) ÷ 3 估算。</p>`}`;
+}
+
+function factorLists(a) {
+  const sc = (a && a.scorecard) || [];
+  const w = (x) => x.score * x.weight;
+  const bull = sc.filter((x) => x.score >= 0.25).sort((x, y) => w(y) - w(x)).slice(0, 4);
+  const bear = sc.filter((x) => x.score <= -0.25).sort((x, y) => w(x) - w(y)).slice(0, 4);
+  const li = (x) => `<li title="${esc(x.text)}"><b>${esc(x.name)}</b><span class="${cls(x.score)}">${x.score > 0 ? "+" : ""}${x.score.toFixed(1)}</span><p>${esc(clip(x.text, 70))}</p></li>`;
+  return { bull: bull.map(li).join("") || '<li class="muted">沒有明顯的看多因素</li>', bear: bear.map(li).join("") || '<li class="muted">沒有明顯的看空因素</li>' };
+}
+
+function keyHTML(a, c) {
+  const f = factorLists(a);
+  const p = c && c.plan;
+  const pens = c ? Object.entries(c.penalties || {}).map(([k, v]) => `<span class="chip warn">${tr(k)} −${v}</span>`).join("") : "";
+  const b = state.btFull, ss = b && c && (b.selected_side || {})[c.direction];
+  const k = ss && ss.stop.startsWith("atr") ? Number(ss.stop.slice(3)) : null, sg = c && c.direction === "long" ? 1 : -1;
+  return `<section class="key">
+    ${a ? `<div class="key-head"><div class="key-bias ${biasClass(a.bias)}">${esc(a.bias)}<small>${a.bias_score > 0 ? "+" : ""}${a.bias_score.toFixed(0)} / 100 · 信心${esc(a.confidence)}</small></div>
+      <h2 class="key-hl">${esc(String(a.headline || "").replace(new RegExp("^" + a.bias + "[：:]\\s*"), ""))}</h2></div>` : '<div class="key-head"><p class="note">正在生成分析師判斷…</p></div>'}
+    ${p ? `<div class="key-plan">
+      <div><span>${p.conditional_entry ? "觸發價" : "參考進場"}</span><b>${num(p.entry)}</b></div>
+      <div><span>止損</span><b class="down">${num(p.stop)}</b><small>${pct(-Math.abs(p.entry - p.stop) / p.entry, 1)}</small></div>
+      <div><span>目標一</span><b class="up">${num(p.target1)}</b><small>${pct(Math.abs(p.target1 - p.entry) / p.entry * sg, 1)}</small></div>
+      <div><span>風險報酬</span><b>${num(p.reward_risk, 1)}R</b></div>
+      <div><span>持倉上限</span><b>${p.horizon_days} 日</b></div>
+      ${ss && k && isNum(p.atr) ? `<div class="alt"><span>回測較佳：${k} ATR 止損 + 移動止損</span><b class="down">${num(p.entry - sg * k * p.atr)}</b><small>樣本外 ${num(ss.oos.avg_r)}R</small></div>` : ""}
+    </div>` : ""}
+    <div class="key-cols"><div class="bull"><h3>看多因素</h3><ol>${f.bull}</ol></div><div class="bear"><h3>看空因素</h3><ol>${f.bear}</ol></div></div>
+    ${pens || (a && a.watch && a.watch.length) ? `<div class="key-foot">${pens}${a && a.watch ? a.watch.slice(0, 3).map((x) => `<span class="chip">留意：${esc(x)}</span>`).join("") : ""}</div>` : ""}
+  </section>`;
+}
+
+function fold(title, teaser, body, open = false) {
+  if (!body) return "";
+  return `<details class="fold"${open ? " open" : ""}><summary><span class="ft">${title}</span><span class="fs">${teaser || ""}</span></summary><div class="fold-body">${body}</div></details>`;
+}
+
+function foldsHTML(sym, c, deep, a, extra = "") {
+  const o = deep.options || {}, pos = deep.positioning || {}, cat = deep.catalysts || {}, fm = (deep.fundamentals || {}).metrics || {}, es = deep.earnings_study || {}, ftd = deep.ftd || {};
+  const e = cat.next_earnings;
+  return `<div class="folds">
+    ${fold("分析師完整報告", a ? `${a.scorecard.length} 個面向 · ${(a.techniques || {}).count || 0} 項技術分析 · 情景分析` : "", `<div class="fold-analyst">${a ? analystPanel(a) : '<p class="note">載入中…</p>'}</div>`)}
+    ${c ? fold("風險計劃 · 為什麼這樣設定", `止損 ${num(c.plan.stop)} · 目標 ${num(c.plan.target1)} / ${num(c.plan.target2)}`, planPanel(c)) : ""}
+    ${c ? fold("評分拆解 · 形態歷史", `${num(c.score, 0)} 分（扣分 ${num(c.penalty_total, 0)}）`, candidatePanels(c, deep)) : ""}
+    ${deep.earnings_study ? fold("財報反應", es.available ? (es.implied && isNum(es.implied.move_pct) ? `期權隱含 ±${pct(es.implied.move_pct, 1, false)} vs 歷史 ±${pct(es.median_abs_move, 1, false)}` : `歷史波幅中位 ±${pct(es.median_abs_move, 1, false)}`) : "沒有數據", earningsPanel(es)) : ""}
+    ${deep.options ? fold("期權", o.available ? `IV ${pct(o.atm_iv, 0, false)} · 預期波幅 ±${pct(o.expected_move_pct, 1, false)} · 認沽／認購 ${num(o.pcr_volume, 2)}` : "沒有期權數據", optionsPanel(o)) : ""}
+    ${deep.positioning ? fold("持倉 · 做空", `做空 ${pct(pos.short_percent_float, 1, false)} 流通股 · 回補 ${num(pos.days_to_cover, 1)} 日`, positioningPanel(pos)) : ""}
+    ${deep.catalysts ? fold("催化劑", e ? `下次財報 ${e.date}（${e.sessions_until} 日）` : "未有財報日期", catalystsPanel(cat)) : ""}
+    ${deep.fundamentals ? fold("基本面", deep.fundamentals.available ? `營收 ${pct(fm.revenue_yoy, 0)} · EPS ${pct(fm.eps_yoy, 0)} · 經營利潤率 ${pct(fm.operating_margin_ttm, 0, false)}` : "不可用", fundamentalsPanel(deep.fundamentals)) : ""}
+    ${deep.ftd ? fold("SEC 交收失敗（FTD）", ftd.available ? (ftd.n ? `最高 ${fmtVol(ftd.max)} 股（${pct(ftd.max_vs_adv, 1, false)} 日均量）` : "沒有紀錄") : "需要 SEC_USER_AGENT", ftdPanel(ftd)) : ""}
+    ${extra}
+  </div>`;
+}
+
+function stockShell(sym, c, deep, opts = {}) {
+  const p = opts.prefix || "c", name = (deep.profile || {}).longName || "", g = c && c.group;
+  return `<div class="sv">
+    <div class="sv-head"><div>
+        <div class="sv-sym">${esc(sym)}<span class="sv-name">${esc(name)}</span></div>
+        <div class="sv-tags">${c ? `<span class="chip ${c.direction}">${esc(tr(c.direction))}</span><span class="chip">${esc(c.setup_name)}</span>${tier(c.tier)}<span class="chip">分數 ${num(c.score, 0)}</span>` : '<span class="chip">本交易日不是候選股</span>'}
+          ${g ? `<span class="chip">${esc(g.group)} · 行業組第 ${g.rank}／${g.of}</span>` : ""}</div></div>
+      ${opts.focus ? `<div class="focus-tools"><button data-act="prev" aria-label="上一檔" title="上一檔（←）">‹</button><button data-act="next" aria-label="下一檔" title="下一檔（→）">›</button>
+        <button class="wide" data-act="full">完整研究頁 ↗</button><button data-act="close" aria-label="關閉" title="關閉（Esc）">✕</button></div>` : ""}</div>
+    <div class="sv-top">
+      <div class="sv-chart">${chartBlock(p, opts.big || 480)}
+        <div class="vp-legend"><span><i style="background:${VPC.va}"></i>價值區 VA（70% 成交）</span><span><i style="background:${VPC.vah}"></i>VAH 價值區上沿</span>
+          <span><i style="background:${VPC.poc}"></i>POC 成交最密集</span><span><i style="background:${VPC.val}"></i>VAL 價值區下沿</span><span id="${p}-vp-txt" class="muted"></span></div></div>
+      <aside class="sv-quote" id="${p}-quote"><p class="note">載入報價…</p></aside>
+    </div>
+    <div id="${p}-key">${keyHTML(c && c.analyst, c)}</div>
+    <div id="${p}-folds">${foldsHTML(sym, c, deep, c && c.analyst, opts.extra || "")}</div>
+  </div>`;
+}
+
+async function fillStock(sym, c, deep, p, bucket, big, isCurrent = () => true) {
+  const uni = state.snap.universe.find((u) => u.symbol === sym);
+  if (!(c && c.analyst)) {
+    api(`/api/analyst/${encodeURIComponent(sym)}?session=${state.session}&live=true`).then((r) => {
+      if (!isCurrent() || !r || !r.note) return;
+      const k = $(`#${p}-key`); if (k) k.innerHTML = keyHTML(r.note, c);
+      const fa = document.querySelector(`#${p}-folds .fold-analyst`); if (fa) fa.innerHTML = analystPanel(r.note);
+    }).catch(() => { const k = $(`#${p}-key .key-head`); if (k) k.innerHTML = '<p class="note">無法生成分析師判斷。</p>'; });
+  }
+  try {
+    const d = await api(`/api/chart/${encodeURIComponent(sym)}?days=180&session=${state.session}`);
+    if (!isCurrent()) return null;
+    renderTickerCharts(d, c, p, bucket, big, 74);
+    $(`#${p}-quote`).innerHTML = quoteHTML(d, deep, c, uni);
+    const vp = d.volume_profile, t = $(`#${p}-vp-txt`);
+    if (t) t.textContent = vp ? `近 ${vp.window} 日：VA ${num(vp.val)}–${num(vp.vah)} · POC ${num(vp.poc)}` : "";
+    return d;
+  } catch (err) {
+    const el = $(`#${p}-price`); if (el) el.innerHTML = `<div class="empty">無法載入圖表：${esc(err.message)}</div>`;
+    return null;
+  }
+}
+
 // ------------------------------------------------------------------ views: ticker
 const levelLabel = (t) => String(t || "").replace(/swing high/g, "波段高點").replace(/swing low/g, "波段低點")
   .replace(/(\d+)D high/g, "$1 日高位").replace(/(\d+)D low/g, "$1 日低位");
@@ -596,31 +741,11 @@ async function ticker(sym) {
   const deep = s.deep_dive[sym] || {};
   const uni = s.universe.find((u) => u.symbol === sym);
   const c = cands[0];
-  app.innerHTML = `<div class="grid g-side">
-    <div class="grid" style="align-content:start">
-      <div class="card"><div class="focus-head"><div><div class="eyebrow">${c ? `${esc(tr(c.direction))} · <b>${esc(c.setup_name)}</b>` : "圖表"}</div>
-        <div class="display" style="font-size:clamp(40px,4.4vw,64px)">${esc(sym)}</div><div class="note">${esc((deep.profile || {}).longName || "")}</div></div><small class="note" id="t-asof"></small></div>
-        <div id="t-analyst"></div>
-        ${chartBlock("c")}
-      </div>
-      ${c ? candidatePanels(c, deep) : `<div class="card"><h2>本交易日不是候選股</h2><p class="note">${uni ? `目前形態：${uni.setups.length ? uni.setups.map((x) => esc(s.setup_names[x])).join("、") : "沒有"}。趨勢「${esc(tr(uni.trend))}」，結構「${esc(tr(uni.structure))}」，相對強弱第 ${num(uni.rs_pct, 0)} 百分位。` : "不在篩選後的股票池內；如有已儲存的價格，只顯示圖表。"}</p></div>`}
-      ${deep.fundamentals ? fundamentalsPanel(deep.fundamentals) : ""}
-    </div>
-    <div class="grid" style="align-content:start">
-      ${c ? planPanel(c) : ""}
-      <div class="card"><h2>技術概況</h2><div id="t-snap" class="kv"></div><h3>支持／阻力（60 個交易日）</h3><div id="t-levels" class="note">…</div></div>
-      ${deep.options ? optionsPanel(deep.options) : ""}
-      ${deep.positioning ? positioningPanel(deep.positioning) : ""}
-      ${earningsPanel(deep.earnings_study)}
-      ${deep.catalysts ? catalystsPanel(deep.catalysts) : ""}
-      ${ftdPanel(deep.ftd)}
-      <div class="card"><h2>候選紀錄</h2><div id="t-hist" class="note">…</div></div>
-    </div></div>`;
-  if (c && c.analyst) $("#t-analyst").innerHTML = analystPanel(c.analyst); else loadAnalyst(sym, $("#t-analyst"));
-  try {
-    const d = await api(`/api/chart/${encodeURIComponent(sym)}?days=200&session=${state.session}`);
-    renderTickerCharts(d, c);
-    $("#t-asof").textContent = `as of ${d.as_of}`;
+  const extra = fold("技術概況 · 支持阻力", uni ? `趨勢 ${esc(tr(uni.trend))} · RS 第 ${num(uni.rs_pct, 0)} 百分位` : "", `<div id="t-snap" class="kv"></div><h3>支持／阻力（60 個交易日）</h3><div id="t-levels" class="note">…</div>`)
+    + fold("候選紀錄", "過去出現在候選名單的日子", `<div id="t-hist" class="note">…</div>`);
+  app.innerHTML = stockShell(sym, c, deep, { prefix: "c", big: 520, extra });
+  const d = await fillStock(sym, c, deep, "c", undefined, 520);
+  if (d) {
     const L = d.last;
     $("#t-snap").innerHTML = [["收市", num(L.close)], ["ATR(14)", `${num(L.atr)}（${num(L.atr_pct, 1)}%）`], ["RSI6 / RSI14", `${num(L.rsi6, 0)} / ${num(L.rsi14, 0)}`],
       ["趨勢", esc(tr(L.trend))], ["波段結構", esc(tr(L.swing_structure))], ["結構狀態", esc(tr(L.structure))], ["波段狀況", esc(tr(L.swing_condition))],
@@ -628,8 +753,6 @@ async function ticker(sym) {
       ["相對 SPY 20 日 / 60 日", `${pct(L.rel_20d)} / ${pct(L.rel_60d)}`], ["距 52 週高位", pct(L.from_52w_high)]]
       .map(([k, v]) => `<div><span>${k}</span><span class="num">${v}</span></div>`).join("");
     $("#t-levels").innerHTML = ["resistance", "support"].map((side) => `<div><b class="${side === "support" ? "up" : "down"}">${side === "support" ? "支持" : "阻力"}</b>：${d.levels[side].map((l) => `<span class="mono">${num(l.price)}</span> <span class="muted">（${esc(levelLabel(l.label))}，${num(l.distance_atr, 1)} ATR）</span>`).join(" · ") || "範圍內沒有"}</div>`).join("");
-  } catch (err) {
-    $("#c-price").innerHTML = `<div class="empty">無法載入圖表：${esc(err.message)}</div>`;
   }
   try {
     const h = await api(`/api/candidate-history/${encodeURIComponent(sym)}`);

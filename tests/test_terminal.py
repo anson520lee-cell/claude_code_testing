@@ -551,6 +551,10 @@ def test_web_api(tsettings):
     assert snap["session"]["date"] == "2026-10-30"
     chart = client.get("/api/chart/AAA?days=120").json()
     assert len(chart["candles"]) == 120 and chart["ema21"] and chart["rsi14"] and "levels" in chart
+    q = chart["quote"]
+    assert q["prev_close"] and q["high52"] >= q["close"] >= q["low52"] and q["hist_high"] >= q["high52"] and q["amplitude"] >= 0
+    vp = chart["volume_profile"]
+    assert vp and vp["val"] <= vp["poc"] <= vp["vah"]
     assert client.get("/api/chart/NOPE").status_code == 404
     assert client.get("/api/regime/history").json()["history"]
     assert client.get("/api/runs").json()["runs"][0]["status"].startswith("success")
