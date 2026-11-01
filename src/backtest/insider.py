@@ -208,7 +208,7 @@ def period_check(data: dict[str, Any], slip: float, style: str = "ins_ceo_100k",
     passes = bool(len(mr) == 2 and mr["before"]["edge"] >= 0.05 and (mr["before"]["t"] or 0) >= 2.5
                   and mr["after"]["edge"] >= 0.05 and edges and min(edges) > 0)
     return {"style": style, "split": split, "rows": rows, "passes": passes, "main_exit": list(main),
-            "edge_min": min((e for v in edges.values() for e in v), default=None)}
+            "edge_min": min(edges, default=None)}
 
 
 def _f(x: Any, d: int = 2) -> str:
