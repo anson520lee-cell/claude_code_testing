@@ -1711,3 +1711,61 @@ def test_regime_split_rule_and_shipped_result(tsettings):
                                and all(e is not None and e < 0 for e in v["dropped_edge"]))
     shipped = json.loads(LAB_DEFAULT.read_text())["regime_split"]
     assert set(shipped["setups"]) == {"momentum", "pullback"} and not any(v["passes"] for v in shipped["setups"].values())
+
+
+# ---------------------------------------------------------------------- scaling-in study
+def _scale_data(rows, bars):
+    from src.backtest import research  # noqa: F401
+    sig = pd.DataFrame(rows)
+    sig["date"] = pd.to_datetime(sig["date"])
+    arr = np.array(bars, dtype=float)
+    return {"signals": sig, "O": arr[:, 0], "H": arr[:, 1], "L": arr[:, 2], "C": arr[:, 3]}
+
+
+def test_scale_in_single_matches_research_simulate():
+    from src.backtest.research import simulate
+    from src.backtest.scale_in import simulate_scaled
+    rng = np.random.default_rng(3)
+    rows, bars = [], []
+    for i in range(60):
+        c = 100 + rng.normal(0, 3, 21).cumsum()
+        o = c + rng.normal(0, 0.5, 21)
+        h, lo = np.maximum(o, c) + rng.uniform(0, 2, 21), np.minimum(o, c) - rng.uniform(0, 2, 21)
+        rows.append({"symbol": f"S{i}", "setup": "crash_rebound", "date": "2024-01-02", "ref": c[0], "atr": 2.0,
+                     "conditional": i % 4 == 0, "structural": c[0] - 3, "swing": c[0] - 3})
+        bars.append([o[1:], h[1:], lo[1:], c[1:]])
+    data = _scale_data(rows, bars)
+    for target in ("trail3", "r3"):
+        one = simulate_scaled(data, 1.5, target, 20, 0.001, [(1.0, "first", 0, 0)])
+        d2 = {**data, "signals": data["signals"].assign(long=True, score=np.nan, tier=np.nan, planned_rr=np.nan,
+                                                         regime=np.nan)}
+        ref = simulate(d2, "atr1.5", target, 20, 0.001)
+        assert len(one) == len(ref)
+        assert np.allclose(one["r"].to_numpy(), ref["r"].to_numpy())
+
+
+def test_scale_in_dip_tranche_sizing_and_budget():
+    from src.backtest.scale_in import simulate_scaled
+    # entry 100 (open day 0), ATR 2, stop 97; day 1 dips to 98 (limit 99 fills), then closes 110 at the time stop
+    o = [100, 100, 104, 106, 108]
+    h = [101, 101, 105, 107, 110]
+    lo = [99.5, 98, 103, 105, 107]
+    c = [100.5, 100, 104, 106, 110]
+    data = _scale_data([{"symbol": "X", "setup": "squeeze", "date": "2024-01-02", "ref": 100.0, "atr": 2.0,
+                         "conditional": False}], [[o, h, lo, c]])
+    t = simulate_scaled(data, 1.5, "r9", 5, 0.0, [(0.5, "first", 0, 0), (0.5, "dip", 0.5, 3)])
+    # tranche 1: 0.5/3 shares from 100; tranche 2: 0.5/2 shares from 99; exit 110
+    assert t["tranches"].iat[0] == 2 and t["risk_used"].iat[0] == pytest.approx(1.0)
+    assert t["r"].iat[0] == pytest.approx(0.5 / 3 * 10 + 0.5 / 2 * 11)
+    # the same day as a stop hit: the dip tranche fills and is stopped (conservative), total loss = 1R
+    lo2 = [99.5, 96, 103, 105, 107]
+    data2 = _scale_data([{"symbol": "X", "setup": "squeeze", "date": "2024-01-02", "ref": 100.0, "atr": 2.0,
+                          "conditional": False}], [[o, h, lo2, c]])
+    t2 = simulate_scaled(data2, 1.5, "r9", 5, 0.0, [(0.5, "first", 0, 0), (0.5, "dip", 0.5, 3)])
+    assert t2["r"].iat[0] == pytest.approx(-1.0)
+
+
+def test_scale_in_shipped_copy():
+    d = json.loads((Path(__file__).resolve().parents[1] / "config" / "scale_in.default.json").read_text())
+    assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
+    assert all(v["passed"] is False for v in d["setups"].values())
