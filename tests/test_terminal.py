@@ -1541,8 +1541,19 @@ def test_exit_rule_replaces_plan_levels(tsettings):
     assert abs(p["stop"] - (e - 1.5 * a)) < 1e-9 and p["target1"] is None and p["target2"] is None
     assert p["trail_atr"] == 2.5 and p["horizon_days"] == 15 and p["reward_risk"] is None
     assert "+0.21R" in p["target_basis"]
+    # trailing exits carry concrete prices, so nobody has to compute "highest high - 2.5 ATR" by hand
+    risk = e - p["stop"]
+    assert p["trail_distance"] == pytest.approx(2.5 * a)
+    assert p["trail_start"] == pytest.approx(p["stop"] + 2.5 * a) and p["breakeven_high"] == pytest.approx(e + 2.5 * a)
+    lad = {r["r"]: r for r in p["trail_ladder"]}
+    assert set(lad) == {1, 2, 3, 4, 6}
+    for n, r in lad.items():
+        assert r["high"] == pytest.approx(e + n * risk) and r["stop"] == pytest.approx(max(p["stop"], r["high"] - 2.5 * a))
+        assert r["locked_r"] == pytest.approx((r["stop"] - e) / risk)
+    assert f"{p['trail_start']:.2f}" in p["target_basis"]
     q = plan_row(f, "pullback", sc, 7)
     assert abs(q["target1"] - (q["entry"] + 2 * 2.0 * q["atr"])) < 1e-9 and abs(q["reward_risk"] - 2.0) < 1e-9
+    assert q["trail_ladder"] == [] and q["trail_start"] is None      # a fixed target needs no ladder
     r = plan_row(f, "momentum", sc, 7)                     # no rule: the structural plan is unchanged
     assert "exit_rule" not in r and r["target1"] is not None
 
@@ -2023,3 +2034,98 @@ def test_serve_refuses_public_host_without_password():
     import serve
     assert serve.is_loopback("127.0.0.1") and serve.is_loopback("localhost") and serve.is_loopback("::1")
     assert not serve.is_loopback("0.0.0.0") and not serve.is_loopback("100.101.102.103")
+
+
+# ---------------------------------------------------------------------- structure-exit study
+def _structure_data(rows, bars, ser=None):
+    sig = pd.DataFrame(rows)
+    sig["date"] = pd.to_datetime(sig["date"])
+    arr = np.array(bars, dtype=float)
+    n = len(sig)
+    return {"signals": sig, "O": arr[:, 0], "H": arr[:, 1], "L": arr[:, 2], "C": arr[:, 3], "V": np.ones_like(arr[:, 0]),
+            "SER": ser or {}, "S": {}, "T": {}, "F": {}}
+
+
+def test_structure_simulate_matches_research_simulate():
+    from src.backtest import structure
+    from src.backtest.research import simulate
+    rng = np.random.default_rng(5)
+    rows, bars = [], []
+    for i in range(80):
+        c = 100 + rng.normal(0, 3, 21).cumsum()
+        o = c + rng.normal(0, 0.5, 21)
+        h, lo = np.maximum(o, c) + rng.uniform(0, 2, 21), np.minimum(o, c) - rng.uniform(0, 2, 21)
+        rows.append({"symbol": f"S{i}", "setup": "squeeze" if i % 4 == 0 else "breakout", "date": "2024-01-02",
+                     "ref": c[0], "atr": 2.0})
+        bars.append([o[1:], h[1:], lo[1:], c[1:]])
+    d = _structure_data(rows, bars)
+    sig = d["signals"]
+    ref = {"signals": sig.assign(long=True, conditional=sig["setup"] == "squeeze", structural=sig["ref"] - 3,
+                                 swing=sig["ref"] - 3, score=np.nan, tier=np.nan, planned_rr=np.nan, regime=np.nan),
+           "O": d["O"], "H": d["H"], "L": d["L"], "C": d["C"]}
+    for kw, target in (({"trail": 3.0}, "trail3"), ({"tgt_r": 3.0}, "r3")):
+        a, b = sig["ref"].to_numpy(), sig["atr"].to_numpy()
+        mine = structure.simulate(d, 0.001, stop=a - 1.5 * b, **kw)
+        old = simulate(ref, "atr1.5", target, 20, 0.001)
+        okm = mine["ok"].to_numpy()
+        keep = d["O"][okm, 0] > (a - 1.5 * b)[okm]      # research.simulate exits at the stop level on a bar-0 gap through it
+        assert keep.sum() > 40
+        assert np.allclose(mine["r"].to_numpy()[okm][keep], old["r"].to_numpy()[keep])
+
+
+def test_structure_exits_close_basis_and_ratchet():
+    from src.backtest import structure
+    # entry 100 at the open, ATR 2, stop 97. Day 2 closes below the close-basis level -> exit at day 3's open.
+    o = [100, 101, 102, 99, 99]
+    h = [101, 103, 103, 100, 100]
+    lo = [99.5, 100.5, 100.5, 98.5, 98.5]
+    c = [100.5, 102, 101, 99, 99]
+    ser = {"x": np.array([[95, 95, 100.5, 100.5, 100.5, 100.5]], dtype=float)}   # known at the close of t..t+5
+    d = _structure_data([{"symbol": "X", "setup": "breakout", "date": "2024-01-02", "ref": 100.0, "atr": 2.0}], [[o, h, lo, c]], ser)
+    t = structure.simulate(d, 0.0, stop=np.array([97.0]), cser="x", hz=5)
+    # bar k=2 closes at 101 > 100.5; bar k=3 closes at 99 < 100.5 -> exit at the open of bar 4 (99)
+    assert t["days"].iat[0] == 5
+    assert (99 - 100) / 100 == pytest.approx(t["ret"].iat[0])
+    # ratchet: the series level (95 -> 100.5) lifts the stop above the later lows -> stopped at the ratcheted level
+    t2 = structure.simulate(d, 0.0, stop=np.array([97.0]), sser="x", sbuf=0.0, hz=5)
+    assert t2["days"].iat[0] == 3 and t2["ret"].iat[0] == pytest.approx(0.005)
+
+
+def test_structure_stop_from_level_clamp_and_fallback():
+    from src.backtest import structure
+    sig = pd.DataFrame({"setup": ["breakout"] * 4, "ref": [100.0] * 4, "atr": [2.0] * 4})
+    D = {"signals": sig}
+    st, valid = structure.stop_from_level(D, np.array([99.9, 98.0, 90.0, np.nan]), 1.5)
+    assert valid.tolist() == [False, True, True, False]
+    # too close (< 0.5 ATR) and NaN fall back to the base 1.5 ATR; 1 ATR distance is raised to 0.75 min; 5 ATR clipped to 4
+    assert st.tolist() == [97.0, 98.0, 92.0, 97.0]
+    cap, ok = structure.target_cap(D, np.array([101.0, 103.0, 120.0, np.nan]))
+    assert ok.tolist() == [False, True, False, False]
+
+
+def test_structure_levels_are_causal():
+    from src.backtest import structure
+    rng = np.random.default_rng(11)
+    n = 520
+    idx = pd.bdate_range("2020-01-01", periods=n)
+
+    def frame(seed_tail):
+        close = 100 * np.exp(np.cumsum(np.r_[rng_part, seed_tail]))
+        px = pd.DataFrame({"open": close * 0.998, "high": close * 1.01, "low": close * 0.99, "close": close,
+                           "adj_close": close, "volume": 1e6}, index=idx)
+        return build_features(px, px["adj_close"], None)
+    rng_part = rng.normal(0.0005, 0.02, 440)
+    a = frame(rng.normal(0, 0.02, n - 440))
+    b = frame(rng.normal(0, 0.05, n - 440))
+    la, lb = structure._psar_free_levels(a), structure._psar_free_levels(b)
+    for k in la:
+        assert np.allclose(la[k][:430], lb[k][:430], equal_nan=True), k
+    ba, bb = structure._bounce_stats(a, la), structure._bounce_stats(b, lb)
+    for k in ba:
+        assert np.allclose(ba[k][:430], bb[k][:430], equal_nan=True), k
+
+
+def test_structure_study_shipped_copy():
+    d = json.loads((Path(__file__).resolve().parents[1] / "config" / "structure_study.default.json").read_text())
+    assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
+    assert all(v["validated"] == [] for v in d["setups"].values())

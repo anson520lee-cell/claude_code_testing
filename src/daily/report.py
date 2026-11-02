@@ -220,6 +220,9 @@ def candidate_detail(c: dict[str, Any], deep: dict[str, Any]) -> str:
     if p.get("stop_basis"):
         lines.append(f"- **Why this stop:** {p['stop_basis']}")
         lines.append(f"- **Why these targets:** {p.get('target_basis', '')}")
+    if p.get("trail_ladder"):
+        lines.append("- **Stop ladder (stop to move to once the high reaches):** " + "; ".join(
+            f"+{r['r']}R {_num(r['high'])} → stop {_num(r['stop'])} ({r['locked_r']:+.1f}R)" for r in p["trail_ladder"]))
     if c.get("group"):
         g = c["group"]
         lines.append(f"- **Industry group:** {g['group']}, RS rank {g['rank']} of {g['of']}")

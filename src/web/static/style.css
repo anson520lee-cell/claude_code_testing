@@ -411,3 +411,7 @@ table.corr td, table.corr th { font-size: 11.5px; padding: 5px 6px; }
 .key-news h3 small { color: var(--muted); letter-spacing: 0; font-family: var(--font); font-weight: 400; margin-left: 8px; }
 .why { margin-bottom: 18px; }
 .live-tag { display: inline-block; background: var(--up); color: #000; font-weight: 700; font-size: 10px; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; margin-right: 4px; text-transform: uppercase; }
+
+.ladder { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: 12.5px; }
+.ladder th { text-align: left; font: 500 10.5px var(--font-mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+.ladder td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); }

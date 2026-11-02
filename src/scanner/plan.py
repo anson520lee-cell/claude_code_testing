@@ -188,12 +188,18 @@ def apply_exit_rule(out: dict[str, Any], df: pd.DataFrame, setup: str, rule: dic
     risk = entry - stop
     if risk <= 0:
         return out
-    trail = None
+    trail, ladder = None, []
     if tm.startswith("trail"):
         trail = float(tm[5:] or 3)
         t1 = t2 = float("nan")
-        tgt_txt = (f"No fixed target: trailing stop at the highest high since entry − {trail:g} ATR (it only moves up), "
-                   f"or exit at the close after {hz} sessions")
+        # concrete prices instead of "highest high - 3 ATR": the stop each time the high reaches +1R, +2R, ...
+        for n in (1, 2, 3, 4, 6):
+            hi = entry + n * risk
+            st = max(stop, hi - trail * a)
+            ladder.append({"r": n, "high": hi, "stop": st, "locked_r": (st - entry) / risk})
+        tgt_txt = (f"No fixed take-profit (the strategy lab found trailing beats fixed targets): sell when price falls to the trailing stop "
+                   f"= highest high since entry − {trail:g} ATR ({trail * a:.2f}); it only moves up and starts lifting the stop once the high "
+                   f"passes {stop + trail * a:.2f}, break-even once it passes {entry + trail * a:.2f}. Otherwise exit at the close after {hz} sessions")
     else:
         t1 = entry + (float(tm[3:]) * a if tm.startswith("atr") else float(tm[1:]) * risk)
         t2 = float("nan")
@@ -205,6 +211,8 @@ def apply_exit_rule(out: dict[str, Any], df: pd.DataFrame, setup: str, rule: dic
     out.update({"stop": stop, "target1": t1 if np.isfinite(t1) else None, "target2": t2 if np.isfinite(t2) else None,
                 "risk_atr": risk / a, "risk_pct": risk / entry, "wide_stop": False, "horizon_days": hz,
                 "reward_risk": (t1 - entry) / risk if np.isfinite(t1) else None, "trail_atr": trail,
+                "trail_distance": trail * a if trail else None, "trail_start": stop + trail * a if trail else None,
+                "breakeven_high": entry + trail * a if trail else None, "trail_ladder": ladder,
                 "exit_rule": {"name": rule.get("name"), "stop": sm, "target": tm, "horizon": hz, "oos": oos},
                 "stop_basis": stop_txt + ".", "target_basis": tgt_txt + "." + tested,
                 "method": "Strategy lab: exit chosen on the first 60% of 5 years of setups, verified on the last 40%"})
