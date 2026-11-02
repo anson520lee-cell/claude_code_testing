@@ -6,6 +6,9 @@ What it does - and what it deliberately does NOT do:
   journal trades, active price alerts and the index ETFs), condenses them into one quote per symbol
   (open / high / low / last / volume so far) and writes ``data/intraday/latest.json``.
 * The dashboard shows those quotes as "Live hh:mm ET" next to the stored close.
+* For the positions you hold (open journal trades) it also keeps the last ~3 months of COMPLETED 60-minute bars in
+  ``data/intraday/hourly.json``; the Holdings page reads them to look for hourly patterns (e.g. a pin bar through
+  yesterday's low that closes back above it) with the numbers the holding study measured for each.
 * Nothing is written to the price database, and scores, setups, plans and alerts are untouched: the
   validated setups are after-close signals entered at the next open, so they are still computed once
   per session by the after-close run (``daily_run.py --if-new``) from the final daily bar.
@@ -161,8 +164,93 @@ def yahoo_bars(symbols: list[str]) -> dict[str, pd.DataFrame]:
     return out
 
 
+# ---------------------------------------------------------------- 60-minute bars of held positions
+def hourly_file(settings: dict) -> Path:
+    return path(settings, "database").parent / "intraday" / "hourly.json"
+
+
+def load_hourly(settings: dict) -> dict[str, Any] | None:
+    try:
+        return json.loads(hourly_file(settings).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def held_symbols(conn) -> list[str]:
+    if conn is None:
+        return []
+    try:
+        return sorted({str(r[0]).upper() for r in conn.execute("SELECT DISTINCT symbol FROM trade_journal WHERE status = 'open'")})
+    except Exception:  # noqa: BLE001 - the journal table appears with the first daily run
+        return []
+
+
+def yahoo_hourly(symbols: list[str]) -> dict[str, pd.DataFrame]:
+    """One yfinance batch request: 60-minute regular-hours bars of the last 3 months (Yahoo keeps 60-minute bars
+    for about two years; the bar at 15:30 is the last half hour)."""
+    import yfinance as yf
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+    raw = yf.download(symbols, period="3mo", interval="60m", prepost=False, auto_adjust=False, actions=False,
+                      group_by="ticker", progress=False, threads=4)
+    out: dict[str, pd.DataFrame] = {}
+    if raw is None or raw.empty:
+        return out
+    for sym in symbols:
+        try:
+            frame = raw[sym] if isinstance(raw.columns, pd.MultiIndex) else raw
+        except KeyError:
+            continue
+        frame = frame.dropna(how="all")
+        if not frame.empty:
+            out[sym] = frame
+    return out
+
+
+def completed_hourly(frame: pd.DataFrame, now: datetime) -> list[list[Any]]:
+    """Yahoo 60-minute bars -> [[iso start, open, high, low, close, volume], ...] of the bars that have ENDED by
+    ``now`` (a bar ends 60 minutes after it starts, or at the session close)."""
+    if frame is None or frame.empty:
+        return []
+    frame = frame.dropna(subset=["Close"])
+    idx = frame.index
+    idx = idx.tz_convert(calendar.NEW_YORK) if idx.tz is not None else idx.tz_localize(calendar.NEW_YORK)
+    rows = []
+    for ts, (o, h, lo, c, v) in zip(idx, frame[["Open", "High", "Low", "Close", "Volume"]].itertuples(index=False)):
+        start = ts.to_pydatetime()
+        if not calendar.is_trading_day(start.date()):
+            continue
+        close = datetime.combine(start.date(), calendar.close_time(start.date()), calendar.NEW_YORK)
+        if start.time() < OPEN or start >= close:
+            continue
+        if min(start + timedelta(minutes=60), close) > now:
+            continue                                   # still forming
+        rows.append([start.isoformat(), float(o), float(h), float(lo), float(c), float(v) if v == v else 0.0])
+    return rows
+
+
+def refresh_hourly(settings: dict, conn=None, now: datetime | None = None, fetch=yahoo_hourly,
+                   symbols: list[str] | None = None) -> dict[str, Any]:
+    """Download completed 60-minute bars for the held symbols and write ``hourly.json``."""
+    now = datetime.now(calendar.NEW_YORK) if now is None else now
+    now = now.replace(tzinfo=calendar.NEW_YORK) if now.tzinfo is None else now.astimezone(calendar.NEW_YORK)
+    symbols = symbols if symbols is not None else held_symbols(conn)
+    previous = load_hourly(settings) or {}
+    if not symbols:
+        return {"status": "skipped", "reason": "no open holdings"}
+    frames = fetch(symbols)
+    bars = {sym: completed_hourly(frames.get(sym), now) for sym in symbols}
+    bars = {k: v for k, v in bars.items() if v}
+    keep = {k: v for k, v in (previous.get("bars") or {}).items() if k in symbols and k not in bars}
+    payload = {"fetched_at": store.utc_now(), "as_of": now.isoformat(), "symbols": symbols, "bars": {**keep, **bars},
+               "note": "Completed regular-hours 60-minute bars of the held positions (display / analysis only)."}
+    target = hourly_file(settings)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    store.write_atomic(target, json.dumps(store.jsonable(payload)))
+    return {"status": "ok" if bars else "empty", "symbols": len(symbols), "with_bars": len(bars)}
+
+
 def refresh(settings: dict, now: datetime | None = None, force: bool = False,
-            fetch=yahoo_bars, conn=None) -> dict[str, Any]:
+            fetch=yahoo_bars, conn=None, fetch_hourly=yahoo_hourly) -> dict[str, Any]:
     """Fetch the due slot (or nothing). Returns {"status": "skipped"|"ok"|"empty", ...}."""
     cfg = intraday_settings(settings)
     if not cfg.get("enabled", True) and not force:
@@ -193,8 +281,15 @@ def refresh(settings: dict, now: datetime | None = None, force: bool = False,
     target = latest_file(settings)
     target.parent.mkdir(parents=True, exist_ok=True)
     store.write_atomic(target, json.dumps(store.jsonable(payload)))
+    hourly: dict[str, Any] = {"status": "skipped"}
+    if conn is not None and fetch_hourly is not None:
+        try:
+            hourly = refresh_hourly(settings, conn, now=now, fetch=fetch_hourly)
+        except Exception as exc:  # noqa: BLE001 - the quotes above are already saved
+            logger.warning("hourly bars for holdings failed: %s", exc)
+            hourly = {"status": "failed", "reason": f"{type(exc).__name__}: {exc}"}
     return {"status": "ok" if quotes else "empty", "slot": payload["slot_label"], "symbols": len(symbols),
-            "quotes": len(quotes)}
+            "quotes": len(quotes), "hourly": hourly}
 
 
 def overlay(quote: dict[str, Any], stored_as_of: str, latest: dict[str, Any] | None, symbol: str) -> dict[str, Any] | None:

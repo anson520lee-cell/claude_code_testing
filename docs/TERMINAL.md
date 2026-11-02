@@ -519,6 +519,36 @@ permutation over all methods is reported as a second guard.
   changes. Full tables: the Research page / `reports/backtest/<session>/structure_study.json`; compact copy
   `config/structure_study.default.json`.
 
+### 7l. Exit signals while holding: candles, volume, timeframes, 300+ indicators (`python holding_study.py --prices prices.pkl --hourly hourly.pkl`, run by hand)
+
+The question a holder asks every day: "given what I can see now, is the rest of this trade worth holding?" Every
+trade-day of the three live setups (the close of day k while the trade is still open under the live exit) gets its
+**continuation value** CV = R(hold on with the live rule) - R(sell at the next open, 10 bps). An exit rule fires on the
+first trade-day where its signal is visible; its paired effect on that trade is -CV there (trades where it never fires
+are unchanged), so the entry and the market cancel. A 50% partial sale is exactly half of the full-sale effect (same sign,
+same t), so splitting a sale cannot rescue a signal whose full sale does not help - and does not need its own test.
+* Daily candle patterns: 46 shapes (hammer, engulfing, stars, harami, marubozu, inside / outside bar, NR4 / NR7,
+  pin bars, key reversals, gaps, three soldiers / crows, ...) x volume (any / >= 1.5x / <= 0.7x the 20-day average) = 138,
+  plus 10 shapes x weekly trend up / down (multi-timeframe), each also only when the trade is in profit (>= +0.5R) or
+  at / below break-even. Instead of selling, "raise the stop to the signal bar's low - 0.1 ATR" is tested for every shape.
+* 1-hour patterns (Yahoo keeps 60-minute bars only from 2023-12, so these are exploratory): 25 shapes incl. the
+  "spring" (a pin through the previous session's low that closes back above it, 打針收回), upthrust, session-low
+  reclaim, VWAP crosses, first / last hour reversals, volume spikes (vs the same hour of the previous 20 sessions),
+  each x volume; tested two ways: decide after the close (sell next open) and intraday (sell at the next hour's open).
+* Overbought / oversold and classics: RSI 6 >= 80 / 90, RSI 14 >= 70 / 80, close above / far above the upper band,
+  >= 3 / 4 ATR above EMA21, volume climax, MACD histogram turning down, RSI 6 <= 20 or RSI 14 <= 30 while held,
+  close below the lower band, ADX >= 40 (each also only in profit).
+* Trade state: early failure on day 1/2/3/5, not working by day 3/5/7/10, give-back after a run-up, no new high for 4-7 days.
+* Every indicator of the terminal (build_features, the analyst techniques, weekly, market, change since the signal
+  day, bar shape): rank IC with CV per period, and its extreme tails (<= q5 / q10, >= q90 / q95, thresholds from the
+  in-sample period) as exit rules; plus one combined ridge model on all of them (fitted in sample only).
+Periods and gate as in 7j (IS 2020-01..2024-06 to choose; 2010-2019 and 2024-07.. to confirm; Bonferroni bar over the IS
+candidates, max-t permutation guard). The 1-hour rules have their own gate: 2024-01..2025-03 to choose, 2025-04.. to
+confirm. Also reported, not tested: what each pattern does next across ALL stock-days (excess move over 1 / 5 / 10
+sessions in ATR vs all stocks that day), and a day x open-R table (day 1 / 2 / 3 / 5 / 10 of the trade).
+
+RESULTS_PLACEHOLDER
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the
@@ -553,6 +583,7 @@ chart. The profile is stored with the deep dive (`profile.summary`, `profile.ceo
 | Universe | every screened stock, sortable |
 | Catalysts | upcoming earnings, macro calendar, SEC filings, analyst actions |
 | Portfolio | position sizing (account, risk %, position cap, heat cap; saved in the browser), position correlation matrix, total heat, effective number of bets, correlated clusters, price alerts, trade journal with R-based review |
+| Holdings | the positions you recorded as bought ("I bought this" on a candidate, or "+ Record a buy"): per position the live exit rule replayed since the entry (stop for the next session, trailing on / off, target, day k of 20, time-stop date, best / worst R, R locked by the stop), today's indicators, what similar past trades did from the same day and open profit, and every signal visible today (daily candles with volume, daily x weekly, the latest session's 1-hour patterns such as a pin through yesterday's low that closes back above it, overbought / oversold readings, trade-state rules) with its backtest numbers from the holding study (section 7l). Refreshes every 5 minutes |
 | Research | how SL / TP are set, the SL / TP validation backtest (section 7b), setup simulation tables, full methodology |
 | Data | quality checks, update summary, run log, report archive |
 
@@ -575,6 +606,16 @@ sign-flipped; effective bets = n^2 / sum of the correlation matrix. **Alerts** (
 `close_above`, `close_below`) are checked against stored daily bars after every run and when the
 dashboard opens; on macOS a triggered alert raises a system notification. The journal and alerts live in
 the database (`trade_journal`, `price_alerts`). Nothing is ever sent to a broker.
+
+**Holdings**: a journal trade can carry its exit plan (`trade_journal.plan_json`: setup, ATR at the signal, trailing
+distance, fixed target, horizon), saved automatically by the "I bought this" button; without it the setup's live rule and
+the ATR of the session before the entry date are used. The exit replay uses the stored unadjusted daily bars, so it
+compares like with like with your fill price. Every intraday refresh (`intraday_run.py`, 30 minutes) also stores the
+held symbols' completed 60-minute bars (`data/intraday/hourly.json`, about 3 months; the "Fetch 1-hour bars" button does
+it on demand); a still-forming bar is never used, and "last hour" patterns only count once the session is complete. A
+signal only says SELL when it passed the holding study's gate; otherwise the page shows its numbers and the verdict
+(validated / selling helped but not proven / holding was better but not proven / no reliable effect / too rare to test).
+The rule itself (stop, target, time stop) always wins: a hit stop says SELL. Long positions only.
 
 The **Run** button starts the daily pipeline in the background (data download + analysis only).
 Edit `config/macro_events.yaml` to add CPI / PCE / GDP dates; FOMC 2026 dates, monthly options

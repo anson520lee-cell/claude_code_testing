@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS trade_journal (
     exit_date   TEXT,
     exit_price  REAL,
     status      TEXT NOT NULL DEFAULT 'open',
-    notes       TEXT
+    notes       TEXT,
+    plan_json   TEXT
 );
 CREATE TABLE IF NOT EXISTS price_alerts (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -192,6 +193,9 @@ def connect(db_path: Path, backups_dir: Path) -> sqlite3.Connection:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(terminal_runs)")}
     if "requested_session" not in cols:          # non-destructive upgrade of databases created before this column
         conn.execute("ALTER TABLE terminal_runs ADD COLUMN requested_session TEXT")
+    jcols = {r[1] for r in conn.execute("PRAGMA table_info(trade_journal)")}
+    if "plan_json" not in jcols:                  # exit-rule parameters saved with a holding (Holdings page)
+        conn.execute("ALTER TABLE trade_journal ADD COLUMN plan_json TEXT")
     conn.commit()
     return conn
 
