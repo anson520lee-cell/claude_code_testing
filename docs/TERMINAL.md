@@ -326,7 +326,12 @@ stock) is tested; choices are made on the first 60% of dates and judged on the l
   a 2 / 2.5 / 3-ATR trailing stop; time stops of 5-20 sessions. Result (2026-10-30): the old plan (structural stop,
   resistance target, 7 days) earned +0.05R out of sample; **1.5 ATR stop + 3-ATR trailing stop, up to 20 sessions earns
   +0.29R** (random entries with the same exit +0.25R). Squeeze uses 2 ATR + 3R target (+0.44R), breakout a 1 ATR stop.
-  The live plan now uses each setup's chosen exit (`exit_rule` in the plan); trailing exits show no fixed target.
+  The live plan now uses each setup's chosen exit (`exit_rule` in the plan); trailing exits have no fixed take-profit (the
+  lab found trailing beats fixed targets), so since 2026-11-02 every such candidate shows the exit in PRICES instead of
+  "highest high - 3 ATR": the stop, the trailing distance, the price above which the stop starts rising, the price above
+  which it passes the entry, and a ladder (when the high reaches +1R / +2R / +3R / +4R / +6R, move the stop to X, locking
+  Y R). Fields `trail_distance`, `trail_start`, `breakeven_high`, `trail_ladder` in the plan; card, table, key-plan,
+  risk-plan panel, chart lines and the daily report all use them.
   Trailing exits win only 30-50% of the time: many small losses, fewer but larger winners.
 * **Indicators (183 per trade):** every `build_features` column, distances to the moving averages / highs / lows in ATR,
   the 49 analyst techniques, the volume profile (position vs POC / VAH / VAL, dense-chip nodes, vacuum, holder profit

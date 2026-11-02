@@ -1541,8 +1541,19 @@ def test_exit_rule_replaces_plan_levels(tsettings):
     assert abs(p["stop"] - (e - 1.5 * a)) < 1e-9 and p["target1"] is None and p["target2"] is None
     assert p["trail_atr"] == 2.5 and p["horizon_days"] == 15 and p["reward_risk"] is None
     assert "+0.21R" in p["target_basis"]
+    # trailing exits carry concrete prices, so nobody has to compute "highest high - 2.5 ATR" by hand
+    risk = e - p["stop"]
+    assert p["trail_distance"] == pytest.approx(2.5 * a)
+    assert p["trail_start"] == pytest.approx(p["stop"] + 2.5 * a) and p["breakeven_high"] == pytest.approx(e + 2.5 * a)
+    lad = {r["r"]: r for r in p["trail_ladder"]}
+    assert set(lad) == {1, 2, 3, 4, 6}
+    for n, r in lad.items():
+        assert r["high"] == pytest.approx(e + n * risk) and r["stop"] == pytest.approx(max(p["stop"], r["high"] - 2.5 * a))
+        assert r["locked_r"] == pytest.approx((r["stop"] - e) / risk)
+    assert f"{p['trail_start']:.2f}" in p["target_basis"]
     q = plan_row(f, "pullback", sc, 7)
     assert abs(q["target1"] - (q["entry"] + 2 * 2.0 * q["atr"])) < 1e-9 and abs(q["reward_risk"] - 2.0) < 1e-9
+    assert q["trail_ladder"] == [] and q["trail_start"] is None      # a fixed target needs no ladder
     r = plan_row(f, "momentum", sc, 7)                     # no rule: the structural plan is unchanged
     assert "exit_rule" not in r and r["target1"] is not None
 
