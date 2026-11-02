@@ -33814,7 +33814,7 @@
    "trades_per_year": 47.370370370370374
   },
   "verdict": "無效",
-  "verdict_dm": "有效",
+  "verdict_dm": "-",
   "grid_share_oos_pos": 1.0,
   "grid_median_oos_edge": 0.0007571838500965028,
   "grid": [
@@ -34414,7 +34414,7 @@
    "trades_per_year": 35.592592592592595
   },
   "verdict": "無效",
-  "verdict_dm": "無效",
+  "verdict_dm": "-",
   "grid_share_oos_pos": 0.5,
   "grid_median_oos_edge": 1.2093622370895618e-10,
   "grid": [
@@ -34901,7 +34901,7 @@
    "trades_per_year": 3.6818181818181817
   },
   "verdict": "無效",
-  "verdict_dm": "無效",
+  "verdict_dm": "-",
   "grid_share_oos_pos": 0.8888888888888888,
   "grid_median_oos_edge": 0.0069962960064039485,
   "grid": [
