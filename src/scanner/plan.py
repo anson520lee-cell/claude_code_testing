@@ -1,0 +1,240 @@
+"""Risk plan for each setup: entry reference, stop, two targets, reward/risk - vectorised.
+
+The SAME rules are used for today's candidates and for the historical simulation, so
+the historical statistics describe exactly the plan shown in the report.
+
+Long (short is the mirror image with lows <-> highs):
+
+    Entry reference  = today's close (the report is read after the close; the simulation
+                       fills at the NEXT session's open, so overnight gaps are included).
+                       squeeze: conditional entry at the 20-session high + 0.1 ATR (buy-stop);
+                       it is only "filled" if the next session trades there.
+    Structural stop  breakout : min(today's Low, previous 20-session high) - 0.25 ATR
+                     pullback : min(Low of last 5 sessions, EMA21) - 0.25 ATR
+                     squeeze  : Low of last 5 sessions - 0.25 ATR
+                     reclaim  : Low of last 3 sessions - 0.25 ATR
+                     momentum : max(EMA21 - 0.5 ATR, Low of last 5 sessions - 0.25 ATR)
+    Stop distance is clamped to [min_stop_atr, max_stop_atr] ATRs (default 1-3). A structural
+    stop beyond the cap is flagged "wide stop" (the capped stop sits inside the structure).
+    Target 1 = nearest overhead reference at least 0.75 ATR above entry among the 20-, 60- and
+               252-session highs, capped at entry + 2 ATR (``max_target1_atr``: the SL/TP backtest showed
+               far targets are rarely reached); if none (price at highs): entry + 2 ATR.
+    Target 2 = max(Target 1 + 1 ATR, entry + 2 x risk).
+    Reward/risk = (Target 1 - entry) / (entry - stop).
+    Time stop = ``plan_horizon_days`` sessions (default 7): exit at that close.
+
+When the strategy lab has run (reports/backtest/<session>/strategy_lab.json), today's long plans use the exit it
+chose for the setup instead (``apply_exit_rule``): an ATR / swing stop, an ATR / R target or a trailing stop
+(highest high since entry - k ATR, no fixed target) and its time stop. The historical simulation above still
+uses the structural rules.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from src.scanner.setups import SETUP_DIRECTION
+
+
+def _nearest_above(entry: pd.Series, gap: pd.Series, candidates: list[pd.Series]) -> pd.Series:
+    stack = np.vstack([c.to_numpy(dtype=float) for c in candidates])
+    threshold = (entry + gap).to_numpy(dtype=float)
+    valid = np.where(stack > threshold, stack, np.inf)
+    best = valid.min(axis=0)
+    return pd.Series(np.where(np.isfinite(best), best, np.nan), index=entry.index)
+
+
+def _nearest_below(entry: pd.Series, gap: pd.Series, candidates: list[pd.Series]) -> pd.Series:
+    stack = np.vstack([c.to_numpy(dtype=float) for c in candidates])
+    threshold = (entry - gap).to_numpy(dtype=float)
+    valid = np.where(stack < threshold, stack, -np.inf)
+    best = valid.max(axis=0)
+    return pd.Series(np.where(np.isfinite(best), best, np.nan), index=entry.index)
+
+
+def plan_for_setup(df: pd.DataFrame, setup: str, cfg: dict[str, Any]) -> pd.DataFrame:
+    """Plan columns for one setup on every day (values are meaningful where the setup is active)."""
+    a, c = df["atr"], df["close"]
+    direction = SETUP_DIRECTION[setup]
+    min_atr, max_atr = float(cfg.get("min_stop_atr", 1.0)), float(cfg.get("max_stop_atr", 3.0))
+    conditional = setup == "squeeze"
+    if direction == "long":
+        entry = (df["high20"] + 0.1 * a) if conditional else c
+        structural = {
+            "breakout": np.minimum(df["low"], df["prior_high20"]) - 0.25 * a,
+            "pullback": np.minimum(df["low5"], df["ema21"]) - 0.25 * a,
+            "squeeze": df["low5"] - 0.25 * a,
+            "reclaim": df["low3"] - 0.25 * a,
+            "momentum": np.maximum(df["ema21"] - 0.5 * a, df["low5"] - 0.25 * a),
+            "crash_rebound": entry - 2.0 * a,
+        }[setup]
+        dist = (entry - structural) / a
+        risk_atr = dist.clip(lower=min_atr, upper=max_atr)
+        stop = entry - risk_atr * a
+        t1 = _nearest_above(entry, 0.75 * a, [df["high20"], df["high60"], df["high252"]])
+        t1 = np.minimum(t1.fillna(entry + 2 * a), entry + float(cfg.get("max_target1_atr", 2.0)) * a)
+        risk = entry - stop
+        t2 = np.maximum(t1 + a, entry + 2 * risk)
+        if setup == "crash_rebound":   # mean-reversion bounce: close targets (crash study: 1.5 ATR, EMA21)
+            t1 = entry + 1.5 * a
+            t2 = np.maximum(t1 + 0.5 * a, np.minimum(df["ema21"], entry + 3 * a))
+        reward = t1 - entry
+    else:
+        entry = c
+        structural = {
+            "breakdown": np.maximum(df["high"], df["prior_low20"]) + 0.25 * a,
+            "rally_fail": np.maximum(df["high5"], df["ema21"]) + 0.25 * a,
+            "ema21_loss": df["high3"] + 0.25 * a,
+        }[setup]
+        dist = (structural - entry) / a
+        risk_atr = dist.clip(lower=min_atr, upper=max_atr)
+        stop = entry + risk_atr * a
+        t1 = _nearest_below(entry, 0.75 * a, [df["low20"], df["low60"], df["low252"]])
+        t1 = t1.fillna(entry - 2 * a)
+        risk = stop - entry
+        t2 = np.minimum(t1 - a, entry - 2 * risk)
+        reward = entry - t1
+    return pd.DataFrame({
+        "entry": entry, "stop": stop, "target1": t1, "target2": t2,
+        "risk_atr": risk_atr, "structural_stop_atr": dist, "wide_stop": dist > max_atr,
+        "reward_risk": reward / risk.where(risk > 0), "risk_pct": risk / entry,
+        "conditional_entry": conditional,
+    }, index=df.index)
+
+
+STOP_BASIS = {  # why the stop sits where it sits (shown next to every plan)
+    "breakout": "Lower of the breakout-day low and the breakout level (prior 20-day high), minus 0.25 ATR: a close back below the breakout level means the breakout failed",
+    "pullback": "Lower of the 5-day low and EMA21, minus 0.25 ATR: losing the pullback low and EMA21 damages the uptrend",
+    "squeeze": "5-day low minus 0.25 ATR: breaking the bottom of the squeeze range removes the upside-breakout premise",
+    "reclaim": "3-day low minus 0.25 ATR: falling back below the pre-reclaim low means the reclaim failed",
+    "momentum": "Higher of EMA21 − 0.5 ATR and the 5-day low − 0.25 ATR: a momentum leader should not lose EMA21",
+    "breakdown": "Higher of the breakdown-day high and the breakdown level (prior 20-day low), plus 0.25 ATR: a close back above it means the breakdown failed",
+    "rally_fail": "Higher of the 5-day high and EMA21, plus 0.25 ATR: clearing the rally high and EMA21 damages the downtrend",
+    "ema21_loss": "3-day high plus 0.25 ATR: regaining the pre-loss high means the EMA21 loss failed",
+    "crash_rebound": "Entry − 2 ATR: crash volatility is wide, and the crash study found 2 ATR gives the rebound room to work",
+}
+
+
+# How and when to enter each live setup (entry-timing study 2026-11-01, daily bars, versus random entries at the
+# same timing). One full position, sized the evening before from the stop distance.
+ENTRY_RULE = {
+    "crash_rebound": "Buy before today's close or at the next open, not later: the edge is the same at the signal-day "
+                     "close, the next open and the next close, and gone by the day-2 open. One full position, sized "
+                     "tonight from the stop.",
+    "squeeze": "Buy-stop order at the trigger (20-day high + 0.1 ATR) for the next session only; no trade if it is "
+               "not hit. Buying at market without the break did worse than random entries.",
+    "breakout": "Next open. No entry timing showed an edge over random entries.",
+}
+# Honest label of what the backtests support (strategy lab, entry-timing study, account simulation).
+EVIDENCE = {
+    "crash_rebound": "Edge over random entries about +0.1 to +0.2R per trade (+0.08 to +0.17R with live-like sizing), "
+                     "t below 2.5: positive in both halves but not proven at the project's 2.5 bar.",
+    "squeeze": "Edge over random entries +0.14R out of sample but -0.02R in sample (t below 2.5): only the buy-stop "
+               "entry has an edge. Not proven.",
+    "breakout": "Unproven: about +0.01 to +0.03R over random entries at every entry timing (score bonus 0). Kept "
+                "because you asked for it.",
+}
+
+
+def plan_basis(df: pd.DataFrame, setup: str, plan: dict[str, Any], cfg: dict[str, Any]) -> dict[str, str]:
+    """Plain-language reason for today's stop and targets (structure, ATR noise floor, resistance)."""
+    last = df.iloc[-1]
+    long = SETUP_DIRECTION[setup] == "long"
+    stop = STOP_BASIS[setup] + ". "
+    sdist = plan["structural_stop_atr"]
+    if plan.get("wide_stop"):
+        stop += f"The structural stop is {sdist:.1f} ATR away, above the cap, so it is tightened to {cfg.get('max_stop_atr', 3)} ATR (easier to get stopped out)."
+    elif sdist < float(cfg.get("min_stop_atr", 1.0)):
+        stop += f"The structural stop is only {sdist:.1f} ATR away, inside normal daily noise, so it is widened to {cfg.get('min_stop_atr', 1.0)} ATR."
+    else:
+        stop += f"Distance {plan['risk_atr']:.1f} ATR ({plan['risk_pct'] * 100:.1f}% risk per share)."
+    if setup == "crash_rebound":
+        return {"stop_basis": stop, "target_basis": "T1 = entry + 1.5 ATR (a quick bounce: in the crash study 1.5–2 ATR targets "
+                "had the best out-of-sample results, win rate ~65%); T2 = back to EMA21, capped at 3 ATR. Time stop "
+                f"{plan.get('horizon_days', 10)} sessions.", "method": "Crash event study (first crash in 10 sessions; buy before the signal-day close or at the next open)"}
+    t1 = plan["target1"]
+    names = {"high20": "20-day high", "high60": "60-day high", "high252": "52-week high"} if long else \
+        {"low20": "20-day low", "low60": "60-day low", "low252": "52-week low"}
+    src = next((n for col, n in names.items() if pd.notna(last.get(col)) and abs(float(last[col]) - t1) < 1e-6), None)
+    target = (f"T1 = the nearest {src} at least 0.75 ATR above (resistance), capped at entry + {cfg.get('max_target1_atr', 2.0)} ATR" if long else f"T1 = the nearest {src} at least 0.75 ATR below (support)") \
+        if src else f"T1 = entry {'+' if long else '−'} 2 ATR (no 20 / 60 / 252-day {'resistance above' if long else 'support below'})"
+    target += "; T2 = the further of T1 + 1 ATR and 2x risk. Time stop = exit at the close after " + str(plan.get("horizon_days", 7)) + " sessions."
+    return {"stop_basis": stop, "target_basis": target,
+            "method": "Price structure + ATR noise floor + historical resistance / support (no volume profile or options; the options expected move is context only)"}
+
+
+def apply_exit_rule(out: dict[str, Any], df: pd.DataFrame, setup: str, rule: dict[str, Any]) -> dict[str, Any]:
+    """Replace stop / targets / time stop with the exit the strategy lab chose for this setup (chosen in
+    sample, verified out of sample - see src/backtest/strategy_lab.py). Long setups only."""
+    if SETUP_DIRECTION.get(setup) != "long" or not rule:
+        return out
+    a, entry = float(out["atr"]), float(out["entry"])
+    sm, tm, hz = str(rule["stop"]), str(rule["target"]), int(rule["horizon"])
+    if sm.startswith("atr"):
+        stop, stop_txt = entry - float(sm[3:]) * a, f"Entry − {float(sm[3:]):g} ATR"
+    elif sm == "swing":
+        sw = float(df["swing_low_last"].iloc[-1]) if pd.notna(df["swing_low_last"].iloc[-1]) else float("nan")
+        dist = (entry - (sw - 0.1 * a)) / a if np.isfinite(sw) else float("nan")
+        if np.isfinite(dist):
+            stop = entry - float(np.clip(dist, 0.75, 4.0)) * a
+            stop_txt = f"Last confirmed swing low {sw:.2f} − 0.1 ATR (kept within 0.75–4 ATR)"
+        else:
+            stop, stop_txt = float(out["stop"]), STOP_BASIS[setup]
+    else:
+        stop, stop_txt = float(out["stop"]), STOP_BASIS[setup]
+    risk = entry - stop
+    if risk <= 0:
+        return out
+    trail, ladder = None, []
+    if tm.startswith("trail"):
+        trail = float(tm[5:] or 3)
+        t1 = t2 = float("nan")
+        # concrete prices instead of "highest high - 3 ATR": the stop each time the high reaches +1R, +2R, ...
+        for n in (1, 2, 3, 4, 6):
+            hi = entry + n * risk
+            st = max(stop, hi - trail * a)
+            ladder.append({"r": n, "high": hi, "stop": st, "locked_r": (st - entry) / risk})
+        tgt_txt = (f"No fixed take-profit (the strategy lab found trailing beats fixed targets): sell when price falls to the trailing stop "
+                   f"= highest high since entry − {trail:g} ATR ({trail * a:.2f}); it only moves up and starts lifting the stop once the high "
+                   f"passes {stop + trail * a:.2f}, break-even once it passes {entry + trail * a:.2f}. Otherwise exit at the close after {hz} sessions")
+    else:
+        t1 = entry + (float(tm[3:]) * a if tm.startswith("atr") else float(tm[1:]) * risk)
+        t2 = float("nan")
+        tgt_txt = (f"Target = entry + {tm[3:]} ATR" if tm.startswith("atr") else f"Target = {tm[1:]}R (entry + {tm[1:]} × risk)") + \
+            f"; otherwise exit at the close after {hz} sessions"
+    oos = rule.get("oos") or {}
+    tested = (f" Tested out of sample: {oos.get('avg_r', float('nan')):+.2f}R per trade over {oos.get('n', 0)} trades"
+              f" (win rate {oos.get('win_rate', float('nan')) * 100:.0f}%)." if oos.get("n") else "")
+    out.update({"stop": stop, "target1": t1 if np.isfinite(t1) else None, "target2": t2 if np.isfinite(t2) else None,
+                "risk_atr": risk / a, "risk_pct": risk / entry, "wide_stop": False, "horizon_days": hz,
+                "reward_risk": (t1 - entry) / risk if np.isfinite(t1) else None, "trail_atr": trail,
+                "trail_distance": trail * a if trail else None, "trail_start": stop + trail * a if trail else None,
+                "breakeven_high": entry + trail * a if trail else None, "trail_ladder": ladder,
+                "exit_rule": {"name": rule.get("name"), "stop": sm, "target": tm, "horizon": hz, "oos": oos},
+                "stop_basis": stop_txt + ".", "target_basis": tgt_txt + "." + tested,
+                "method": "Strategy lab: exit chosen on the first 60% of 5 years of setups, verified on the last 40%"})
+    return out
+
+
+def plan_row(df: pd.DataFrame, setup: str, cfg: dict[str, Any], horizon: int) -> dict[str, Any]:
+    """Today's plan for one setup as a plain dict."""
+    p = plan_for_setup(df, setup, cfg).iloc[-1]
+    a = float(df["atr"].iloc[-1])
+    out = {k: (float(v) if isinstance(v, (int, float, np.floating)) and not isinstance(v, (bool, np.bool_)) else bool(v))
+           for k, v in p.items()}
+    out["direction"] = SETUP_DIRECTION[setup]
+    out["horizon_days"] = horizon
+    out["atr"] = a
+    # 1-sigma move over the horizon from realised volatility (hv20): close x hv20 x sqrt(h / 252)
+    hv = float(df["hv20"].iloc[-1]) if pd.notna(df["hv20"].iloc[-1]) else float("nan")
+    out["expected_move_hv"] = float(df["close"].iloc[-1] * hv * np.sqrt(horizon / 252)) if np.isfinite(hv) else None
+    out.update(plan_basis(df, setup, out, cfg))
+    if setup in ENTRY_RULE:
+        out["entry_rule"], out["evidence"] = ENTRY_RULE[setup], EVIDENCE[setup]
+    rule = (cfg.get("exit_rules") or {}).get(setup)
+    if rule:
+        apply_exit_rule(out, df, setup, rule)
+    return out

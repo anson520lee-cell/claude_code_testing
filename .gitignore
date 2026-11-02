@@ -5,11 +5,27 @@ __pycache__/
 .venv/
 venv/
 
-# Local database (re-created automatically; see README "Database")
-data/*.db
-data/*.db-journal
+# Local database, caches, backups, logs and run markers (all re-created automatically; see README "Database").
+# Everything in data/ is local - including SQLite WAL files (*.db-wal / *.db-shm) and lock / marker files.
+data/*
+!data/.gitkeep
+
+# Generated daily research reports (re-created by daily_run.py)
+reports/daily/
 
 # Editor / OS
 .DS_Store
 .idea/
 .vscode/
+
+# Local secrets (SEC_USER_AGENT)
+.env
+
+# Static preview build output (scripts/export_preview.py)
+preview/
+
+# SL / TP validation backtest output (python backtest.py; refreshed monthly by daily_run.py)
+reports/backtest/
+
+# Generated monthly by the universe builder (the shipped copy is config/universe_auto.default.yaml)
+config/universe_auto.yaml
