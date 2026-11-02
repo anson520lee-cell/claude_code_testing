@@ -11,6 +11,9 @@ Endpoints (JSON unless noted):
     GET  /api/options-history/{symbol}     stored ATM IV snapshots
     GET  /api/methodology           the documented rules (module docstrings)
     GET/POST /api/journal, PUT/DELETE /api/journal/{id}     your own trade journal (manual records)
+    GET  /api/holdings              open journal trades re-analysed (exit rule state, today's signals + backtest evidence)
+    POST /api/holdings/hourly       fetch the held symbols' 60-minute bars now
+    GET  /api/holding-study         the holding study's headline tables (Research page)
     GET/POST /api/alerts, DELETE /api/alerts/{id}, POST /api/alerts/{id}/rearm   price alerts
     GET  /api/news?symbol=&tag=     stored headlines (universe + "_MARKET"); GET /api/news/{sym}/live fetches fresh
     POST /api/news/refresh          refresh all headlines in the background
@@ -401,6 +404,96 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
         from src.portfolio import journal
         guarded(journal.delete_trade, trade_id)
         return {"ok": True}
+
+    study_cache: dict[str, Any] = {"key": None, "study": None}
+
+    def holding_study() -> dict[str, Any] | None:
+        """Newest holding study (reports/backtest/<session>/holding_study_compact.json) or the shipped default."""
+        from src.portfolio import holdings
+        bdir = reports_dir.parent / "backtest"
+        default = DEFAULT_PATH.parent / "holding_study.default.json"
+        files = sorted(bdir.glob("*/holding_study_compact.json")) if bdir.exists() else []
+        key = tuple((str(f), f.stat().st_mtime) for f in [*files[-1:], default] if f.exists())
+        if key != study_cache["key"]:
+            study_cache.update(key=key, study=holdings.load_study(bdir, default))
+        return study_cache["study"]
+
+    @app.get("/api/holdings")
+    def api_holdings() -> dict[str, Any]:
+        """Open journal trades re-analysed from the latest daily bars + the held symbols' 60-minute bars."""
+        from src.daily import intraday
+        from src.portfolio import holdings, journal
+        conf = cfg()
+        study = holding_study()
+        latest = intraday.load_latest(conf)
+        hourly_payload = intraday.load_hourly(conf)
+        hourly = holdings.hourly_frames(hourly_payload)
+        conn = tconn()
+        out = []
+        try:
+            trades = journal.open_trades(conn)
+            for t in trades:
+                sym = t["symbol"]
+                if t["direction"] != "long":
+                    out.append({"id": t["id"], "symbol": sym, "trade": t, "error": "Only long positions are analysed (the live setups are long)."})
+                    continue
+                prices, spy = db.load_prices(conn, sym), db.load_prices(conn, "SPY")
+                if prices.empty or len(prices) < 120:
+                    out.append({"id": t["id"], "symbol": sym, "trade": t,
+                                "error": f"Not enough stored daily bars for {sym}: the daily run stores the universe, candidates and open journal trades."})
+                    continue
+                etf = conf["universe"].get(sym)
+                sector = db.load_prices(conn, etf) if etf else None
+                try:
+                    f = build_features(prices, spy["adj_close"] if not spy.empty else None,
+                                       sector["adj_close"] if sector is not None and not sector.empty else None)
+                    stored = f.index[-1].strftime("%Y-%m-%d")
+                    quote = None
+                    if latest and latest.get("session", "") > stored:
+                        quote = (latest.get("quotes") or {}).get(sym)
+                    h = holdings.analyze_holding(t, f, study, hourly.get(sym), quote, raw=prices)
+                except Exception as exc:  # noqa: BLE001 - one bad holding must not hide the others
+                    logger.warning("holding analysis failed for %s", sym, exc_info=True)
+                    h = {"id": t["id"], "symbol": sym, "error": f"Analysis failed: {type(exc).__name__}: {exc}"}
+                h["trade"] = t
+                out.append(h)
+        finally:
+            conn.close()
+        s_info = None
+        if study:
+            s_info = {"session": study.get("session"), "generated_at": study.get("generated_at"), "n_stocks": study.get("n_stocks"),
+                      "validated": {k: (v.get("gate") or {}).get("validated") or [] for k, v in (study.get("setups") or {}).items()},
+                      "hourly_validated": {k: (v.get("hourly_gate") or {}).get("validated") or [] for k, v in (study.get("setups") or {}).items()},
+                      "n_rules": {k: (v.get("gate") or {}).get("n_rules") for k, v in (study.get("setups") or {}).items()}}
+        return store.jsonable({"holdings": out, "study": s_info,
+                               "hourly": {k: (hourly_payload or {}).get(k) for k in ("fetched_at", "as_of")} if hourly_payload else None,
+                               "intraday": {k: (latest or {}).get(k) for k in ("session", "slot_label", "fetched_at")} if latest else None})
+
+    @app.get("/api/holding-study")
+    def api_holding_study() -> dict[str, Any]:
+        """Research page: the holding study's headline tables (no per-rule lookup)."""
+        st = holding_study()
+        if not st:
+            return {"available": False, "reason": "No holding study yet: run python holding_study.py --prices prices.pkl."}
+        out = {k: v for k, v in st.items() if k != "setups"}
+        out["setups"] = {k: {kk: vv for kk, vv in v.items() if kk not in ("lookup", "hourly_lookup", "conditional_cv")}
+                         for k, v in (st.get("setups") or {}).items()}
+        from src.technical import candles
+        out["pattern_info"] = {**candles.PATTERN_INFO, **candles.HOURLY_INFO}
+        out["available"] = True
+        return store.jsonable(out)
+
+    @app.post("/api/holdings/hourly")
+    def api_holdings_hourly() -> dict[str, Any]:
+        """Fetch the held symbols' 60-minute bars now (also done by every intraday refresh)."""
+        from src.daily import intraday
+        conn = tconn()
+        try:
+            return intraday.refresh_hourly(cfg(), conn)
+        except Exception as exc:  # noqa: BLE001 - Yahoo hiccup
+            raise HTTPException(502, f"Hourly bars could not be fetched: {type(exc).__name__}: {exc}") from exc
+        finally:
+            conn.close()
 
     @app.get("/api/alerts")
     def api_alerts() -> dict[str, Any]:

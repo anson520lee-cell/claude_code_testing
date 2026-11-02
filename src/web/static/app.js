@@ -2,7 +2,7 @@
 "use strict";
 
 const state = { snap: null, session: null, sort: {}, filters: { tier: "", setup: "", hideEarnings: false, q: "" },
-  charts: [], focusCharts: [], scannerSide: "long", scanMode: null };
+  charts: [], focusCharts: [], scannerSide: "long", scanMode: null, buyCands: {}, hdTimer: null };
 const $ = (sel, el = document) => el.querySelector(sel);
 let I18N = {};
 const tr = (x) => (x === null || x === undefined ? "" : (I18N[x] ?? String(x)));
@@ -150,10 +150,11 @@ window.addEventListener("hashchange", route);
 function route() {
   if (!state.snap) return;
   closeFocus(true);
+  const dlg = $("#buy-dlg"); if (dlg && dlg.open) dlg.close();
   disposeCharts(state.charts);
   const [, view = "overview", arg] = (location.hash || "#/overview").split("/");
   document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
-  const views = { overview, scanner, universe, catalysts, news, portfolio, research, quality, ticker };
+  const views = { overview, scanner, universe, catalysts, news, portfolio, holdings, research, quality, ticker };
   (views[view] || overview)(arg);
   window.scrollTo(0, 0);
 }
@@ -785,11 +786,13 @@ function crashHistoryHTML(ch) {
 
 function stockShell(sym, c, deep, opts = {}) {
   const p = opts.prefix || "c", name = (deep.profile || {}).longName || "", g = c && c.group;
+  if (c) state.buyCands[c.symbol] = c;
   return `<div class="sv">
     <div class="sv-head"><div>
         <div class="sv-sym">${esc(sym)}<span class="sv-name">${esc(name)}</span></div>
         <div class="sv-tags">${c ? `<span class="chip ${c.direction}">${esc(tr(c.direction))}</span><span class="chip">${esc(c.setup_name)}</span>${tier(c.tier)}<span class="chip">Score ${num(c.score, 0)}</span>` : '<span class="chip">Not a candidate this session</span>'}
-          ${g ? `<span class="chip">${esc(g.group)} · group rank ${g.rank} / ${g.of}</span>` : ""}</div></div>
+          ${g ? `<span class="chip">${esc(g.group)} · group rank ${g.rank} / ${g.of}</span>` : ""}
+          ${c && c.direction === "long" ? `<button class="primary sv-buy" data-buy="${esc(c.symbol)}" title="Record the shares and fill price; the Holdings page then re-analyses the position at every update">I bought this</button>` : ""}</div></div>
       ${opts.focus ? `<div class="focus-tools"><button data-act="prev" aria-label="Previous" title="Previous (←)">‹</button><button data-act="next" aria-label="Next" title="Next (→)">›</button>
         <button class="wide" data-act="full">Full page ↗</button><button data-act="close" aria-label="Close" title="Close (Esc)">✕</button></div>` : ""}</div>
     <div class="sv-top">
@@ -959,6 +962,7 @@ function candidatePanels(c, deep) {
 
 function planPanel(c) {
   const p = c.plan;
+  state.buyCands[c.symbol] = c;
   const budget = c.direction === "long" ? state.snap.regime.long_risk_budget : state.snap.regime.short_risk_budget;
   return `<div class="card"><h2>Risk plan <small>${p.horizon_days}-session time stop</small></h2><div class="kv">
     <div><span>${p.conditional_entry ? "Trigger (conditional entry)" : "Reference entry"}</span><span class="num">${num(p.entry)}</span></div>
@@ -986,6 +990,7 @@ function planPanel(c) {
       if (p.conditional_entry) items.unshift([L ? "above" : "below", p.entry, "Entry trigger"]);
       return items.map(([k, lv, n]) => `<button data-qa="${n}" data-sym="${c.symbol}" data-kind="${k}" data-level="${lv}">${n} ${num(lv)}</button>`).join("");
     })()}</div>
+    ${c.direction === "long" ? `<div class="qa"><button class="primary" data-buy="${esc(c.symbol)}">I bought this · track it on Holdings</button></div>` : ""}
     ${planBasis(c)}</div>`;
 }
 
@@ -1391,6 +1396,290 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-qa]");
   if (b) quickAlert(b.dataset.sym, b.dataset.kind, Number(b.dataset.level), b.dataset.qa);
 });
+
+// ------------------------------------------------------------------ holdings (positions you bought; research only)
+// The page re-reads /api/holdings (daily bars + the held symbols' completed 60-minute bars) and shows, per position,
+// where the live exit rule stands and every signal visible today WITH what it did in the holding study backtest.
+const VERDICT = {
+  "validated": ["Validated exit signal", "down"],
+  "selling helped (not validated)": ["Selling helped (not proven)", "warn"],
+  "selling hurt": ["Holding was better (not proven)", "up"],
+  "no reliable effect": ["No reliable effect", "muted"],
+  "too rare to test": ["Too rare to test", "muted"],
+  "setup not studied": ["Setup not studied", "muted"],
+  "no study": ["No study file yet", "muted"],
+};
+const FOLK = { bull: "bullish: bounce / buy", bear: "bearish: drop / sell", pause: "pause, then breakout", indecision: "indecision",
+  climax: "exhaustion / climax", cont: "trend continues", reversal: "trend reversal" };
+const sg = (v, d = 2) => (isNum(v) ? `${Number(fixed(v, d)) > 0 ? "+" : ""}${fixed(v, d)}` : "n/a");
+const nyToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+function buyPrefill(c) {
+  const p = c.plan || {}, v = pfSettings();
+  const budget = (c.direction === "long" ? state.snap.regime.long_risk_budget : state.snap.regime.short_risk_budget) ?? 1;
+  const d = Math.abs(p.entry - p.stop);
+  let shares = d > 0 ? Math.floor(v.account * v.risk / 100 * budget / d) : "";
+  const cap = p.entry > 0 ? Math.floor(v.account * v.maxPos / 100 / p.entry) : null;
+  if (isNum(shares) && isNum(cap)) shares = Math.min(shares, cap);
+  const fixedTarget = !p.trail_atr && isNum(p.target1) ? p.target1 : null;
+  return { symbol: c.symbol, direction: "long", setup: c.setup, entry_date: nyToday(), entry_price: p.entry, stop: p.stop,
+    target: fixedTarget ?? "", shares, notes: "",
+    plan_json: { setup: c.setup, atr: p.atr, ref: p.entry, stop_atr: p.risk_atr, trail_atr: p.trail_atr ?? null, target: fixedTarget,
+      horizon_days: p.horizon_days, signal_date: state.snap.session.date } };
+}
+
+function planText(pj) {
+  if (!pj || !isNum(pj.atr)) return "Exit rule: the live rule of the chosen setup, with the ATR of the session before the entry date.";
+  const t = isNum(pj.trail_atr) && pj.trail_atr > 0 ? `trailing stop = highest high since entry − ${num(pj.trail_atr, 1)} ATR (${num(pj.trail_atr * pj.atr)})`
+    : isNum(pj.target) ? `target ${num(pj.target)}` : "fixed target";
+  return `Exit rule saved with the trade: initial stop as entered, ${t}, sell at the close of session ${pj.horizon_days || 20}. ATR at the signal ${num(pj.atr)}.`;
+}
+
+function buyDialog(pre, id = null) {
+  if (window.__PREVIEW__) { alert("Cannot save in the preview."); return; }
+  let dlg = $("#buy-dlg");
+  if (!dlg) { dlg = document.createElement("dialog"); dlg.id = "buy-dlg"; dlg.className = "dlg"; document.body.appendChild(dlg); }
+  const names = state.snap.setup_names || {};
+  const val = (k) => esc(pre[k] ?? "");
+  dlg.innerHTML = `<form id="buy-form" class="pf-inputs">
+    <div class="dlg-head wide"><div class="eyebrow">${id ? "Edit holding" : "Record a buy"}</div><h2 class="display">${esc(pre.symbol || "New holding")}</h2>
+      <p class="note">The Holdings page re-analyses every open position after each daily run and every intraday refresh. Nothing is traded.</p></div>
+    <label>Symbol<input name="symbol" required value="${val("symbol")}" ${id ? "readonly" : ""}></label>
+    <label>Setup<select name="setup"><option value="">—</option>${Object.entries(names).filter(([k]) => !["breakdown", "rally_fail", "ema21_loss"].includes(k) || k === pre.setup)
+      .map(([k, n]) => `<option value="${k}" ${k === pre.setup ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
+    <label>Entry date<input name="entry_date" type="date" value="${val("entry_date")}"></label>
+    <label>Your fill price<input name="entry_price" type="number" step="0.01" min="0" required value="${isNum(pre.entry_price) ? fixed(pre.entry_price, 2) : val("entry_price")}"></label>
+    <label>Shares<input name="shares" type="number" step="1" min="0" value="${val("shares")}"></label>
+    <label>Initial stop<input name="stop" type="number" step="0.01" min="0" required value="${isNum(pre.stop) ? fixed(pre.stop, 2) : val("stop")}"></label>
+    <label>Target (if fixed)<input name="target" type="number" step="0.01" min="0" value="${isNum(pre.target) ? fixed(pre.target, 2) : ""}"></label>
+    <label class="wide">Note<input name="notes" value="${val("notes")}" placeholder="why in, what would make you sell"></label>
+    <p class="note wide">${esc(planText(pre.plan_json))}</p>
+    <div class="dlg-actions wide"><button type="button" data-dlg-cancel>Cancel</button><button type="submit" class="primary">${id ? "Save" : "Save and track"}</button></div></form>`;
+  dlg.querySelector("[data-dlg-cancel]").onclick = () => dlg.close();
+  dlg.querySelector("#buy-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries([...new FormData(e.target).entries()].map(([k, x]) => [k, x === "" ? null : x]));
+    data.direction = "long";
+    if (pre.plan_json && !id) data.plan_json = pre.plan_json;
+    if (Number(data.stop) >= Number(data.entry_price)) { alert("The stop must be below the fill price."); return; }
+    try {
+      await api(id ? `/api/journal/${id}` : "/api/journal", { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      dlg.close();
+      if (location.hash.startsWith("#/holdings")) route(); else location.hash = "#/holdings";
+    } catch (err) { alert(err.message); }
+  };
+  dlg.showModal();
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-buy]");
+  if (!b) return;
+  const c = state.buyCands[b.dataset.buy];
+  if (c) { closeFocus(true); buyDialog(buyPrefill(c)); }
+});
+
+function evCell(rec, keys, labels) {
+  // [d account %, t, fired share, d R per fired trade] per period -> "R per fired trade" when known, else account %
+  if (!rec) return '<span class="muted">—</span>';
+  const parts = keys.map((k, i) => {
+    const x = rec[k];
+    if (!x) return `<span class="muted">${labels[i]} —</span>`;
+    const r = isNum(x[3]) ? `${sg(x[3])}R` : `${sg(x[0], 3)}%`;
+    return `<span class="${cls(isNum(x[3]) ? x[3] : x[0])}" title="${labels[i]}: account ${sg(x[0], 3)}%, t ${num(x[1], 1)}, fired in ${pct(x[2], 0, false)} of trades">${labels[i]} ${r}</span>`;
+  });
+  return `${parts.join(" · ")} <small class="muted">t ${num(rec.pt, 1)}</small>`;
+}
+
+function allStocksCell(s) {
+  const a = s.all_stocks, ah = s.all_stocks_hourly;
+  if (a) return ["hold", "is", "oos"].map((p, i) => a[p] ? `<span class="${cls(a[p].x5)}" title="${["2010-19", "2020-24 (in sample)", "2024-26"][i]}: next 5 sessions ${sg(a[p].x5)} ATR vs all stocks that day, t ${num(a[p].t5, 1)}, n ${a[p].n}">${sg(a[p].x5)}</span>` : '<span class="muted">—</span>').join(" / ") + ' <small class="muted">ATR</small>';
+  if (ah) return ["is_h", "oos_h"].map((p) => ah[p] ? `<span class="${cls(ah[p].x_d1)}" title="next session close ${sg(ah[p].x_d1)} ATR, t ${num(ah[p].t_d1, 1)}, n ${ah[p].n}">${sg(ah[p].x_d1)}</span>` : '<span class="muted">—</span>').join(" / ") + ' <small class="muted">ATR, next day</small>';
+  return '<span class="muted">—</span>';
+}
+
+function signalsTable(h, all) {
+  // default: the plain signals + any volume / profit-context variant whose backtest result stands out
+  const plain = (s) => !(s.rule.includes("@") || s.rule.includes("|in_"));
+  const notable = (s) => ["validated", "selling helped (not validated)", "selling hurt"].includes(s.verdict);
+  const rows = (h.signals || []).filter((s) => all || plain(s) || notable(s));
+  if (!rows.length) return '<p class="note">No pattern, overbought / oversold reading or trade-state signal is visible today.</p>';
+  return `<div class="tw"><table class="hd-sig"><thead><tr><th>Visible today</th><th>Folklore says</th><th class="n" title="Excess move over the next 5 sessions across all stocks (market removed), 2010-19 / 2020-24 / 2024-26">All stocks, next 5 days</th>
+    <th title="Selling at the next open the first time it appeared, instead of holding with the live rule: change in R per trade where it fired (+ = selling was better). Daily: 2010-19 · 2024-26; hourly: 2024-25 · 2025-26">If sold at the next open (vs holding)</th><th>Verdict</th></tr></thead><tbody>
+    ${rows.map((s) => {
+      const [vt, vc] = VERDICT[s.verdict] || [s.verdict, "muted"];
+      const hourly = s.kind === "hourly_eod";
+      const ev = evCell(s.in_trade, hourly ? ["is_h", "oos_h"] : ["hold", "oos"], hourly ? ["24-25", "25-26"] : ["10-19", "24-26"]);
+      const extra = [s.intraday ? `<div class="note">sell at the next HOUR's open: ${evCell(s.intraday, ["is_h", "oos_h"], ["24-25", "25-26"])}</div>` : "",
+        s.tighten ? `<div class="note">raise the stop to this bar's low instead: ${evCell(s.tighten, ["hold", "oos"], ["10-19", "24-26"])}</div>` : ""].join("");
+      return `<tr><td class="wrap"><b>${esc(s.name)}</b></td><td class="wrap muted">${esc(FOLK[s.folklore] || s.folklore || "")}</td><td class="n">${allStocksCell(s)}</td>
+        <td class="wrap">${ev}${extra}</td><td><span class="tag ${vc}">${esc(vt)}</span></td></tr>`;
+    }).join("")}</tbody></table></div>`;
+}
+
+function holdingCard(h, showAll) {
+  const t = h.trade || {}, ex = h.exit || {};
+  const head = `<div class="hd-head"><div><a href="#/ticker/${esc(h.symbol)}" class="display hd-sym">${esc(h.symbol)}</a>
+      <span class="chip">${esc((state.snap.setup_names || {})[h.setup || t.setup] || h.setup || t.setup || "no setup")}</span>
+      <div class="note">${num(t.shares, 0)} shares @ ${num(t.entry_price)} · bought ${esc(t.entry_date || "")}</div></div>
+    <div class="hd-px">${isNum(h.last) ? `<span class="num">${num(h.last)}</span>${h.live ? ` <span class="chip">live ${esc(h.live_slot || "")} ET</span>` : ""}` : ""}
+      <div class="${cls(h.pnl)}">${isNum(h.pnl) ? `${h.pnl >= 0 ? "+" : "−"}$${Math.abs(Math.round(h.pnl)).toLocaleString()} (${pct(h.pnl_pct)}) · ${sg(h.r_now)}R` : ""}</div></div></div>`;
+  if (h.error) return `<section class="note-block hd">${head}<p class="warn">${esc(h.error)}</p>${hdButtons(h)}</section>`;
+  const a = h.action || {};
+  const actCls = a.kind === "sell" ? "down" : a.kind === "wait" ? "muted" : "up";
+  const kv = ex.status ? `<div class="kv">
+    <div><span>Day of the trade</span><span class="num">${ex.days_held} / ${ex.horizon}${ex.time_stop_date ? ` <small class="muted">(time stop ${ex.time_stop_date})</small>` : ""}</span></div>
+    <div><span>Stop for the next session</span><span class="num ${ex.trail_on ? "up" : "down"}">${num(ex.stop_next)} <small class="muted">${pct(-ex.dist_stop_pct)} · ${num(ex.dist_stop_atr, 1)} ATR away</small></span></div>
+    <div><span>Initial stop</span><span class="num">${num(ex.stop0)} <small class="muted">risk ${num(ex.risk)} / share</small></span></div>
+    <div><span>${isNum(ex.target) ? "Target" : "Trailing"}</span><span class="num">${isNum(ex.target) ? num(ex.target) : ex.trail_on ? `on: high ${num(ex.high_since_entry)} − ${num(ex.trail_distance)}` : `starts once the high passes ${num(ex.raise_stop_above)}`}</span></div>
+    <div><span>Best / worst so far</span><span class="num"><span class="up">${sg(ex.mfe_r)}R</span> / <span class="down">${sg(ex.mae_r)}R</span></span></div>
+    <div><span>Locked by the stop</span><span class="num ${cls(ex.locked_r)}">${sg(ex.locked_r)}R <small class="muted">give-back from best ${num(ex.giveback_r)}R</small></span></div></div>` : "";
+  const td = h.today || {};
+  const ind = h.today ? `<div class="facts">${[["RSI 6", num(td.rsi6, 0)], ["RSI 14", num(td.rsi14, 0)], ["%B", num(td.bb_pct_b, 2)], ["Above EMA21", `${num(td.extension_atr, 1)} ATR`],
+    ["Volume vs 20d", `${num(td.vol_ratio, 1)}×`], ["Close in range", pct(td.clv, 0, false)], ["Weekly trend", td.weekly_up === 1 ? "up" : td.weekly_up === 0 ? "down" : "n/a"], ["ADX", num(td.adx, 0)]]
+    .map(([k, v]) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`).join("")}</div>` : "";
+  const sm = h.similar;
+  const sim = sm ? `<p class="note"><b>Similar past trades</b> (${esc((state.snap.setup_names || {})[h.setup] || h.setup)}, day ${sm.matched_day}, open profit ${esc(sm.open_r)}R, n = ${sm.n.toLocaleString()}):
+      held with the live rule they ended at <b class="${cls(sm.final_r)}">${sg(sm.final_r)}R</b> on average and ${pct(sm.p_final_below_0, 0, false)} ended below zero; holding from here was worth
+      <b class="${cls(sm.cv_r)}">${sg(sm.cv_r)}R</b> versus selling at the next open.</p>` : "";
+  const hr = h.hourly_session ? `<span class="chip">1-hour bars to ${esc(h.hourly_session)} ${esc(h.hourly_last_bar || "")} ET${h.hourly_complete ? "" : " (session in progress)"}</span>` : '<span class="chip">no 1-hour bars yet</span>';
+  const n = (h.signals || []).length;
+  return `<section class="note-block hd">${head}
+    <p class="hd-act ${actCls}"><span class="tag">${esc((a.kind || "").toUpperCase())}</span>${esc(a.text || "")}</p>
+    ${h.intraday_stop_touch ? '<p class="down">Live quote has touched the stop.</p>' : ""}
+    ${kv}<h3>Today (${esc((h.today || {}).date || "")}) ${hr}</h3>${ind}${sim}
+    <h3>Signals visible today <small class="muted">${n} · with what each did in the backtest</small></h3>${signalsTable(h, showAll)}
+    ${n ? `<button class="hd-more" data-hd-all>${showAll ? "Hide volume / context variants" : "Show all variants"}</button>` : ""}
+    ${hdButtons(h)}</section>`;
+}
+
+function hdButtons(h) {
+  return `<div class="qa"><button data-hd-edit="${h.id}">Edit</button><button data-hd-close="${h.id}">Record the sale</button><button data-hd-del="${h.id}">Delete</button></div>`;
+}
+
+async function holdings() {
+  app.innerHTML = `<div class="wall-head"><div><div class="eyebrow">positions you bought · re-analysed at every data update</div><h1 class="display">Holdings <em>watch</em></h1>
+    <p>For each open position: where the live exit rule stands now, and every candle pattern, hourly pattern, overbought / oversold reading and trade-state signal visible today,
+    with what it actually did in the holding study (paired backtest: selling at the next open vs holding, judged out of sample with a multiple-testing correction). Only signals that pass that test say SELL.</p></div>
+    <div class="focus-tools"><button id="hd-add" class="wide">+ Record a buy</button><button id="hd-hourly" class="wide" title="Download the held symbols' 60-minute bars now">Fetch 1-hour bars</button></div></div>
+    <div id="hd-body"><div class="loading">Loading…</div></div>`;
+  const ui = { all: false, data: null };
+  const draw = () => {
+    const d = ui.data, list = d.holdings || [];
+    const st = d.study;
+    const tot = list.reduce((x, h) => x + (isNum(h.pnl) ? h.pnl : 0), 0);
+    const risk = list.reduce((x, h) => x + (h.exit && isNum(h.exit.stop_next) && isNum(h.last) ? Math.max(0, h.last - h.exit.stop_next) * (h.shares || 0) : 0), 0);
+    const sells = list.filter((h) => (h.action || {}).kind === "sell").length;
+    const nVal = st ? Object.values(st.validated || {}).reduce((x, v) => x + v.length, 0) + Object.values(st.hourly_validated || {}).reduce((x, v) => x + v.length, 0) : 0;
+    $("#hd-body").innerHTML = `<div class="grid g4 kpis">
+        <div class="kpi"><span class="l">Open positions</span><span class="v">${list.length}</span><span class="note">${sells ? `<span class="down">${sells} to sell by the rule</span>` : "none at a sell signal"}</span></div>
+        <div class="kpi"><span class="l">Open P&L</span><span class="v ${cls(tot)}">${tot >= 0 ? "+" : "−"}$${Math.abs(Math.round(tot)).toLocaleString()}</span><span class="note">marked to the latest price</span></div>
+        <div class="kpi"><span class="l">At risk to the stops</span><span class="v">$${Math.round(risk).toLocaleString()}</span><span class="note">if every stop for the next session is hit</span></div>
+        <div class="kpi"><span class="l">Validated exit signals</span><span class="v">${st ? nVal : "—"}</span><span class="note">${st ? `of ${Object.values(st.n_rules || {}).reduce((x, v) => x + (v || 0), 0).toLocaleString()} tested (study ${esc(st.session || "")})` : "no holding study file"}</span></div></div>
+      <p class="note">Daily signals use the last completed daily bar; hourly ones the latest completed 1-hour bars (${d.hourly ? `fetched ${ago(d.hourly.fetched_at)} ago` : "none yet: they arrive with the intraday refresh or the button above"}).
+        Live prices: ${d.intraday ? `${esc(d.intraday.session)} ${esc(d.intraday.slot_label || "")} ET` : "none"}. The page refreshes every 5 minutes.</p>
+      ${list.length ? list.map((h) => holdingCard(h, ui.all)).join("") : `<p class="empty">No open positions. Open a candidate and press <b>I bought this</b>, or use <b>+ Record a buy</b>.</p>`}`;
+    app.querySelectorAll("[data-hd-all]").forEach((b) => (b.onclick = () => { ui.all = !ui.all; draw(); }));
+    app.querySelectorAll("[data-hd-edit]").forEach((b) => (b.onclick = () => {
+      const h = list.find((x) => String(x.id) === b.dataset.hdEdit), t = (h || {}).trade || {};
+      buyDialog({ ...t, plan_json: null }, t.id);
+    }));
+    app.querySelectorAll("[data-hd-close]").forEach((b) => (b.onclick = async () => {
+      const h = list.find((x) => String(x.id) === b.dataset.hdClose);
+      const px = Number(prompt(`Sale price for ${h.symbol}?`, isNum(h.last) ? fixed(h.last, 2) : "")); if (!isNum(px) || px <= 0) return;
+      try { await api(`/api/journal/${h.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exit_price: px, exit_date: nyToday(), status: "closed" }) }); load(); }
+      catch (err) { alert(err.message); }
+    }));
+    app.querySelectorAll("[data-hd-del]").forEach((b) => (b.onclick = async () => { if (confirm("Delete this record?")) { await api(`/api/journal/${b.dataset.hdDel}`, { method: "DELETE" }); load(); } }));
+  };
+  const load = async () => {
+    try { ui.data = await api("/api/holdings"); if (location.hash.startsWith("#/holdings")) draw(); }
+    catch (err) { const el = $("#hd-body"); if (el) el.innerHTML = `<p class="warn">${esc(err.message)}</p>`; }
+  };
+  $("#hd-add").onclick = () => buyDialog({ entry_date: nyToday(), direction: "long" });
+  $("#hd-hourly").onclick = async (e) => {
+    const b = e.target; b.disabled = true; b.textContent = "Fetching…";
+    try { const r = await api("/api/holdings/hourly", { method: "POST" }); b.textContent = r.status === "ok" ? "Fetched" : (r.reason || r.status); load(); }
+    catch (err) { b.textContent = "Failed"; alert(err.message); }
+    finally { setTimeout(() => { b.disabled = false; b.textContent = "Fetch 1-hour bars"; }, 4000); }
+  };
+  clearInterval(state.hdTimer);
+  state.hdTimer = setInterval(() => { if (location.hash.startsWith("#/holdings")) load(); else clearInterval(state.hdTimer); }, 5 * 60 * 1000);
+  load();
+}
+
+// ------------------------------------------------------------------ holding study (exit signals while a position is open)
+function ruleLabel(name, info) {
+  const [kind, ...restArr] = name.split(":"), rest = restArr.join(":");
+  const [base, ctx] = rest.split("|"), [pid, vol] = base.split("@");
+  const nm = (info[pid] || {}).name || pid.replace(/_/g, " ");
+  const v = vol === "hv" ? ", volume ≥ 1.5×" : vol === "lv" ? ", volume ≤ 0.7×" : "";
+  const c = ctx ? ` [${ctx.replace(/_/g, " ")}]` : "";
+  const k = { candle: "", mtf: "", classic: "", state: "Trade state: ", ind: "Indicator: ", tighten_to_low: "Stop to bar low on ", hourly_eod: "1h (end of day): ", hourly: "1h (next hour): " }[kind] ?? `${kind}: `;
+  if (kind === "classic" || kind === "state" || kind === "ind") return k + rest.replace(/_/g, " ");
+  if (kind === "tighten_to_low" && pid.startsWith("mtf")) return k + ruleLabel(rest, info);
+  return k + nm + v + c;
+}
+function holdingStudySection(d) {
+  if (!d || !d.available) return `<div class="card" style="margin-top:14px"><h2>Exit signals while holding <small>holding study</small></h2><p class="note">${esc((d || {}).reason || "No holding study yet.")}</p></div>`;
+  const info = d.pattern_info || {}, S = d.setups || {}, names = state.snap.setup_names || {};
+  const pt = (x) => (x && isNum(x.t) ? x.t : null);
+  const gateRows = Object.entries(S).map(([k, v]) => ({ name: names[k] || k, n: v.n_trades, rules: (v.gate || {}).n_rules, cand: (v.gate || {}).n_is_candidates, bar: (v.gate || {}).bar_t,
+    val: ((v.gate || {}).validated || []).length, best: Math.max(...(v.top_by_pooled_t || []).map((r) => pt(r.pooled) ?? -9)), nul: v.maxt_null95,
+    hval: ((v.hourly_gate || {}).validated || []).length, hrules: (v.hourly_gate || {}).n_rules, model: ((v.model || {}).stats || {}).pooled }));
+  const dirOf = { bull: 1, bear: -1 };
+  const patRows = (vol) => Object.entries(d.universe_patterns || {}).filter(([k]) => (vol ? k.endsWith("@" + vol) : !k.includes("@"))).map(([k, v]) => {
+    const base = k.split("@")[0], pid = base.split("|")[0], inf = info[pid] || {}, dir = dirOf[inf.folklore];
+    const xs = ["hold", "is", "oos"].map((p) => (v[p] || {}).x5), ts = ["hold", "is", "oos"].map((p) => (v[p] || {}).t5);
+    let verdict = "—";
+    if (dir && ts.every(isNum)) {   // direction from t (per-day means), so a few crowded days cannot flip it
+      const same = ts.every((x) => Math.sign(x) === dir), opp = ts.every((x) => Math.sign(x) === -dir);
+      const strong = ts.filter((t) => isNum(t) && Math.abs(t) >= 2).length >= 2;
+      verdict = same && strong ? "Folklore holds" : opp && strong ? "OPPOSITE of folklore" : same ? "Same sign, weak" : opp ? "Opposite sign, weak" : "No consistent edge";
+    }
+    return { k, name: (inf.name || pid.replace(/_/g, " ")) + (base.includes("|") ? ` (${base.split("|")[1].replace("_", " ")})` : ""), folk: FOLK[inf.folklore] || inf.folklore || "",
+      freq: v.freq, h5: xs[0], i5: xs[1], o5: xs[2], th: ts[0], ti: ts[1], to: ts[2], verdict };
+  });
+  const cell = (x, t) => (isNum(x) ? `<span class="${cls(x)}" title="t ${num(t, 1)}">${sg(x)}</span> <small class="muted">${num(t, 1)}</small>` : '<span class="muted">—</span>');
+  const patTable = (vol) => table("hs-pat", [{ key: "name", label: "Pattern", wrap: 1 }, { key: "folk", label: "Folklore says" },
+    { key: "freq", label: "How often", n: 1, render: (r) => pct(r.freq, 2, false) },
+    { key: "h5", label: "2010-19 · 5d", n: 1, render: (r) => cell(r.h5, r.th) }, { key: "i5", label: "2020-24 · 5d", n: 1, render: (r) => cell(r.i5, r.ti) },
+    { key: "o5", label: "2024-26 · 5d", n: 1, render: (r) => cell(r.o5, r.to) },
+    { key: "verdict", label: "Data says", render: (r) => `<span class="${/OPPOSITE/.test(r.verdict) ? "down" : /holds/.test(r.verdict) ? "up" : "muted"}">${esc(r.verdict)}</span>` }], patRows(vol), { sortKey: "h5" });
+  const ruleRows = (k) => (S[k].top_by_pooled_t || []).map((r) => ({ name: ruleLabel(r.rule, info), fam: r.family, is: r.is, hold: r.hold, oos: r.oos, pooled: r.pooled, p: r.maxt_p }));
+  const dcell = (x) => (x && isNum(x.d_r_fired) && x.d_r_fired !== 0 ? `<span class="${cls(x.d_r_fired)}" title="account ${sg(x.d_eq, 3)}%, fired in ${pct(x.fired, 0, false)}">${sg(x.d_r_fired)}R</span> <small class="muted">t ${num(x.t, 1)}</small>` : x && isNum(x.d_eq) ? `${sg(x.d_eq, 3)}% <small class="muted">t ${num(x.t, 1)}</small>` : "—");
+  const setupBlock = (k) => {
+    const v = S[k];
+    return `<h3>${esc(names[k] || k)}: the 12 rules with the best pooled t <small class="muted">+ = selling at the next open (first time it fires) beat holding with the live rule; R per trade where it fired</small></h3>
+    ${table(`hs-r-${k}`, [{ key: "name", label: "Rule", wrap: 1 }, { key: "fam", label: "Family" }, { key: "is", label: "2020-24 (choose)", n: 1, sort: (r) => (r.is || {}).t, render: (r) => dcell(r.is) },
+      { key: "hold", label: "2010-19", n: 1, sort: (r) => (r.hold || {}).t, render: (r) => dcell(r.hold) }, { key: "oos", label: "2024-26", n: 1, sort: (r) => (r.oos || {}).t, render: (r) => dcell(r.oos) },
+      { key: "pooled", label: "Pooled t", n: 1, sort: (r) => pt(r.pooled), render: (r) => num(pt(r.pooled), 2) }, { key: "p", label: "Max-t p", n: 1, render: (r) => num(r.p, 2) }], ruleRows(k), { sortKey: "pooled" })}
+    <h3>Day of the trade × open profit <small class="muted">what the rest of the trade was worth if held (CV = hold − sell next open)</small></h3>
+    ${table(`hs-d-${k}`, [{ key: "day", label: "Day", n: 1 }, { key: "open_r", label: "Open R" }, { key: "n", label: "Trade-days", n: 1 },
+      { key: "share_of_day", label: "Share", n: 1, render: (r) => pct(r.share_of_day, 0, false) }, { key: "cv_r", label: "Holding worth", n: 1, render: (r) => `<span class="${cls(r.cv_r)}">${sg(r.cv_r)}R</span>` },
+      { key: "final_r", label: "Final R if held", n: 1, render: (r) => sg(r.final_r) }, { key: "p_final_below_0", label: "Ends below 0", n: 1, render: (r) => pct(r.p_final_below_0, 0, false) }], v.day_profile || [])}`;
+  };
+  const first = d.__setup || Object.keys(S)[0];
+  return `<div class="card" style="margin-top:14px" id="hs-card"><h2>Exit signals while holding <small>holding study · ${esc(d.session || "")} · ${d.n_stocks || "?"} stocks · ${d.n_features || "?"} indicators</small></h2>
+    <p class="note">Every trade-day of the three live setups (2004-2026): would selling at the next open have beaten holding with the live exit? Rules: ${Object.values(S).reduce((x, v) => x + ((v.gate || {}).n_rules || 0), 0).toLocaleString()} daily + ${Object.values(S).reduce((x, v) => x + ((v.hourly_gate || {}).n_rules || 0), 0).toLocaleString()} hourly (candles × volume × timeframe, overbought / oversold, trade state, every indicator's extreme tails, one combined model).
+      Chosen on 2020-01..2024-06 only, then confirmed on 2010-2019 and 2024-07.. with a Bonferroni bar and a max-t guard. A 50% partial sale is exactly half of the full-sale effect, so it has the same sign and t.</p>
+    ${table("hs-gate", [{ key: "name", label: "Setup" }, { key: "n", label: "Trades", n: 1 }, { key: "rules", label: "Daily rules", n: 1 }, { key: "cand", label: "IS candidates", n: 1 },
+      { key: "bar", label: "Bar t", n: 1, render: (r) => num(r.bar, 2) }, { key: "val", label: "Validated", n: 1, render: (r) => `<b class="${r.val ? "up" : ""}">${r.val}</b>` },
+      { key: "best", label: "Best pooled t", n: 1, render: (r) => num(r.best, 2) }, { key: "nul", label: "Chance max t (95%)", n: 1, render: (r) => num(r.nul, 2) },
+      { key: "hval", label: "1h validated", n: 1, render: (r) => `${r.hval} / ${r.hrules ?? "?"}` },
+      { key: "model", label: "Combined model, pooled", n: 1, render: (r) => (r.model ? `${sg(r.model.d_eq, 3)}% t ${num(r.model.t, 1)}` : "—") }], gateRows)}
+    <h3>Folklore vs data: every daily pattern across all stocks <small class="muted">excess move over the next 5 sessions in ATR vs all stocks the same day (market removed), t in grey</small></h3>
+    <div class="filters"><label>Volume <select id="hs-vol">${[["", "any"], ["hv", "≥ 1.5× (high)"], ["lv", "≤ 0.7× (low)"]].map(([v, t]) => `<option value="${v}" ${v === (d.__vol || "") ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+    <div id="hs-pat">${patTable(d.__vol || "")}</div>
+    <div class="filters"><div class="seg" id="hs-seg">${Object.keys(S).map((k) => `<button data-v="${k}" class="${k === first ? "active" : ""}">${esc(names[k] || k)}</button>`).join("")}</div></div>
+    <div id="hs-setup">${first ? setupBlock(first) : ""}</div></div>`;
+  // wiring happens in wireHoldingStudy (needs the DOM)
+}
+function wireHoldingStudy(d) {
+  const card = $("#hs-card");
+  if (!d || !d.available || !card) return;
+  const redraw = (patch) => { const nd = { ...d, ...patch }; card.outerHTML = holdingStudySection(nd); wireHoldingStudy(nd); };
+  $("#hs-vol").onchange = (e) => redraw({ __vol: e.target.value });
+  app.querySelectorAll("#hs-seg button").forEach((b) => (b.onclick = () => redraw({ __setup: b.dataset.v })));
+}
 
 // ------------------------------------------------------------------ news (free RSS: Yahoo Finance, Nasdaq, Google News)
 function ago(iso) {
@@ -1898,6 +2187,8 @@ async function research() {
   try { ins = await api("/api/insider"); } catch (_) { ins = null; }
   let lev = null;
   try { lev = await api("/api/leverage"); } catch (_) { lev = null; }
+  let hstudy = null;
+  try { hstudy = await api("/api/holding-study"); } catch (_) { hstudy = null; }
   const rows = Object.entries(bt.by_setup || {}).map(([k, v]) => ({ key: k, name: s.setup_names[k] || tr(k), ...v })).filter((r) => r.n);
   const regimes = ["Strong Bullish", "Bullish", "Neutral", "Bearish", "Strong Bearish"];
   const reg = Object.entries(bt.by_setup_regime || {}).map(([k, m]) => ({ name: s.setup_names[k] || k, ...Object.fromEntries(regimes.map((r) => [r, m[r]])) }));
@@ -1908,6 +2199,7 @@ async function research() {
     ${discoverySection(disc)}
     ${insiderSection(ins)}
     ${leverageSection(lev)}
+    ${holdingStudySection(hstudy)}
     ${setupWeighting(s)}
     ${crashSection(crash)}
     ${slTpExplainer(full)}
@@ -1931,6 +2223,7 @@ async function research() {
       + `<h3>Weights · penalties · tiers (config/terminal.yaml)</h3><pre class="doc">${esc(JSON.stringify({ weights: m.weights, penalties: m.penalties, tiers: m.tiers }, null, 2))}</pre>`;
   } catch (err) { $("#meth").textContent = err.message; }
   if (full && full.available) wireBacktest(full); else wireBacktest(null);
+  wireHoldingStudy(hstudy);
 }
 
 // ------------------------------------------------------------------ views: data quality

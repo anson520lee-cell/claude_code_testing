@@ -2129,3 +2129,207 @@ def test_structure_study_shipped_copy():
     d = json.loads((Path(__file__).resolve().parents[1] / "config" / "structure_study.default.json").read_text())
     assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
     assert all(v["validated"] == [] for v in d["setups"].values())
+
+
+# ======================================================================= holdings (positions you bought) + holding study
+def test_candle_detector_is_causal():
+    from src.technical import candles
+    rng = np.random.default_rng(21)
+    n = 400
+    head = rng.normal(0.0005, 0.02, 360)
+
+    def frame(tail):
+        c = 100 * np.exp(np.cumsum(np.r_[head, tail]))
+        o = np.r_[100, c[:-1]] * (1 + rng.normal(0, 0.004, n))
+        h = np.maximum(o, c) * (1 + np.abs(rng.normal(0, 0.006, n)))
+        lo = np.minimum(o, c) * (1 - np.abs(rng.normal(0, 0.006, n)))
+        return o, h, lo, c
+    rng2 = np.random.default_rng(5)
+    a = frame(rng2.normal(0, 0.02, n - 360))
+    b = frame(rng2.normal(0, 0.06, n - 360))
+    # the random noise of o/h/l differs between a and b, so rebuild both from the same o/h/l except the tail
+    o, h, lo, c = a
+    o2, h2, lo2, c2 = (np.r_[x[:360], y[360:]] for x, y in zip(a, b))
+    atr = candles.wilder_atr(h, lo, c, 14)
+    atr2 = candles.wilder_atr(h2, lo2, c2, 14)
+    fa, fb = candles.detect(o, h, lo, c, atr), candles.detect(o2, h2, lo2, c2, atr2)
+    assert len(candles.PATTERN_IDS) >= 40 and len(fa) == len(candles.PATTERN_IDS)
+    for k in fa:
+        assert np.array_equal(fa[k][:360], fb[k][:360]), k
+    assert sum(int(v.sum()) for v in fa.values()) > 0
+
+
+def test_holding_exit_state_replays_the_live_trailing_stop():
+    from src.portfolio import holdings
+    idx = pd.bdate_range("2026-10-01", periods=12)
+    high = np.array([101, 103, 106, 110, 109, 108, 107, 106, 105, 104, 103, 102], float)
+    low = high - 1.5
+    low[8] = 103.5            # day 9: the trailing stop 110 - 3 x 2 = 104 is hit
+    f = pd.DataFrame({"open": high - 1, "high": high, "low": low, "close": high - 0.5, "atr": 2.0}, index=idx)
+    trade = {"symbol": "AAA", "entry_price": 100.0, "stop": 97.0, "entry_date": "2026-10-01", "setup": "crash_rebound",
+             "plan_json": json.dumps({"atr": 2.0, "trail_atr": 3.0, "horizon_days": 20})}
+    plan = holdings.trade_plan(trade)
+    assert plan["trail"] == 3.0 and plan["atr"] == 2.0 and plan["horizon"] == 20
+    st = holdings.exit_state(f, trade, plan)
+    assert st["status"] == "stop" and st["exit_date"] == idx[8].strftime("%Y-%m-%d") and st["exit_px"] == pytest.approx(104.0)
+    open_ = holdings.exit_state(f.iloc[:6], trade, plan)
+    assert open_["status"] == "open" and open_["stop_next"] == pytest.approx(104.0) and open_["trail_on"]
+    assert open_["mfe_r"] == pytest.approx(10 / 3) and open_["days_held"] == 6 and open_["days_since_high"] == 2
+    sq = {**trade, "setup": "squeeze", "plan_json": json.dumps({"target": 105.0, "trail_atr": None})}
+    st2 = holdings.exit_state(f, sq, holdings.trade_plan(sq))
+    assert st2["status"] == "target" and st2["exit_px"] == pytest.approx(105.0)
+
+
+def test_holding_study_first_fire_and_paired_delta():
+    from src.backtest import holding_study as hs
+    # 3 trades; trade-days sorted by (sig, k)
+    td = pd.DataFrame({"sig": [0, 0, 0, 1, 1, 2], "k": [1, 2, 3, 1, 2, 1], "cv_eq": [0.01, -0.02, 0.005, 0.03, 0.0, -0.01],
+                       "cv_r": [0.5, -1.0, 0.25, 1.5, 0.0, -0.5]})
+    trades = pd.DataFrame({"date": ["2021-01-04", "2021-01-05", "2021-01-06"]})
+    mask = np.array([False, True, True, False, False, True])
+    assert hs.first_fire(mask, td["sig"].to_numpy(), 3).tolist() == [1, -1, 5]
+    book = hs.Book(trades, td)
+    d_eq, d_r, fired = book.delta_exit(mask)
+    # selling at the first firing gains minus the continuation value there; trades that never fire are unchanged
+    assert d_eq.tolist() == pytest.approx([0.02, 0.0, 0.01]) and d_r.tolist() == pytest.approx([1.0, 0.0, 0.5])
+    assert fired.tolist() == [True, False, True]
+
+
+def test_journal_plan_json_round_trip(tsettings):
+    from src.daily import store as st
+    from src.portfolio import journal
+    conn = st.connect(Path(tsettings["paths"]["database"]), Path(tsettings["paths"]["backups_dir"]))
+    plan = {"setup": "crash_rebound", "atr": 2.5, "trail_atr": 3, "horizon_days": 20, "ref": 50.0}
+    tid = journal.add_trade(conn, {"symbol": "AAA", "direction": "long", "setup": "crash_rebound", "entry_price": 50.4,
+                                   "stop": 46.25, "shares": 100, "plan_json": plan})
+    row = journal.open_trades(conn)[0]
+    assert row["id"] == tid and json.loads(row["plan_json"]) == plan
+    with pytest.raises(ValueError):
+        journal.update_trade(conn, tid, {"plan_json": "{not json"})
+    conn.close()
+    # an older database without the column is upgraded in place
+    old = tmp = Path(tsettings["paths"]["database"]).with_name("old.db")
+    c = sqlite3.connect(tmp)
+    c.execute("CREATE TABLE terminal_runs (id INTEGER PRIMARY KEY, session_date TEXT, started_at TEXT, status TEXT)")
+    c.execute("CREATE TABLE trade_journal (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, symbol TEXT NOT NULL,"
+              " direction TEXT NOT NULL, setup TEXT, entry_date TEXT, entry_price REAL NOT NULL, stop REAL NOT NULL, target REAL,"
+              " shares REAL, exit_date TEXT, exit_price REAL, status TEXT NOT NULL DEFAULT 'open', notes TEXT)")
+    c.commit()
+    c.close()
+    conn = st.connect(old, Path(tsettings["paths"]["backups_dir"]))
+    assert "plan_json" in {r[1] for r in conn.execute("PRAGMA table_info(trade_journal)")}
+    conn.close()
+
+
+def test_hourly_bars_keep_only_completed_bars_and_session_end():
+    from src.daily import intraday
+    from src.portfolio import holdings
+    ny = calendar.NEW_YORK
+    day = date(2026, 11, 2)
+    starts = [datetime.combine(day, datetime.min.time(), ny).replace(hour=9, minute=30) + timedelta(hours=i) for i in range(7)]
+    fr = pd.DataFrame({"Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1e5}, index=pd.DatetimeIndex(starts))
+    rows = intraday.completed_hourly(fr, datetime(2026, 11, 2, 11, 45, tzinfo=ny))
+    assert [r[0][11:16] for r in rows] == ["09:30", "10:30"]     # the 11:30 bar is still forming at 11:45
+    assert len(intraday.completed_hourly(fr, datetime(2026, 11, 2, 16, 1, tzinfo=ny))) == 7
+    assert holdings.session_complete(pd.Timestamp(starts[-1])) and not holdings.session_complete(pd.Timestamp(starts[3]))
+    early = pd.Timestamp(datetime(2026, 11, 27, 12, 30, tzinfo=ny))  # day after Thanksgiving closes at 13:00
+    assert holdings.session_complete(early)
+
+
+def test_holdings_api_analyses_open_trades(tsettings):
+    from fastapi.testclient import TestClient
+
+    from src.daily import intraday
+    from src.daily.pipeline import run_daily
+    from src.web.app import create_app
+    run_daily(tsettings, session=SESSION, downloader=FakeDownloader(market_frames(tsettings)), enrichment=FakeEnrichment(),
+              fred_getter=fake_fred, progress=lambda m: None)
+    client = TestClient(create_app(tsettings))
+    chart = client.get("/api/chart/AAA?days=60").json()
+    c5 = chart["candles"][-6]
+    entry, atr = float(c5["open"]), 2.0
+    body = {"symbol": "AAA", "direction": "long", "setup": "crash_rebound", "entry_date": c5["time"], "entry_price": entry,
+            "stop": entry - 1.5 * atr, "shares": 50, "plan_json": {"atr": atr, "trail_atr": 3, "horizon_days": 20, "ref": entry}}
+    assert client.post("/api/journal", json=body).status_code == 200
+    client.post("/api/journal", json={"symbol": "BBB", "direction": "short", "entry_price": 10, "stop": 11})
+    # hourly bars of the held symbol, as the intraday job stores them (fake download, no network)
+    ny = calendar.NEW_YORK
+    conn = sqlite3.connect(tsettings["paths"]["database"])
+    assert intraday.held_symbols(conn) == ["AAA", "BBB"]
+
+    def fake_hourly(symbols):
+        idx = []
+        for d in calendar.trading_days(date(2026, 9, 1), SESSION):
+            idx += [datetime.combine(d, datetime.min.time(), ny).replace(hour=9, minute=30) + timedelta(hours=i) for i in range(7)]
+        rng = np.random.default_rng(3)
+        c = entry * np.exp(np.cumsum(rng.normal(0, 0.004, len(idx))))
+        fr = pd.DataFrame({"Open": c * 0.999, "High": c * 1.004, "Low": c * 0.996, "Close": c, "Volume": 1e5},
+                          index=pd.DatetimeIndex(idx))
+        return {s: fr for s in symbols}
+    r = intraday.refresh_hourly(tsettings, conn, now=datetime(2026, 10, 30, 17, 0, tzinfo=ny), fetch=fake_hourly)
+    conn.close()
+    assert r["status"] == "ok" and r["with_bars"] == 2
+    res = client.get("/api/holdings").json()
+    by = {h["symbol"]: h for h in res["holdings"]}
+    assert "error" in by["BBB"]                                      # short: not analysed
+    h = by["AAA"]
+    assert "error" not in h, h
+    ex = h["exit"]
+    assert ex["days_held"] == 6 and ex["status"] in ("open", "stop", "time", "target")
+    assert ex["stop_next"] >= body["stop"] - 1e-9 and h["action"]["kind"] in ("hold", "sell")
+    assert isinstance(h["signals"], list) and h["hourly_session"] == "2026-10-30" and h["hourly_complete"] is True
+    assert all({"rule", "name", "verdict"} <= set(s) for s in h["signals"])
+    assert res["hourly"]["fetched_at"]
+
+
+def test_holding_study_shipped_copy():
+    d = json.loads((Path(__file__).resolve().parents[1] / "config" / "holding_study.default.json").read_text())
+    assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
+    for v in d["setups"].values():
+        assert v["lookup"] and "gate" in v and "day_profile" in v
+        some = next(iter(v["lookup"].values()))
+        assert "pd" in some and "pt" in some
+
+
+def test_indicator_library_is_causal_and_broad():
+    import warnings
+    from src.technical import indicator_library as il
+    idx = pd.bdate_range("2015-01-01", periods=700)
+    rng = np.random.default_rng(3)
+    c = 50 * np.exp(np.cumsum(rng.normal(0, 0.015, len(idx))))
+    o = c * (1 + rng.normal(0, 0.004, len(idx)))
+    f = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.01, "low": np.minimum(o, c) * 0.99, "close": c,
+                      "volume": rng.integers(5e5, 2e6, len(idx)).astype(float)}, index=idx)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        full = il.compute(f)
+        cut = il.compute(f.iloc[:500])
+    assert full.shape[1] >= 300 and set(il.columns()) == set(full.columns)
+    # the value on day 500 must not change when later bars are added (no look-ahead)
+    a, b = full.iloc[499].to_numpy(float), cut.iloc[-1].to_numpy(float)
+    assert np.allclose(a, b, rtol=1e-4, atol=1e-6, equal_nan=True)
+    assert full.iloc[300:].notna().mean().min() > 0.8
+
+
+def test_trail_combo_tables_and_bitmask_first_day():
+    from src.backtest import trail_combo as tc
+    # one breakout trade: entry 100, ATR 2, stop 98, rising to 110 then falling
+    hi = np.array([[101, 104, 108, 110, 109, 107, 104, 103] + [103] * 12], float)
+    lo = hi - 1.5
+    O = hi - 0.5
+    C = hi - 0.8
+    base = {"entry": np.array([100.0]), "stop0": np.array([98.0]), "tgt": np.array([np.inf]), "ok": np.array([True]),
+            "size": np.array([0.25])}
+    a = np.array([2.0])
+    E, live = tc.action_tables(O, hi, lo, C, base, a, "breakout", 0.0)
+    # live: trail 3 ATR = 6 below the high (110 -> stop 104), hit on day 7 which opens below it at 103.5
+    assert live[0] == pytest.approx((103.5 / 100 - 1) * 0.25)
+    # tighten to 1 ATR after day 4 (0-based 3, high 110): stop 108 hit on day 5 (open 108.5, low 107.5) at 108
+    assert E["trail1"][0, 3] == pytest.approx((108 / 100 - 1) * 0.25)
+    # sell after day 4 = next open 108.5
+    assert E["sell"][0, 3] == pytest.approx((108.5 / 100 - 1) * 0.25)
+    # bit masks: condition true on days 3 and 5 of trade 0 and day 2 of trade 1 -> first days 2 and 1 (0-based)
+    sig, k1 = np.array([0, 0, 0, 0, 0, 1, 1]), np.array([1, 2, 3, 4, 5, 1, 2])
+    names, B = tc.bitmasks({"x": np.array([0, 0, 1, 0, 1, 0, 1], bool)}, sig, k1, 2)
+    assert tc.first_day(B[:, 0]).tolist() == [2, 1]
+    assert tc.first_day(np.array([0], np.uint32)).tolist() == [-1]

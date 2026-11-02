@@ -1,0 +1,8103 @@
+{
+ "periods": {
+  "gfc": [
+   "2004-01-01",
+   "2009-12-31"
+  ],
+  "hold": [
+   "2010-01-01",
+   "2019-12-31"
+  ],
+  "is": [
+   "2020-01-01",
+   "2024-06-30"
+  ],
+  "oos": [
+   "2024-07-01",
+   "2100-01-01"
+  ]
+ },
+ "n_indicator_columns": 672,
+ "n_library": 300,
+ "library": {
+  "L_sma5_dist": [
+   "ma",
+   "close vs SMA 5 (%)"
+  ],
+  "L_ema5_dist": [
+   "ma",
+   "close vs EMA 5 (%)"
+  ],
+  "L_sma10_dist": [
+   "ma",
+   "close vs SMA 10 (%)"
+  ],
+  "L_ema10_dist": [
+   "ma",
+   "close vs EMA 10 (%)"
+  ],
+  "L_sma20_dist": [
+   "ma",
+   "close vs SMA 20 (%)"
+  ],
+  "L_ema20_dist": [
+   "ma",
+   "close vs EMA 20 (%)"
+  ],
+  "L_sma50_dist": [
+   "ma",
+   "close vs SMA 50 (%)"
+  ],
+  "L_ema50_dist": [
+   "ma",
+   "close vs EMA 50 (%)"
+  ],
+  "L_sma100_dist": [
+   "ma",
+   "close vs SMA 100 (%)"
+  ],
+  "L_ema100_dist": [
+   "ma",
+   "close vs EMA 100 (%)"
+  ],
+  "L_sma150_dist": [
+   "ma",
+   "close vs SMA 150 (%)"
+  ],
+  "L_ema150_dist": [
+   "ma",
+   "close vs EMA 150 (%)"
+  ],
+  "L_sma200_dist": [
+   "ma",
+   "close vs SMA 200 (%)"
+  ],
+  "L_ema200_dist": [
+   "ma",
+   "close vs EMA 200 (%)"
+  ],
+  "L_wma10_dist": [
+   "ma",
+   "close vs WMA 10"
+  ],
+  "L_wma20_dist": [
+   "ma",
+   "close vs WMA 20"
+  ],
+  "L_wma50_dist": [
+   "ma",
+   "close vs WMA 50"
+  ],
+  "L_hma9_dist": [
+   "ma",
+   "close vs Hull MA 9"
+  ],
+  "L_hma9_slope": [
+   "ma",
+   "Hull MA 9 3-day change"
+  ],
+  "L_hma21_dist": [
+   "ma",
+   "close vs Hull MA 21"
+  ],
+  "L_hma21_slope": [
+   "ma",
+   "Hull MA 21 3-day change"
+  ],
+  "L_hma55_dist": [
+   "ma",
+   "close vs Hull MA 55"
+  ],
+  "L_hma55_slope": [
+   "ma",
+   "Hull MA 55 3-day change"
+  ],
+  "L_dema10_dist": [
+   "ma",
+   "close vs DEMA 10"
+  ],
+  "L_tema10_dist": [
+   "ma",
+   "close vs TEMA 10"
+  ],
+  "L_dema20_dist": [
+   "ma",
+   "close vs DEMA 20"
+  ],
+  "L_tema20_dist": [
+   "ma",
+   "close vs TEMA 20"
+  ],
+  "L_dema50_dist": [
+   "ma",
+   "close vs DEMA 50"
+  ],
+  "L_tema50_dist": [
+   "ma",
+   "close vs TEMA 50"
+  ],
+  "L_kama10_dist": [
+   "ma",
+   "close vs KAMA 10"
+  ],
+  "L_kama30_dist": [
+   "ma",
+   "close vs KAMA 30"
+  ],
+  "L_zlema10_dist": [
+   "ma",
+   "close vs zero-lag EMA 10"
+  ],
+  "L_vwma10_dist": [
+   "ma",
+   "close vs volume-weighted MA 10"
+  ],
+  "L_zlema20_dist": [
+   "ma",
+   "close vs zero-lag EMA 20"
+  ],
+  "L_vwma20_dist": [
+   "ma",
+   "close vs volume-weighted MA 20"
+  ],
+  "L_ema5_20_spread": [
+   "ma",
+   "EMA 5 - EMA 20 (ATR)"
+  ],
+  "L_sma5_20_spread": [
+   "ma",
+   "SMA 5 - SMA 20 (ATR)"
+  ],
+  "L_ema10_50_spread": [
+   "ma",
+   "EMA 10 - EMA 50 (ATR)"
+  ],
+  "L_sma10_50_spread": [
+   "ma",
+   "SMA 10 - SMA 50 (ATR)"
+  ],
+  "L_ema20_50_spread": [
+   "ma",
+   "EMA 20 - EMA 50 (ATR)"
+  ],
+  "L_sma20_50_spread": [
+   "ma",
+   "SMA 20 - SMA 50 (ATR)"
+  ],
+  "L_ema50_200_spread": [
+   "ma",
+   "EMA 50 - EMA 200 (ATR)"
+  ],
+  "L_sma50_200_spread": [
+   "ma",
+   "SMA 50 - SMA 200 (ATR)"
+  ],
+  "L_ema20_100_spread": [
+   "ma",
+   "EMA 20 - EMA 100 (ATR)"
+  ],
+  "L_sma20_100_spread": [
+   "ma",
+   "SMA 20 - SMA 100 (ATR)"
+  ],
+  "L_ema10_slope5": [
+   "ma",
+   "EMA 10 5-day change"
+  ],
+  "L_ema20_slope5": [
+   "ma",
+   "EMA 20 5-day change"
+  ],
+  "L_ema50_slope5": [
+   "ma",
+   "EMA 50 5-day change"
+  ],
+  "L_ema200_slope5": [
+   "ma",
+   "EMA 200 5-day change"
+  ],
+  "L_ma_ribbon_order": [
+   "ma",
+   "how many of 5 EMA pairs are in bullish order (0-5)"
+  ],
+  "L_rsi2": [
+   "osc",
+   "RSI 2"
+  ],
+  "L_rsi3": [
+   "osc",
+   "RSI 3"
+  ],
+  "L_rsi4": [
+   "osc",
+   "RSI 4"
+  ],
+  "L_rsi5": [
+   "osc",
+   "RSI 5"
+  ],
+  "L_rsi6": [
+   "osc",
+   "RSI 6"
+  ],
+  "L_rsi9": [
+   "osc",
+   "RSI 9"
+  ],
+  "L_rsi14": [
+   "osc",
+   "RSI 14"
+  ],
+  "L_rsi21": [
+   "osc",
+   "RSI 21"
+  ],
+  "L_rsi28": [
+   "osc",
+   "RSI 28"
+  ],
+  "L_rsi14_slope3": [
+   "osc",
+   "RSI 14 3-day change"
+  ],
+  "L_stoch5_k": [
+   "osc",
+   "Stochastic %K 5"
+  ],
+  "L_stoch5_d": [
+   "osc",
+   "Stochastic %D 5,3"
+  ],
+  "L_stoch5_kd": [
+   "osc",
+   "Stochastic %K - %D 5"
+  ],
+  "L_stoch9_k": [
+   "osc",
+   "Stochastic %K 9"
+  ],
+  "L_stoch9_d": [
+   "osc",
+   "Stochastic %D 9,3"
+  ],
+  "L_stoch9_kd": [
+   "osc",
+   "Stochastic %K - %D 9"
+  ],
+  "L_stoch14_k": [
+   "osc",
+   "Stochastic %K 14"
+  ],
+  "L_stoch14_d": [
+   "osc",
+   "Stochastic %D 14,3"
+  ],
+  "L_stoch14_kd": [
+   "osc",
+   "Stochastic %K - %D 14"
+  ],
+  "L_stoch21_k": [
+   "osc",
+   "Stochastic %K 21"
+  ],
+  "L_stoch21_d": [
+   "osc",
+   "Stochastic %D 21,5"
+  ],
+  "L_stoch21_kd": [
+   "osc",
+   "Stochastic %K - %D 21"
+  ],
+  "L_stochrsi14": [
+   "osc",
+   "Stochastic RSI 14"
+  ],
+  "L_stochrsi5": [
+   "osc",
+   "Stochastic RSI 5"
+  ],
+  "L_willr10": [
+   "osc",
+   "Williams %R 10"
+  ],
+  "L_willr14": [
+   "osc",
+   "Williams %R 14"
+  ],
+  "L_willr28": [
+   "osc",
+   "Williams %R 28"
+  ],
+  "L_cci10": [
+   "osc",
+   "CCI 10"
+  ],
+  "L_cci20": [
+   "osc",
+   "CCI 20"
+  ],
+  "L_cci40": [
+   "osc",
+   "CCI 40"
+  ],
+  "L_roc1": [
+   "momentum",
+   "rate of change 1 days"
+  ],
+  "L_roc2": [
+   "momentum",
+   "rate of change 2 days"
+  ],
+  "L_roc3": [
+   "momentum",
+   "rate of change 3 days"
+  ],
+  "L_roc5": [
+   "momentum",
+   "rate of change 5 days"
+  ],
+  "L_roc10": [
+   "momentum",
+   "rate of change 10 days"
+  ],
+  "L_roc20": [
+   "momentum",
+   "rate of change 20 days"
+  ],
+  "L_roc40": [
+   "momentum",
+   "rate of change 40 days"
+  ],
+  "L_roc60": [
+   "momentum",
+   "rate of change 60 days"
+  ],
+  "L_roc120": [
+   "momentum",
+   "rate of change 120 days"
+  ],
+  "L_roc250": [
+   "momentum",
+   "rate of change 250 days"
+  ],
+  "L_macd12_26": [
+   "osc",
+   "MACD 12,26 line (ATR)"
+  ],
+  "L_macd12_26_hist": [
+   "osc",
+   "MACD 12,26,9 histogram (ATR)"
+  ],
+  "L_macd12_26_hist_chg": [
+   "osc",
+   "MACD 12,26 histogram 1-day change (ATR)"
+  ],
+  "L_macd5_35": [
+   "osc",
+   "MACD 5,35 line (ATR)"
+  ],
+  "L_macd5_35_hist": [
+   "osc",
+   "MACD 5,35,5 histogram (ATR)"
+  ],
+  "L_macd5_35_hist_chg": [
+   "osc",
+   "MACD 5,35 histogram 1-day change (ATR)"
+  ],
+  "L_macd8_17": [
+   "osc",
+   "MACD 8,17 line (ATR)"
+  ],
+  "L_macd8_17_hist": [
+   "osc",
+   "MACD 8,17,9 histogram (ATR)"
+  ],
+  "L_macd8_17_hist_chg": [
+   "osc",
+   "MACD 8,17 histogram 1-day change (ATR)"
+  ],
+  "L_macd19_39": [
+   "osc",
+   "MACD 19,39 line (ATR)"
+  ],
+  "L_macd19_39_hist": [
+   "osc",
+   "MACD 19,39,9 histogram (ATR)"
+  ],
+  "L_macd19_39_hist_chg": [
+   "osc",
+   "MACD 19,39 histogram 1-day change (ATR)"
+  ],
+  "L_ppo": [
+   "osc",
+   "PPO 12,26"
+  ],
+  "L_ppo_hist": [
+   "osc",
+   "PPO histogram"
+  ],
+  "L_trix9": [
+   "osc",
+   "TRIX 9"
+  ],
+  "L_trix15": [
+   "osc",
+   "TRIX 15"
+  ],
+  "L_trix30": [
+   "osc",
+   "TRIX 30"
+  ],
+  "L_trix15_sig": [
+   "osc",
+   "TRIX 15 - signal"
+  ],
+  "L_tsi25_13": [
+   "osc",
+   "True strength index 25,13"
+  ],
+  "L_tsi13_7": [
+   "osc",
+   "True strength index 13,7"
+  ],
+  "L_ultosc": [
+   "osc",
+   "Ultimate oscillator 7,14,28"
+  ],
+  "L_ao": [
+   "osc",
+   "Awesome oscillator (ATR)"
+  ],
+  "L_ao_chg": [
+   "osc",
+   "Awesome oscillator change"
+  ],
+  "L_ac": [
+   "osc",
+   "Accelerator oscillator"
+  ],
+  "L_kst": [
+   "momentum",
+   "Know Sure Thing"
+  ],
+  "L_kst_sig": [
+   "momentum",
+   "KST - signal"
+  ],
+  "L_coppock": [
+   "momentum",
+   "Coppock curve (daily lengths)"
+  ],
+  "L_dpo20": [
+   "osc",
+   "Detrended price oscillator 20 (ATR, causal)"
+  ],
+  "L_dpo50": [
+   "osc",
+   "Detrended price oscillator 50 (ATR, causal)"
+  ],
+  "L_cmo9": [
+   "osc",
+   "Chande momentum oscillator 9"
+  ],
+  "L_cmo14": [
+   "osc",
+   "Chande momentum oscillator 14"
+  ],
+  "L_cmo20": [
+   "osc",
+   "Chande momentum oscillator 20"
+  ],
+  "L_rvgi": [
+   "osc",
+   "Relative vigor index 10"
+  ],
+  "L_elder_bull": [
+   "osc",
+   "Elder bull power (ATR)"
+  ],
+  "L_elder_bear": [
+   "osc",
+   "Elder bear power (ATR)"
+  ],
+  "L_fisher9": [
+   "osc",
+   "Fisher transform 9"
+  ],
+  "L_fisher20": [
+   "osc",
+   "Fisher transform 20"
+  ],
+  "L_connors_rsi": [
+   "osc",
+   "Connors RSI"
+  ],
+  "L_streak": [
+   "structure",
+   "consecutive up (+) / down (-) closes"
+  ],
+  "L_laguerre_rsi": [
+   "osc",
+   "Laguerre RSI (gamma 0.7)"
+  ],
+  "L_schaff": [
+   "osc",
+   "Schaff trend cycle"
+  ],
+  "L_qstick8": [
+   "osc",
+   "QStick 8 (ATR)"
+  ],
+  "L_qstick14": [
+   "osc",
+   "QStick 14 (ATR)"
+  ],
+  "L_bop14": [
+   "osc",
+   "Balance of power 14"
+  ],
+  "L_psy12": [
+   "osc",
+   "Psychological line 12"
+  ],
+  "L_pgo14": [
+   "osc",
+   "Pretty good oscillator 14"
+  ],
+  "L_adx7": [
+   "trend",
+   "ADX 7"
+  ],
+  "L_di_diff7": [
+   "trend",
+   "+DI - -DI 7"
+  ],
+  "L_adx14": [
+   "trend",
+   "ADX 14"
+  ],
+  "L_di_diff14": [
+   "trend",
+   "+DI - -DI 14"
+  ],
+  "L_pdi14": [
+   "trend",
+   "+DI 14"
+  ],
+  "L_ndi14": [
+   "trend",
+   "-DI 14"
+  ],
+  "L_adx14_slope": [
+   "trend",
+   "ADX 14 3-day change"
+  ],
+  "L_adx28": [
+   "trend",
+   "ADX 28"
+  ],
+  "L_di_diff28": [
+   "trend",
+   "+DI - -DI 28"
+  ],
+  "L_aroon_up14": [
+   "trend",
+   "Aroon up 14"
+  ],
+  "L_aroon_dn14": [
+   "trend",
+   "Aroon down 14"
+  ],
+  "L_aroon_osc14": [
+   "trend",
+   "Aroon oscillator 14"
+  ],
+  "L_aroon_up25": [
+   "trend",
+   "Aroon up 25"
+  ],
+  "L_aroon_dn25": [
+   "trend",
+   "Aroon down 25"
+  ],
+  "L_aroon_osc25": [
+   "trend",
+   "Aroon oscillator 25"
+  ],
+  "L_aroon_up50": [
+   "trend",
+   "Aroon up 50"
+  ],
+  "L_aroon_dn50": [
+   "trend",
+   "Aroon down 50"
+  ],
+  "L_aroon_osc50": [
+   "trend",
+   "Aroon oscillator 50"
+  ],
+  "L_vortex14": [
+   "trend",
+   "Vortex VI+ - VI- 14"
+  ],
+  "L_vortex21": [
+   "trend",
+   "Vortex VI+ - VI- 21"
+  ],
+  "L_chop14": [
+   "trend",
+   "Choppiness index 14"
+  ],
+  "L_chop28": [
+   "trend",
+   "Choppiness index 28"
+  ],
+  "L_er10": [
+   "trend",
+   "Kaufman efficiency ratio 10"
+  ],
+  "L_er20": [
+   "trend",
+   "Kaufman efficiency ratio 20"
+  ],
+  "L_linreg10_slope": [
+   "trend",
+   "linear regression slope 10 (ATR per day)"
+  ],
+  "L_linreg10_r2": [
+   "trend",
+   "linear regression R squared 10"
+  ],
+  "L_linreg10_resid": [
+   "trend",
+   "close vs regression line 10 (ATR)"
+  ],
+  "L_linreg20_slope": [
+   "trend",
+   "linear regression slope 20 (ATR per day)"
+  ],
+  "L_linreg20_r2": [
+   "trend",
+   "linear regression R squared 20"
+  ],
+  "L_linreg20_resid": [
+   "trend",
+   "close vs regression line 20 (ATR)"
+  ],
+  "L_linreg50_slope": [
+   "trend",
+   "linear regression slope 50 (ATR per day)"
+  ],
+  "L_linreg50_r2": [
+   "trend",
+   "linear regression R squared 50"
+  ],
+  "L_linreg50_resid": [
+   "trend",
+   "close vs regression line 50 (ATR)"
+  ],
+  "L_supertrend10_3_dist": [
+   "trend",
+   "close vs Supertrend 10,3.0 (ATR)"
+  ],
+  "L_supertrend10_3_dir": [
+   "trend",
+   "Supertrend 10,3.0 direction"
+  ],
+  "L_supertrend10_2_dist": [
+   "trend",
+   "close vs Supertrend 10,2.0 (ATR)"
+  ],
+  "L_supertrend10_2_dir": [
+   "trend",
+   "Supertrend 10,2.0 direction"
+  ],
+  "L_supertrend20_3_dist": [
+   "trend",
+   "close vs Supertrend 20,3.0 (ATR)"
+  ],
+  "L_supertrend20_3_dir": [
+   "trend",
+   "Supertrend 20,3.0 direction"
+  ],
+  "L_psar_dist": [
+   "trend",
+   "close vs parabolic SAR 0.02,0.2 (ATR)"
+  ],
+  "L_psar_slow_dist": [
+   "trend",
+   "close vs parabolic SAR 0.01,0.1 (ATR)"
+  ],
+  "L_ichi_tenkan_dist": [
+   "trend",
+   "close vs Ichimoku conversion line (ATR)"
+  ],
+  "L_ichi_kijun_dist": [
+   "trend",
+   "close vs Ichimoku base line (ATR)"
+  ],
+  "L_ichi_tk_spread": [
+   "trend",
+   "Ichimoku conversion - base (ATR)"
+  ],
+  "L_ichi_cloud_dist": [
+   "trend",
+   "close vs top of today's Ichimoku cloud (ATR)"
+  ],
+  "L_ichi_cloud_thick": [
+   "trend",
+   "Ichimoku span A - span B (ATR)"
+  ],
+  "L_ichi_chikou": [
+   "trend",
+   "close vs close 26 days ago (lagging span)"
+  ],
+  "L_mass_index": [
+   "volatility",
+   "Mass index 25"
+  ],
+  "L_atr5_pct": [
+   "volatility",
+   "ATR 5 (% of price)"
+  ],
+  "L_atr10_pct": [
+   "volatility",
+   "ATR 10 (% of price)"
+  ],
+  "L_atr14_pct": [
+   "volatility",
+   "ATR 14 (% of price)"
+  ],
+  "L_atr20_pct": [
+   "volatility",
+   "ATR 20 (% of price)"
+  ],
+  "L_atr50_pct": [
+   "volatility",
+   "ATR 50 (% of price)"
+  ],
+  "L_atr5_50_ratio": [
+   "volatility",
+   "ATR 5 / ATR 50"
+  ],
+  "L_atr14_pctrank": [
+   "volatility",
+   "ATR% percentile over 250 days"
+  ],
+  "L_bb10_2_pctb": [
+   "volatility",
+   "Bollinger %b 10,2.0"
+  ],
+  "L_bb20_2_pctb": [
+   "volatility",
+   "Bollinger %b 20,2.0"
+  ],
+  "L_bb20_1_pctb": [
+   "volatility",
+   "Bollinger %b 20,1.0"
+  ],
+  "L_bb50_2_pctb": [
+   "volatility",
+   "Bollinger %b 50,2.0"
+  ],
+  "L_bb20_3_pctb": [
+   "volatility",
+   "Bollinger %b 20,3.0"
+  ],
+  "L_bb20_width": [
+   "volatility",
+   "Bollinger width 20"
+  ],
+  "L_bb20_width_pctrank": [
+   "volatility",
+   "Bollinger width percentile over 120 days"
+  ],
+  "L_kelt20_2.0_pos": [
+   "volatility",
+   "Keltner position 20,2.0 (+1 = upper band)"
+  ],
+  "L_kelt20_1.5_pos": [
+   "volatility",
+   "Keltner position 20,1.5 (+1 = upper band)"
+  ],
+  "L_kelt10_1.0_pos": [
+   "volatility",
+   "Keltner position 10,1.0 (+1 = upper band)"
+  ],
+  "L_ttm_squeeze_on": [
+   "volatility",
+   "TTM squeeze on (Bollinger inside Keltner)"
+  ],
+  "L_ttm_squeeze_days": [
+   "volatility",
+   "days the TTM squeeze has been on"
+  ],
+  "L_donch10_pos": [
+   "structure",
+   "Donchian position 10 (0 = low, 1 = high)"
+  ],
+  "L_donch20_pos": [
+   "structure",
+   "Donchian position 20 (0 = low, 1 = high)"
+  ],
+  "L_donch55_pos": [
+   "structure",
+   "Donchian position 55 (0 = low, 1 = high)"
+  ],
+  "L_donch100_pos": [
+   "structure",
+   "Donchian position 100 (0 = low, 1 = high)"
+  ],
+  "L_hv5": [
+   "volatility",
+   "historical volatility 5 days"
+  ],
+  "L_hv10": [
+   "volatility",
+   "historical volatility 10 days"
+  ],
+  "L_hv20": [
+   "volatility",
+   "historical volatility 20 days"
+  ],
+  "L_hv60": [
+   "volatility",
+   "historical volatility 60 days"
+  ],
+  "L_hv120": [
+   "volatility",
+   "historical volatility 120 days"
+  ],
+  "L_hv10_60_ratio": [
+   "volatility",
+   "volatility 10 / 60 days"
+  ],
+  "L_hv20_120_ratio": [
+   "volatility",
+   "volatility 20 / 120 days"
+  ],
+  "L_ulcer14": [
+   "volatility",
+   "Ulcer index 14"
+  ],
+  "L_ulcer28": [
+   "volatility",
+   "Ulcer index 28"
+  ],
+  "L_chaikin_vol": [
+   "volatility",
+   "Chaikin volatility 10"
+  ],
+  "L_parkinson20": [
+   "volatility",
+   "Parkinson volatility 20"
+  ],
+  "L_garman_klass20": [
+   "volatility",
+   "Garman-Klass volatility 20"
+  ],
+  "L_range_atr": [
+   "volatility",
+   "today's range (ATR)"
+  ],
+  "L_range_atr5": [
+   "volatility",
+   "5-day average range (ATR)"
+  ],
+  "L_gap_atr": [
+   "structure",
+   "today's gap (ATR)"
+  ],
+  "L_body_atr": [
+   "structure",
+   "today's body (ATR, + = up)"
+  ],
+  "L_clv": [
+   "structure",
+   "close location value (-1 low .. +1 high)"
+  ],
+  "L_clv5": [
+   "structure",
+   "5-day average close location"
+  ],
+  "L_upper_wick_atr": [
+   "structure",
+   "upper wick (ATR)"
+  ],
+  "L_lower_wick_atr": [
+   "structure",
+   "lower wick (ATR)"
+  ],
+  "L_nr7": [
+   "volatility",
+   "narrowest range of 7 days"
+  ],
+  "L_wr7": [
+   "volatility",
+   "widest range of 7 days"
+  ],
+  "L_inside_day": [
+   "structure",
+   "inside day"
+  ],
+  "L_outside_day": [
+   "structure",
+   "outside day"
+  ],
+  "L_vol_ratio5": [
+   "volume",
+   "volume / average of previous 5 days"
+  ],
+  "L_vol_ratio10": [
+   "volume",
+   "volume / average of previous 10 days"
+  ],
+  "L_vol_ratio20": [
+   "volume",
+   "volume / average of previous 20 days"
+  ],
+  "L_vol_ratio50": [
+   "volume",
+   "volume / average of previous 50 days"
+  ],
+  "L_vol5_50": [
+   "volume",
+   "5-day / 50-day average volume"
+  ],
+  "L_vol_z20": [
+   "volume",
+   "log volume z-score 20"
+  ],
+  "L_obv_slope5": [
+   "volume",
+   "OBV 5-day change / average volume"
+  ],
+  "L_obv_slope10": [
+   "volume",
+   "OBV 10-day change / average volume"
+  ],
+  "L_obv_slope20": [
+   "volume",
+   "OBV 20-day change / average volume"
+  ],
+  "L_obv_vs_ema": [
+   "volume",
+   "OBV vs its EMA 20 (average volumes)"
+  ],
+  "L_adl_slope10": [
+   "volume",
+   "accumulation/distribution 10-day change"
+  ],
+  "L_chaikin_osc": [
+   "volume",
+   "Chaikin oscillator (average volumes)"
+  ],
+  "L_cmf10": [
+   "volume",
+   "Chaikin money flow 10"
+  ],
+  "L_cmf20": [
+   "volume",
+   "Chaikin money flow 20"
+  ],
+  "L_cmf50": [
+   "volume",
+   "Chaikin money flow 50"
+  ],
+  "L_mfi7": [
+   "volume",
+   "Money flow index 7"
+  ],
+  "L_mfi14": [
+   "volume",
+   "Money flow index 14"
+  ],
+  "L_mfi28": [
+   "volume",
+   "Money flow index 28"
+  ],
+  "L_force2": [
+   "volume",
+   "Force index 2 (normalised)"
+  ],
+  "L_force13": [
+   "volume",
+   "Force index 13 (normalised)"
+  ],
+  "L_eom14": [
+   "volume",
+   "Ease of movement 14 (normalised)"
+  ],
+  "L_vpt_slope10": [
+   "volume",
+   "volume-price trend 10-day change"
+  ],
+  "L_nvi_vs_ema": [
+   "volume",
+   "negative volume index vs EMA 255"
+  ],
+  "L_pvi_vs_ema": [
+   "volume",
+   "positive volume index vs EMA 255"
+  ],
+  "L_vwap5_dist": [
+   "volume",
+   "close vs 5-day VWAP (ATR)"
+  ],
+  "L_vwap20_dist": [
+   "volume",
+   "close vs 20-day VWAP (ATR)"
+  ],
+  "L_vwap50_dist": [
+   "volume",
+   "close vs 50-day VWAP (ATR)"
+  ],
+  "L_updown_vol10": [
+   "volume",
+   "share of 10-day volume on up days"
+  ],
+  "L_pvo": [
+   "volume",
+   "Percentage volume oscillator"
+  ],
+  "L_klinger": [
+   "volume",
+   "Klinger oscillator (average volumes)"
+  ],
+  "L_klinger_sig": [
+   "volume",
+   "Klinger - signal"
+  ],
+  "L_vol_price_corr20": [
+   "volume",
+   "20-day correlation of returns and volume changes"
+  ],
+  "L_dollar_vol_rank": [
+   "volume",
+   "dollar volume percentile over 250 days"
+  ],
+  "L_dist_high5": [
+   "structure",
+   "close below the 5-day high (ATR)"
+  ],
+  "L_dist_low5": [
+   "structure",
+   "close above the 5-day low (ATR)"
+  ],
+  "L_dist_high10": [
+   "structure",
+   "close below the 10-day high (ATR)"
+  ],
+  "L_dist_low10": [
+   "structure",
+   "close above the 10-day low (ATR)"
+  ],
+  "L_dist_high20": [
+   "structure",
+   "close below the 20-day high (ATR)"
+  ],
+  "L_dist_low20": [
+   "structure",
+   "close above the 20-day low (ATR)"
+  ],
+  "L_dist_high55": [
+   "structure",
+   "close below the 55-day high (ATR)"
+  ],
+  "L_dist_low55": [
+   "structure",
+   "close above the 55-day low (ATR)"
+  ],
+  "L_dist_high120": [
+   "structure",
+   "close below the 120-day high (ATR)"
+  ],
+  "L_dist_low120": [
+   "structure",
+   "close above the 120-day low (ATR)"
+  ],
+  "L_dist_high252": [
+   "structure",
+   "close below the 252-day high (ATR)"
+  ],
+  "L_dist_low252": [
+   "structure",
+   "close above the 252-day low (ATR)"
+  ],
+  "L_days_since_high20": [
+   "structure",
+   "days since the 20-day high"
+  ],
+  "L_days_since_low20": [
+   "structure",
+   "days since the 20-day low"
+  ],
+  "L_days_since_high55": [
+   "structure",
+   "days since the 55-day high"
+  ],
+  "L_days_since_low55": [
+   "structure",
+   "days since the 55-day low"
+  ],
+  "L_zscore10": [
+   "stat",
+   "z-score of close vs 10-day mean"
+  ],
+  "L_zscore20": [
+   "stat",
+   "z-score of close vs 20-day mean"
+  ],
+  "L_zscore50": [
+   "stat",
+   "z-score of close vs 50-day mean"
+  ],
+  "L_zscore100": [
+   "stat",
+   "z-score of close vs 100-day mean"
+  ],
+  "L_skew20": [
+   "stat",
+   "return skewness 20"
+  ],
+  "L_kurt20": [
+   "stat",
+   "return kurtosis 20"
+  ],
+  "L_autocorr20": [
+   "stat",
+   "lag-1 autocorrelation of returns 20"
+  ],
+  "L_upday_share20": [
+   "stat",
+   "share of up days 20"
+  ],
+  "L_skew60": [
+   "stat",
+   "return skewness 60"
+  ],
+  "L_kurt60": [
+   "stat",
+   "return kurtosis 60"
+  ],
+  "L_autocorr60": [
+   "stat",
+   "lag-1 autocorrelation of returns 60"
+  ],
+  "L_upday_share60": [
+   "stat",
+   "share of up days 60"
+  ],
+  "L_pivot_dist": [
+   "structure",
+   "close vs yesterday's classic pivot (ATR)"
+  ],
+  "L_r1_dist": [
+   "structure",
+   "close vs pivot R1 (ATR)"
+  ],
+  "L_s1_dist": [
+   "structure",
+   "close vs pivot S1 (ATR)"
+  ],
+  "L_hl_range20_pos": [
+   "structure",
+   "position in 20-day range"
+  ],
+  "L_round_num_dist": [
+   "structure",
+   "distance to the nearest round number (ATR)"
+  ],
+  "L_hurst_proxy60": [
+   "stat",
+   "variance-ratio Hurst proxy 60 (0.5 = random walk)"
+  ],
+  "L_ret_vs_vol20": [
+   "stat",
+   "today's return in 20-day standard deviations"
+  ],
+  "L_ret5_vs_vol": [
+   "stat",
+   "5-day return in standard deviations"
+  ]
+ },
+ "generated_at": "2026-11-02T11:23:29Z",
+ "session": "2026-10-30",
+ "elapsed_seconds": 614.6,
+ "n_stocks": 232,
+ "survivorship_note": "Only stocks in today's universe are tested (survivorship bias); comparisons are paired.",
+ "setups": {
+  "crash_rebound": {
+   "n_trades": 6125,
+   "n_conditions": 2248,
+   "n_pool": 1150,
+   "n_pairs_screened": 660675,
+   "actions": {
+    "trail1": "tighten the trail to 1 ATR",
+    "trail1.5": "tighten the trail to 1.5 ATR",
+    "trail2": "tighten the trail to 2 ATR",
+    "trail5": "widen the trail to 5 ATR (squeeze: drop the 3R target, trail 3 ATR)",
+    "breakeven": "stop to break-even",
+    "sell": "sell at the next open"
+   },
+   "gate": {
+    "n_rules": 14028,
+    "n_is_candidates": 485,
+    "bar_t": 3.711314710478156,
+    "validated": []
+   },
+   "maxt_null95": 3.1294005281312454,
+   "n_candidates": 485,
+   "families": {
+    "single": {
+     "n": 13488,
+     "pooled_t_le_-2": 0.3814364148983529,
+     "pooled_t_ge_2": 0.0010387297818667458,
+     "is_candidates": 66,
+     "both_confirmations_positive": 811
+    },
+    "pair": {
+     "n": 360,
+     "pooled_t_le_-2": 0.16111111111111112,
+     "pooled_t_ge_2": 0.016666666666666666,
+     "is_candidates": 248,
+     "both_confirmations_positive": 12
+    },
+    "triple": {
+     "n": 180,
+     "pooled_t_le_-2": 0.12222222222222222,
+     "pooled_t_ge_2": 0.005555555555555556,
+     "is_candidates": 171,
+     "both_confirmations_positive": 1
+    }
+   },
+   "by_action": {
+    "trail1": {
+     "n": 2338,
+     "median_pooled_t": -2.34454033997404,
+     "share_t_ge_2": 0.000427715996578272,
+     "share_t_le_-2": 0.6082121471343028,
+     "best": {
+      "rule": "trail1 <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10",
+      "family": "pair",
+      "screen_t": 4.92,
+      "maxt_p": 0.922,
+      "pooled_t": 2.04,
+      "is": [
+       0.0365,
+       2.05,
+       0.029,
+       2.524
+      ],
+      "hold": [
+       0.0113,
+       2.68,
+       0.027,
+       0.488
+      ],
+      "oos": [
+       -0.0953,
+       -1.02,
+       0.052,
+       -3.401
+      ],
+      "gfc": [
+       0.0152,
+       2.17,
+       0.012,
+       2.241
+      ]
+     }
+    },
+    "trail1.5": {
+     "n": 2338,
+     "median_pooled_t": -1.8963393230323666,
+     "share_t_ge_2": 0.00213857998289136,
+     "share_t_le_-2": 0.4709153122326775,
+     "best": {
+      "rule": "trail1.5 <- ind:L_sma50_200_spread<=q05",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 3.1,
+      "is": [
+       -0.0116,
+       -1.44,
+       0.054,
+       -0.196
+      ],
+      "hold": [
+       0.0054,
+       3.21,
+       0.029,
+       0.185
+      ],
+      "oos": [
+       0.0031,
+       0.74,
+       0.011,
+       0.269
+      ],
+      "gfc": [
+       -0.0092,
+       -0.86,
+       0.064,
+       -0.141
+      ]
+     }
+    },
+    "trail2": {
+     "n": 2338,
+     "median_pooled_t": -1.5413270917206756,
+     "share_t_ge_2": 0.004704875962360992,
+     "share_t_le_-2": 0.3289136013686912,
+     "best": {
+      "rule": "trail2 <- ind:L_stoch21_kd>=q90 & ind:L_linreg10_slope<=q10",
+      "family": "pair",
+      "screen_t": 4.16,
+      "maxt_p": null,
+      "pooled_t": 3.04,
+      "is": [
+       0.0141,
+       0.33,
+       0.02,
+       1.324
+      ],
+      "hold": [
+       0.0033,
+       2.92,
+       0.025,
+       0.161
+      ],
+      "oos": [
+       0.0007,
+       1.63,
+       0.006,
+       0.118
+      ],
+      "gfc": [
+       -0.0013,
+       -0.99,
+       0.01,
+       -0.233
+      ]
+     }
+    },
+    "trail5": {
+     "n": 2338,
+     "median_pooled_t": -0.5745942231991419,
+     "share_t_ge_2": 0.0,
+     "share_t_le_-2": 0.08985879332477535,
+     "best": {
+      "rule": "trail5 <- candle:morning_star@lv",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 1.82,
+      "is": [
+       0.0001,
+       -0.15,
+       0.014,
+       0.009
+      ],
+      "hold": [
+       0.0017,
+       1.82,
+       0.01,
+       0.171
+      ],
+      "oos": [
+       0.0,
+       1.0,
+       0.011,
+       0.002
+      ],
+      "gfc": [
+       0.0014,
+       1.0,
+       0.011,
+       0.127
+      ]
+     }
+    },
+    "breakeven": {
+     "n": 2338,
+     "median_pooled_t": -1.4629072825304945,
+     "share_t_ge_2": 0.0017174753112924003,
+     "share_t_le_-2": 0.27951910691283816,
+     "best": {
+      "rule": "breakeven <- ind:L_ulcer28>=q90",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 2.89,
+      "is": [
+       -0.0118,
+       -1.02,
+       0.134,
+       -0.086
+      ],
+      "hold": [
+       0.004,
+       2.86,
+       0.042,
+       0.096
+      ],
+      "oos": [
+       -0.0025,
+       1.07,
+       0.115,
+       -0.022
+      ],
+      "gfc": [
+       -0.011,
+       -1.0,
+       0.134,
+       -0.082
+      ]
+     }
+    },
+    "sell": {
+     "n": 2338,
+     "median_pooled_t": -1.8696824534273095,
+     "share_t_ge_2": 0.0,
+     "share_t_le_-2": 0.4568006843455945,
+     "best": {
+      "rule": "sell <- ind:L_ulcer28>=q95",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 1.88,
+      "is": [
+       -0.0089,
+       -1.25,
+       0.071,
+       -0.104
+      ],
+      "hold": [
+       0.0028,
+       1.7,
+       0.023,
+       0.121
+      ],
+      "oos": [
+       -0.0005,
+       0.83,
+       0.058,
+       -0.008
+      ],
+      "gfc": [
+       -0.0151,
+       -1.76,
+       0.068,
+       -0.222
+      ]
+     }
+    }
+   },
+   "top_by_pooled_t": [
+    {
+     "rule": "trail1.5 <- ind:L_sma50_200_spread<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 3.1,
+     "is": [
+      -0.0116,
+      -1.44,
+      0.054,
+      -0.196
+     ],
+     "hold": [
+      0.0054,
+      3.21,
+      0.029,
+      0.185
+     ],
+     "oos": [
+      0.0031,
+      0.74,
+      0.011,
+      0.269
+     ],
+     "gfc": [
+      -0.0092,
+      -0.86,
+      0.064,
+      -0.141
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_stoch21_kd>=q90 & ind:L_linreg10_slope<=q10",
+     "family": "pair",
+     "screen_t": 4.16,
+     "maxt_p": null,
+     "pooled_t": 3.04,
+     "is": [
+      0.0141,
+      0.33,
+      0.02,
+      1.324
+     ],
+     "hold": [
+      0.0033,
+      2.92,
+      0.025,
+      0.161
+     ],
+     "oos": [
+      0.0007,
+      1.63,
+      0.006,
+      0.118
+     ],
+     "gfc": [
+      -0.0013,
+      -0.99,
+      0.01,
+      -0.233
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_ulcer28>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.89,
+     "is": [
+      -0.0118,
+      -1.02,
+      0.134,
+      -0.086
+     ],
+     "hold": [
+      0.004,
+      2.86,
+      0.042,
+      0.096
+     ],
+     "oos": [
+      -0.0025,
+      1.07,
+      0.115,
+      -0.022
+     ],
+     "gfc": [
+      -0.011,
+      -1.0,
+      0.134,
+      -0.082
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_dist_high120<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.81,
+     "is": [
+      0.0002,
+      -0.36,
+      0.072,
+      0.005
+     ],
+     "hold": [
+      0.0032,
+      2.2,
+      0.051,
+      0.096
+     ],
+     "oos": [
+      0.005,
+      2.36,
+      0.021,
+      0.243
+     ],
+     "gfc": [
+      -0.0053,
+      -0.15,
+      0.086,
+      -0.056
+     ]
+    },
+    {
+     "rule": "trail1.5 <- ind:L_ulcer28>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.67,
+     "is": [
+      -0.0062,
+      -1.09,
+      0.134,
+      -0.038
+     ],
+     "hold": [
+      0.0032,
+      1.94,
+      0.042,
+      0.078
+     ],
+     "oos": [
+      -0.0218,
+      1.84,
+      0.115,
+      -0.19
+     ],
+     "gfc": [
+      -0.0065,
+      -0.14,
+      0.134,
+      -0.049
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:d_ema200<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.51,
+     "is": [
+      -0.0101,
+      -1.16,
+      0.066,
+      -0.151
+     ],
+     "hold": [
+      0.004,
+      2.7,
+      0.051,
+      0.088
+     ],
+     "oos": [
+      0.0014,
+      0.33,
+      0.014,
+      0.103
+     ],
+     "gfc": [
+      -0.0089,
+      -0.36,
+      0.082,
+      -0.107
+     ]
+    },
+    {
+     "rule": "trail2 <- candle:three_inside_up@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.46,
+     "is": [
+      -0.0004,
+      -0.24,
+      0.013,
+      -0.028
+     ],
+     "hold": [
+      0.002,
+      2.06,
+      0.017,
+      0.118
+     ],
+     "oos": [
+      0.0025,
+      1.57,
+      0.011,
+      0.219
+     ],
+     "gfc": [
+      0.0009,
+      1.09,
+      0.01,
+      0.087
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_aroon_up25>=q95",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.43,
+     "is": [
+      -0.0012,
+      -0.88,
+      0.188,
+      -0.006
+     ],
+     "hold": [
+      0.0001,
+      1.28,
+      0.119,
+      0.001
+     ],
+     "oos": [
+      0.0029,
+      2.08,
+      0.228,
+      0.013
+     ],
+     "gfc": [
+      -0.0034,
+      -0.36,
+      0.144,
+      -0.023
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_sma50_200_spread<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.4,
+     "is": [
+      -0.0035,
+      -0.74,
+      0.054,
+      -0.061
+     ],
+     "hold": [
+      0.003,
+      2.89,
+      0.029,
+      0.102
+     ],
+     "oos": [
+      0.0019,
+      0.18,
+      0.011,
+      0.165
+     ],
+     "gfc": [
+      -0.0033,
+      -0.0,
+      0.064,
+      -0.05
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10",
+     "family": "pair",
+     "screen_t": 4.62,
+     "maxt_p": null,
+     "pooled_t": 2.28,
+     "is": [
+      0.0196,
+      1.45,
+      0.029,
+      1.38
+     ],
+     "hold": [
+      0.0067,
+      2.76,
+      0.027,
+      0.38
+     ],
+     "oos": [
+      -0.0601,
+      -0.44,
+      0.052,
+      -2.601
+     ],
+     "gfc": [
+      0.0071,
+      2.26,
+      0.012,
+      1.111
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:f_return_120d<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.23,
+     "is": [
+      -0.0097,
+      -1.37,
+      0.081,
+      -0.118
+     ],
+     "hold": [
+      0.0034,
+      3.12,
+      0.027,
+      0.126
+     ],
+     "oos": [
+      0.0022,
+      -0.35,
+      0.023,
+      0.096
+     ],
+     "gfc": [
+      -0.0117,
+      -0.83,
+      0.097,
+      -0.121
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_roc120<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.23,
+     "is": [
+      -0.0097,
+      -1.37,
+      0.081,
+      -0.118
+     ],
+     "hold": [
+      0.0034,
+      3.12,
+      0.027,
+      0.126
+     ],
+     "oos": [
+      0.0022,
+      -0.35,
+      0.022,
+      0.1
+     ],
+     "gfc": [
+      -0.0109,
+      -0.78,
+      0.099,
+      -0.11
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_days_since_high20<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.2,
+     "is": [
+      -0.0016,
+      -1.04,
+      0.263,
+      -0.006
+     ],
+     "hold": [
+      0.0002,
+      0.83,
+      0.201,
+      0.001
+     ],
+     "oos": [
+      0.0019,
+      2.05,
+      0.302,
+      0.006
+     ],
+     "gfc": [
+      -0.0043,
+      -0.69,
+      0.221,
+      -0.019
+     ]
+    },
+    {
+     "rule": "trail1.5 <- ind:L_sma20_100_spread<=q10 & ind:L_linreg10_slope<=q10",
+     "family": "pair",
+     "screen_t": 4.22,
+     "maxt_p": 0.846,
+     "pooled_t": 2.15,
+     "is": [
+      0.0063,
+      3.57,
+      0.026,
+      0.235
+     ],
+     "hold": [
+      0.0064,
+      2.11,
+      0.043,
+      0.193
+     ],
+     "oos": [
+      -0.0037,
+      0.45,
+      0.006,
+      -0.765
+     ],
+     "gfc": [
+      0.0028,
+      0.64,
+      0.039,
+      0.075
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_ulcer28>=q95",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.07,
+     "is": [
+      -0.0066,
+      -0.53,
+      0.071,
+      -0.09
+     ],
+     "hold": [
+      -0.001,
+      1.58,
+      0.023,
+      -0.044
+     ],
+     "oos": [
+      0.0012,
+      1.34,
+      0.058,
+      0.021
+     ],
+     "gfc": [
+      -0.0121,
+      -1.18,
+      0.068,
+      -0.178
+     ]
+    }
+   ],
+   "top_is_candidates": [
+    {
+     "rule": "sell <- ind:L_mass_index>=q90 & ind:L_dist_high10<=q10 & ind:x_swing_score<=q10",
+     "family": "triple",
+     "screen_t": 5.36,
+     "maxt_p": 1.0,
+     "pooled_t": -1.68,
+     "is": [
+      0.0185,
+      4.56,
+      0.038,
+      0.564
+     ],
+     "hold": [
+      -0.0028,
+      -1.72,
+      0.03,
+      -0.091
+     ],
+     "oos": [
+      -0.0043,
+      -0.18,
+      0.03,
+      -0.16
+     ],
+     "gfc": [
+      0.0109,
+      1.3,
+      0.025,
+      0.429
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:L_sma20_100_spread<=q10 & ind:L_linreg10_slope<=q10",
+     "family": "pair",
+     "screen_t": 4.89,
+     "maxt_p": 1.0,
+     "pooled_t": 0.14,
+     "is": [
+      0.01,
+      4.38,
+      0.026,
+      0.378
+     ],
+     "hold": [
+      0.0027,
+      0.03,
+      0.043,
+      0.117
+     ],
+     "oos": [
+      -0.0033,
+      1.05,
+      0.006,
+      -0.746
+     ],
+     "gfc": [
+      0.0056,
+      1.77,
+      0.039,
+      0.149
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:L_rsi9<=q10 & ind:L_ulcer28>=q90",
+     "family": "pair",
+     "screen_t": 4.16,
+     "maxt_p": 1.0,
+     "pooled_t": -0.08,
+     "is": [
+      0.0105,
+      4.24,
+      0.035,
+      0.304
+     ],
+     "hold": [
+      -0.0016,
+      -0.05,
+      0.019,
+      -0.086
+     ],
+     "oos": [
+      -0.0205,
+      -0.1,
+      0.032,
+      -0.644
+     ],
+     "gfc": [
+      -0.0056,
+      -0.8,
+      0.051,
+      -0.11
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:x_rsi14<=q10 & ind:L_sma20_50_spread<=q10 & ind:L_rsi14<=q10",
+     "family": "triple",
+     "screen_t": 5.67,
+     "maxt_p": 1.0,
+     "pooled_t": -1.8,
+     "is": [
+      0.0109,
+      4.24,
+      0.026,
+      0.417
+     ],
+     "hold": [
+      -0.0059,
+      -1.75,
+      0.024,
+      -0.341
+     ],
+     "oos": [
+      -0.0053,
+      -0.44,
+      0.01,
+      -0.534
+     ],
+     "gfc": [
+      0.0042,
+      1.24,
+      0.035,
+      0.128
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:x_rsi14<=q10 & ind:L_sma20_50_spread<=q10 & ind:L_rsi9<=q10",
+     "family": "triple",
+     "screen_t": 5.66,
+     "maxt_p": 1.0,
+     "pooled_t": -1.71,
+     "is": [
+      0.0109,
+      4.23,
+      0.026,
+      0.417
+     ],
+     "hold": [
+      -0.0058,
+      -1.68,
+      0.024,
+      -0.336
+     ],
+     "oos": [
+      -0.0052,
+      -0.38,
+      0.011,
+      -0.492
+     ],
+     "gfc": [
+      0.0031,
+      1.06,
+      0.033,
+      0.104
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_cmo9<=q10 & ind:L_ulcer28>=q90 & ind:c_rsi_zone=Oversold==1",
+     "family": "triple",
+     "screen_t": 4.76,
+     "maxt_p": 1.0,
+     "pooled_t": 0.6,
+     "is": [
+      0.0146,
+      4.14,
+      0.041,
+      0.362
+     ],
+     "hold": [
+      0.0015,
+      1.06,
+      0.017,
+      0.09
+     ],
+     "oos": [
+      -0.0099,
+      -0.68,
+      0.034,
+      -0.29
+     ],
+     "gfc": [
+      -0.002,
+      -0.62,
+      0.04,
+      -0.049
+     ]
+    },
+    {
+     "rule": "sell <- ind:L_mass_index>=q90 & ind:L_dist_high10<=q10 & ind:L_chaikin_vol>=q90",
+     "family": "triple",
+     "screen_t": 5.31,
+     "maxt_p": 1.0,
+     "pooled_t": -0.62,
+     "is": [
+      0.0295,
+      4.1,
+      0.045,
+      1.065
+     ],
+     "hold": [
+      -0.0118,
+      -0.74,
+      0.049,
+      -0.252
+     ],
+     "oos": [
+      -0.0048,
+      0.38,
+      0.027,
+      -0.175
+     ],
+     "gfc": [
+      0.0084,
+      0.22,
+      0.026,
+      0.319
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:x_rsi14<=q10 & ind:L_sma20_50_spread<=q10",
+     "family": "pair",
+     "screen_t": 5.02,
+     "maxt_p": 1.0,
+     "pooled_t": -1.64,
+     "is": [
+      0.0107,
+      4.06,
+      0.031,
+      0.358
+     ],
+     "hold": [
+      -0.0073,
+      -1.75,
+      0.025,
+      -0.381
+     ],
+     "oos": [
+      -0.0032,
+      0.03,
+      0.016,
+      -0.199
+     ],
+     "gfc": [
+      0.0043,
+      0.74,
+      0.042,
+      0.11
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:x_rsi14<=q10 & ind:L_sma20_50_spread<=q10 & ind:L_rsi4<=q10",
+     "family": "triple",
+     "screen_t": 5.68,
+     "maxt_p": 1.0,
+     "pooled_t": -1.6,
+     "is": [
+      0.0112,
+      4.05,
+      0.028,
+      0.421
+     ],
+     "hold": [
+      -0.0055,
+      -1.66,
+      0.025,
+      -0.319
+     ],
+     "oos": [
+      -0.0035,
+      -0.09,
+      0.011,
+      -0.307
+     ],
+     "gfc": [
+      0.0037,
+      0.65,
+      0.038,
+      0.106
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:x_rsi14<=q10 & ind:L_sma20_50_spread<=q10 & ind:L_rsi5<=q10",
+     "family": "triple",
+     "screen_t": 5.66,
+     "maxt_p": 1.0,
+     "pooled_t": -1.62,
+     "is": [
+      0.0112,
+      4.04,
+      0.027,
+      0.428
+     ],
+     "hold": [
+      -0.0058,
+      -1.68,
+      0.024,
+      -0.336
+     ],
+     "oos": [
+      -0.0035,
+      -0.11,
+      0.011,
+      -0.31
+     ],
+     "gfc": [
+      0.0031,
+      0.58,
+      0.037,
+      0.092
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:L_sma150_dist>=q90 & ind:L_donch10_pos<=q10",
+     "family": "pair",
+     "screen_t": 4.26,
+     "maxt_p": 1.0,
+     "pooled_t": 1.38,
+     "is": [
+      0.0094,
+      4.03,
+      0.027,
+      0.347
+     ],
+     "hold": [
+      0.0003,
+      1.66,
+      0.006,
+      0.041
+     ],
+     "oos": [
+      0.0044,
+      0.82,
+      0.049,
+      0.091
+     ],
+     "gfc": [
+      -0.0052,
+      -1.46,
+      0.005,
+      -1.017
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:L_sma150_dist>=q90 & ind:L_willr10<=q10",
+     "family": "pair",
+     "screen_t": 4.26,
+     "maxt_p": 1.0,
+     "pooled_t": 1.38,
+     "is": [
+      0.0094,
+      4.03,
+      0.027,
+      0.347
+     ],
+     "hold": [
+      0.0003,
+      1.66,
+      0.006,
+      0.041
+     ],
+     "oos": [
+      0.0044,
+      0.82,
+      0.049,
+      0.091
+     ],
+     "gfc": [
+      -0.0052,
+      -1.46,
+      0.005,
+      -1.017
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:L_cmo9<=q10 & ind:L_ulcer28>=q90",
+     "family": "pair",
+     "screen_t": 4.27,
+     "maxt_p": 1.0,
+     "pooled_t": -0.16,
+     "is": [
+      0.0147,
+      4.03,
+      0.047,
+      0.344
+     ],
+     "hold": [
+      -0.0009,
+      0.16,
+      0.018,
+      -0.049
+     ],
+     "oos": [
+      -0.0293,
+      -0.64,
+      0.036,
+      -0.821
+     ],
+     "gfc": [
+      -0.0045,
+      -1.06,
+      0.041,
+      -0.111
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:x_rsi14<=q10 & ind:L_sma20_50_spread<=q10 & ind:L_rsi21<=q10",
+     "family": "triple",
+     "screen_t": 5.68,
+     "maxt_p": 1.0,
+     "pooled_t": -1.86,
+     "is": [
+      0.011,
+      4.0,
+      0.028,
+      0.405
+     ],
+     "hold": [
+      -0.0058,
+      -1.79,
+      0.025,
+      -0.328
+     ],
+     "oos": [
+      -0.0055,
+      -0.53,
+      0.009,
+      -0.605
+     ],
+     "gfc": [
+      0.0042,
+      0.75,
+      0.038,
+      0.119
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_cmo9<=q10 & ind:L_ulcer28>=q90 & ind:x_swing_score<=q10",
+     "family": "triple",
+     "screen_t": 4.83,
+     "maxt_p": 1.0,
+     "pooled_t": 0.12,
+     "is": [
+      0.011,
+      3.97,
+      0.027,
+      0.416
+     ],
+     "hold": [
+      -0.0001,
+      0.62,
+      0.011,
+      -0.005
+     ],
+     "oos": [
+      -0.0093,
+      -1.13,
+      0.017,
+      -0.532
+     ],
+     "gfc": [
+      0.0012,
+      -0.81,
+      0.019,
+      0.064
+     ]
+    }
+   ],
+   "top_combos": [
+    {
+     "rule": "trail2 <- ind:L_stoch21_kd>=q90 & ind:L_linreg10_slope<=q10",
+     "family": "pair",
+     "screen_t": 4.16,
+     "maxt_p": null,
+     "pooled_t": 3.04,
+     "is": [
+      0.0141,
+      0.33,
+      0.02,
+      1.324
+     ],
+     "hold": [
+      0.0033,
+      2.92,
+      0.025,
+      0.161
+     ],
+     "oos": [
+      0.0007,
+      1.63,
+      0.006,
+      0.118
+     ],
+     "gfc": [
+      -0.0013,
+      -0.99,
+      0.01,
+      -0.233
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10",
+     "family": "pair",
+     "screen_t": 4.62,
+     "maxt_p": null,
+     "pooled_t": 2.28,
+     "is": [
+      0.0196,
+      1.45,
+      0.029,
+      1.38
+     ],
+     "hold": [
+      0.0067,
+      2.76,
+      0.027,
+      0.38
+     ],
+     "oos": [
+      -0.0601,
+      -0.44,
+      0.052,
+      -2.601
+     ],
+     "gfc": [
+      0.0071,
+      2.26,
+      0.012,
+      1.111
+     ]
+    },
+    {
+     "rule": "trail1.5 <- ind:L_sma20_100_spread<=q10 & ind:L_linreg10_slope<=q10",
+     "family": "pair",
+     "screen_t": 4.22,
+     "maxt_p": 0.846,
+     "pooled_t": 2.15,
+     "is": [
+      0.0063,
+      3.57,
+      0.026,
+      0.235
+     ],
+     "hold": [
+      0.0064,
+      2.11,
+      0.043,
+      0.193
+     ],
+     "oos": [
+      -0.0037,
+      0.45,
+      0.006,
+      -0.765
+     ],
+     "gfc": [
+      0.0028,
+      0.64,
+      0.039,
+      0.075
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:c_structure=Price losing EMA9==1 & ind:L_vol_ratio5<=q10",
+     "family": "pair",
+     "screen_t": 4.21,
+     "maxt_p": 0.896,
+     "pooled_t": 2.07,
+     "is": [
+      0.0075,
+      2.34,
+      0.036,
+      0.239
+     ],
+     "hold": [
+      0.0028,
+      2.21,
+      0.043,
+      0.067
+     ],
+     "oos": [
+      -0.006,
+      -0.19,
+      0.042,
+      -0.144
+     ],
+     "gfc": [
+      -0.0008,
+      -0.64,
+      0.045,
+      -0.014
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10",
+     "family": "pair",
+     "screen_t": 4.92,
+     "maxt_p": 0.922,
+     "pooled_t": 2.04,
+     "is": [
+      0.0365,
+      2.05,
+      0.029,
+      2.524
+     ],
+     "hold": [
+      0.0113,
+      2.68,
+      0.027,
+      0.488
+     ],
+     "oos": [
+      -0.0953,
+      -1.02,
+      0.052,
+      -3.401
+     ],
+     "gfc": [
+      0.0152,
+      2.17,
+      0.012,
+      2.241
+     ]
+    },
+    {
+     "rule": "trail1.5 <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10",
+     "family": "pair",
+     "screen_t": 4.42,
+     "maxt_p": 0.926,
+     "pooled_t": 2.04,
+     "is": [
+      0.0287,
+      1.67,
+      0.029,
+      2.052
+     ],
+     "hold": [
+      0.0078,
+      2.67,
+      0.027,
+      0.461
+     ],
+     "oos": [
+      -0.0872,
+      -0.72,
+      0.052,
+      -3.299
+     ],
+     "gfc": [
+      0.0131,
+      2.3,
+      0.012,
+      2.092
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10 & ind:c_macd_hist_trend=contracting==1",
+     "family": "triple",
+     "screen_t": 4.77,
+     "maxt_p": 0.932,
+     "pooled_t": 2.02,
+     "is": [
+      0.0177,
+      2.38,
+      0.02,
+      1.912
+     ],
+     "hold": [
+      0.0063,
+      2.85,
+      0.018,
+      0.459
+     ],
+     "oos": [
+      -0.0576,
+      -1.07,
+      0.04,
+      -3.393
+     ],
+     "gfc": [
+      0.0063,
+      1.97,
+      0.007,
+      1.775
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_mfe_r>=q90 & ind:t_ichimoku<=q10",
+     "family": "pair",
+     "screen_t": 4.34,
+     "maxt_p": null,
+     "pooled_t": 1.95,
+     "is": [
+      0.0181,
+      1.21,
+      0.023,
+      1.644
+     ],
+     "hold": [
+      0.0059,
+      2.48,
+      0.02,
+      0.454
+     ],
+     "oos": [
+      -0.0594,
+      -0.65,
+      0.043,
+      -3.131
+     ],
+     "gfc": [
+      0.0058,
+      2.11,
+      0.011,
+      1.095
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:s_open_r>=q90 & ind:t_aroon<=q10",
+     "family": "pair",
+     "screen_t": 4.41,
+     "maxt_p": 0.984,
+     "pooled_t": 1.85,
+     "is": [
+      0.0249,
+      1.92,
+      0.02,
+      2.477
+     ],
+     "hold": [
+      0.01,
+      2.16,
+      0.023,
+      0.409
+     ],
+     "oos": [
+      -0.0602,
+      -0.68,
+      0.037,
+      -3.601
+     ],
+     "gfc": [
+      0.0103,
+      1.52,
+      0.008,
+      2.713
+     ]
+    },
+    {
+     "rule": "trail1.5 <- ind:s_mfe_r>=q90 & ind:t_ichimoku<=q10 & ind:s_open_r>=q90",
+     "family": "triple",
+     "screen_t": 5.12,
+     "maxt_p": 0.99,
+     "pooled_t": 1.78,
+     "is": [
+      0.0287,
+      1.91,
+      0.021,
+      2.795
+     ],
+     "hold": [
+      0.0069,
+      2.53,
+      0.017,
+      0.699
+     ],
+     "oos": [
+      -0.0864,
+      -0.92,
+      0.043,
+      -3.975
+     ],
+     "gfc": [
+      0.0099,
+      1.91,
+      0.007,
+      3.139
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10 & ind:t_avwap>=q90",
+     "family": "triple",
+     "screen_t": 5.2,
+     "maxt_p": 0.992,
+     "pooled_t": 1.76,
+     "is": [
+      0.0198,
+      2.84,
+      0.024,
+      1.637
+     ],
+     "hold": [
+      0.0045,
+      2.27,
+      0.02,
+      0.343
+     ],
+     "oos": [
+      -0.0604,
+      -0.49,
+      0.048,
+      -2.859
+     ],
+     "gfc": [
+      0.0062,
+      2.2,
+      0.011,
+      1.133
+     ]
+    },
+    {
+     "rule": "trail1.5 <- ind:s_mfe_r>=q90 & ind:t_ichimoku<=q10 & ind:f_points_macd>=q90",
+     "family": "triple",
+     "screen_t": 5.15,
+     "maxt_p": 0.994,
+     "pooled_t": 1.73,
+     "is": [
+      0.0281,
+      1.96,
+      0.023,
+      2.44
+     ],
+     "hold": [
+      0.006,
+      2.46,
+      0.018,
+      0.514
+     ],
+     "oos": [
+      -0.0828,
+      -0.93,
+      0.041,
+      -3.562
+     ],
+     "gfc": [
+      0.011,
+      1.95,
+      0.01,
+      2.309
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_ichi_tenkan_dist<=q10 & ind:L_vol5_50<=q10",
+     "family": "pair",
+     "screen_t": 4.01,
+     "maxt_p": 0.996,
+     "pooled_t": 1.69,
+     "is": [
+      0.0075,
+      3.44,
+      0.02,
+      0.382
+     ],
+     "hold": [
+      0.0038,
+      1.45,
+      0.01,
+      0.368
+     ],
+     "oos": [
+      0.0016,
+      1.25,
+      0.006,
+      0.271
+     ],
+     "gfc": [
+      -0.0002,
+      -0.68,
+      0.007,
+      -0.014
+     ]
+    },
+    {
+     "rule": "sell <- ind:s_open_r>=q90 & ind:t_ichimoku<=q10",
+     "family": "pair",
+     "screen_t": 4.88,
+     "maxt_p": 0.996,
+     "pooled_t": 1.69,
+     "is": [
+      0.0382,
+      1.94,
+      0.029,
+      2.624
+     ],
+     "hold": [
+      0.0124,
+      2.07,
+      0.027,
+      0.514
+     ],
+     "oos": [
+      -0.08,
+      -0.94,
+      0.052,
+      -2.722
+     ],
+     "gfc": [
+      0.0158,
+      1.95,
+      0.012,
+      1.841
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:s_mfe_r>=q90 & ind:t_ichimoku<=q10 & ind:f_points_macd>=q90",
+     "family": "triple",
+     "screen_t": 5.28,
+     "maxt_p": 0.998,
+     "pooled_t": 1.67,
+     "is": [
+      0.0356,
+      2.1,
+      0.023,
+      3.057
+     ],
+     "hold": [
+      0.007,
+      2.13,
+      0.018,
+      0.403
+     ],
+     "oos": [
+      -0.0759,
+      -0.79,
+      0.041,
+      -3.076
+     ],
+     "gfc": [
+      0.0126,
+      1.89,
+      0.01,
+      2.43
+     ]
+    }
+   ],
+   "confirmed_in_both": [
+    {
+     "rule": "trail1.5 <- ind:L_sma50_200_spread<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 3.1,
+     "is": [
+      -0.0116,
+      -1.44,
+      0.054,
+      -0.196
+     ],
+     "hold": [
+      0.0054,
+      3.21,
+      0.029,
+      0.185
+     ],
+     "oos": [
+      0.0031,
+      0.74,
+      0.011,
+      0.269
+     ],
+     "gfc": [
+      -0.0092,
+      -0.86,
+      0.064,
+      -0.141
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_stoch21_kd>=q90 & ind:L_linreg10_slope<=q10",
+     "family": "pair",
+     "screen_t": 4.16,
+     "maxt_p": null,
+     "pooled_t": 3.04,
+     "is": [
+      0.0141,
+      0.33,
+      0.02,
+      1.324
+     ],
+     "hold": [
+      0.0033,
+      2.92,
+      0.025,
+      0.161
+     ],
+     "oos": [
+      0.0007,
+      1.63,
+      0.006,
+      0.118
+     ],
+     "gfc": [
+      -0.0013,
+      -0.99,
+      0.01,
+      -0.233
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_dist_high120<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.81,
+     "is": [
+      0.0002,
+      -0.36,
+      0.072,
+      0.005
+     ],
+     "hold": [
+      0.0032,
+      2.2,
+      0.051,
+      0.096
+     ],
+     "oos": [
+      0.005,
+      2.36,
+      0.021,
+      0.243
+     ],
+     "gfc": [
+      -0.0053,
+      -0.15,
+      0.086,
+      -0.056
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:d_ema200<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.51,
+     "is": [
+      -0.0101,
+      -1.16,
+      0.066,
+      -0.151
+     ],
+     "hold": [
+      0.004,
+      2.7,
+      0.051,
+      0.088
+     ],
+     "oos": [
+      0.0014,
+      0.33,
+      0.014,
+      0.103
+     ],
+     "gfc": [
+      -0.0089,
+      -0.36,
+      0.082,
+      -0.107
+     ]
+    },
+    {
+     "rule": "trail2 <- candle:three_inside_up@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.46,
+     "is": [
+      -0.0004,
+      -0.24,
+      0.013,
+      -0.028
+     ],
+     "hold": [
+      0.002,
+      2.06,
+      0.017,
+      0.118
+     ],
+     "oos": [
+      0.0025,
+      1.57,
+      0.011,
+      0.219
+     ],
+     "gfc": [
+      0.0009,
+      1.09,
+      0.01,
+      0.087
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_aroon_up25>=q95",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.43,
+     "is": [
+      -0.0012,
+      -0.88,
+      0.188,
+      -0.006
+     ],
+     "hold": [
+      0.0001,
+      1.28,
+      0.119,
+      0.001
+     ],
+     "oos": [
+      0.0029,
+      2.08,
+      0.228,
+      0.013
+     ],
+     "gfc": [
+      -0.0034,
+      -0.36,
+      0.144,
+      -0.023
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_sma50_200_spread<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.4,
+     "is": [
+      -0.0035,
+      -0.74,
+      0.054,
+      -0.061
+     ],
+     "hold": [
+      0.003,
+      2.89,
+      0.029,
+      0.102
+     ],
+     "oos": [
+      0.0019,
+      0.18,
+      0.011,
+      0.165
+     ],
+     "gfc": [
+      -0.0033,
+      -0.0,
+      0.064,
+      -0.05
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:f_return_120d<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.23,
+     "is": [
+      -0.0097,
+      -1.37,
+      0.081,
+      -0.118
+     ],
+     "hold": [
+      0.0034,
+      3.12,
+      0.027,
+      0.126
+     ],
+     "oos": [
+      0.0022,
+      -0.35,
+      0.023,
+      0.096
+     ],
+     "gfc": [
+      -0.0117,
+      -0.83,
+      0.097,
+      -0.121
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_roc120<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.23,
+     "is": [
+      -0.0097,
+      -1.37,
+      0.081,
+      -0.118
+     ],
+     "hold": [
+      0.0034,
+      3.12,
+      0.027,
+      0.126
+     ],
+     "oos": [
+      0.0022,
+      -0.35,
+      0.022,
+      0.1
+     ],
+     "gfc": [
+      -0.0109,
+      -0.78,
+      0.099,
+      -0.11
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_days_since_high20<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.2,
+     "is": [
+      -0.0016,
+      -1.04,
+      0.263,
+      -0.006
+     ],
+     "hold": [
+      0.0002,
+      0.83,
+      0.201,
+      0.001
+     ],
+     "oos": [
+      0.0019,
+      2.05,
+      0.302,
+      0.006
+     ],
+     "gfc": [
+      -0.0043,
+      -0.69,
+      0.221,
+      -0.019
+     ]
+    },
+    {
+     "rule": "trail1.5 <- ind:c_band_context=Drop below the lower band without trend / volume confirmation==1",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.06,
+     "is": [
+      -0.0049,
+      -0.55,
+      0.055,
+      -0.091
+     ],
+     "hold": [
+      0.0033,
+      1.74,
+      0.044,
+      0.091
+     ],
+     "oos": [
+      0.0072,
+      1.14,
+      0.068,
+      0.106
+     ],
+     "gfc": [
+      0.0097,
+      0.17,
+      0.053,
+      0.396
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:c_structure=Volatility squeeze==1",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.94,
+     "is": [
+      0.0028,
+      0.65,
+      0.12,
+      0.025
+     ],
+     "hold": [
+      0.0011,
+      1.79,
+      0.083,
+      0.03
+     ],
+     "oos": [
+      0.0035,
+      0.79,
+      0.11,
+      0.032
+     ],
+     "gfc": [
+      0.0004,
+      0.13,
+      0.104,
+      0.006
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:L_cmo9>=q95",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.92,
+     "is": [
+      0.0009,
+      0.82,
+      0.186,
+      0.005
+     ],
+     "hold": [
+      0.0013,
+      1.76,
+      0.209,
+      0.006
+     ],
+     "oos": [
+      0.002,
+      0.81,
+      0.258,
+      0.008
+     ],
+     "gfc": [
+      -0.0001,
+      -0.47,
+      0.174,
+      0.0
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_ema20_100_spread<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.85,
+     "is": [
+      -0.0029,
+      -0.62,
+      0.063,
+      -0.042
+     ],
+     "hold": [
+      0.0056,
+      1.44,
+      0.06,
+      0.132
+     ],
+     "oos": [
+      0.0028,
+      1.88,
+      0.016,
+      0.178
+     ],
+     "gfc": [
+      -0.0031,
+      0.19,
+      0.085,
+      -0.033
+     ]
+    },
+    {
+     "rule": "breakeven <- candle:three_inside_up@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.83,
+     "is": [
+      -0.0005,
+      0.18,
+      0.013,
+      -0.043
+     ],
+     "hold": [
+      0.0037,
+      1.34,
+      0.017,
+      0.214
+     ],
+     "oos": [
+      0.0028,
+      1.29,
+      0.011,
+      0.25
+     ],
+     "gfc": [
+      0.0007,
+      1.0,
+      0.01,
+      0.065
+     ]
+    }
+   ]
+  },
+  "squeeze": {
+   "n_trades": 14043,
+   "n_conditions": 2182,
+   "n_pool": 977,
+   "n_pairs_screened": 476776,
+   "actions": {
+    "trail1": "tighten the trail to 1 ATR",
+    "trail1.5": "tighten the trail to 1.5 ATR",
+    "trail2": "tighten the trail to 2 ATR",
+    "trail5": "widen the trail to 5 ATR (squeeze: drop the 3R target, trail 3 ATR)",
+    "breakeven": "stop to break-even",
+    "sell": "sell at the next open"
+   },
+   "gate": {
+    "n_rules": 13632,
+    "n_is_candidates": 619,
+    "bar_t": 3.772606628500588,
+    "validated": []
+   },
+   "maxt_null95": 3.1018168886778588,
+   "n_candidates": 619,
+   "families": {
+    "single": {
+     "n": 13092,
+     "pooled_t_le_-2": 0.2700886037274672,
+     "pooled_t_ge_2": 0.00030553009471432935,
+     "is_candidates": 90,
+     "both_confirmations_positive": 97
+    },
+    "pair": {
+     "n": 360,
+     "pooled_t_le_-2": 0.025,
+     "pooled_t_ge_2": 0.013888888888888888,
+     "is_candidates": 349,
+     "both_confirmations_positive": 10
+    },
+    "triple": {
+     "n": 180,
+     "pooled_t_le_-2": 0.0,
+     "pooled_t_ge_2": 0.12222222222222222,
+     "is_candidates": 180,
+     "both_confirmations_positive": 0
+    }
+   },
+   "by_action": {
+    "trail1": {
+     "n": 2272,
+     "median_pooled_t": -1.5595716810508928,
+     "share_t_ge_2": 0.005721830985915493,
+     "share_t_le_-2": 0.2438380281690141,
+     "best": {
+      "rule": "trail1 <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_big_moves<=q10",
+      "family": "triple",
+      "screen_t": 4.65,
+      "maxt_p": 0.628,
+      "pooled_t": 2.25,
+      "is": [
+       0.0056,
+       3.76,
+       0.012,
+       0.466
+      ],
+      "hold": [
+       -0.0005,
+       1.82,
+       0.007,
+       -0.063
+      ],
+      "oos": [
+       0.0035,
+       1.55,
+       0.011,
+       0.328
+      ],
+      "gfc": [
+       0.002,
+       0.53,
+       0.011,
+       0.185
+      ]
+     }
+    },
+    "trail1.5": {
+     "n": 2272,
+     "median_pooled_t": -1.6210059077390004,
+     "share_t_ge_2": 0.00044014084507042255,
+     "share_t_le_-2": 0.27244718309859156,
+     "best": {
+      "rule": "trail1.5 <- candle:hammer@lv",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 2.57,
+      "is": [
+       -0.0019,
+       0.04,
+       0.009,
+       -0.212
+      ],
+      "hold": [
+       0.0011,
+       2.6,
+       0.008,
+       0.129
+      ],
+      "oos": [
+       0.0026,
+       0.74,
+       0.012,
+       0.21
+      ],
+      "gfc": [
+       0.0006,
+       0.38,
+       0.01,
+       0.063
+      ]
+     }
+    },
+    "trail2": {
+     "n": 2272,
+     "median_pooled_t": -1.4833002763713785,
+     "share_t_ge_2": 0.0008802816901408451,
+     "share_t_le_-2": 0.1949823943661972,
+     "best": {
+      "rule": "trail2 <- ind:s_open_r<=q10 & ind:L_hurst_proxy60>=q90",
+      "family": "pair",
+      "screen_t": 2.85,
+      "maxt_p": 0.546,
+      "pooled_t": 2.34,
+      "is": [
+       0.0014,
+       2.4,
+       0.009,
+       0.158
+      ],
+      "hold": [
+       0.0016,
+       2.52,
+       0.009,
+       0.175
+      ],
+      "oos": [
+       0.0002,
+       0.31,
+       0.009,
+       0.027
+      ],
+      "gfc": [
+       -0.0022,
+       -0.39,
+       0.006,
+       -0.379
+      ]
+     }
+    },
+    "trail5": {
+     "n": 2272,
+     "median_pooled_t": -1.6769768544761088,
+     "share_t_ge_2": 0.0,
+     "share_t_le_-2": 0.3217429577464789,
+     "best": {
+      "rule": "trail5 <- candle:gap_down_recovered@lv",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 1.95,
+      "is": [
+       -0.0006,
+       -1.22,
+       0.002,
+       -0.277
+      ],
+      "hold": [
+       0.0007,
+       1.71,
+       0.002,
+       0.372
+      ],
+      "oos": [
+       0.0003,
+       1.02,
+       0.002,
+       null
+      ],
+      "gfc": [
+       0.0003,
+       1.18,
+       0.002,
+       0.15
+      ]
+     }
+    },
+    "breakeven": {
+     "n": 2272,
+     "median_pooled_t": -1.6348622889380398,
+     "share_t_ge_2": 0.0013204225352112676,
+     "share_t_le_-2": 0.2737676056338028,
+     "best": {
+      "rule": "breakeven <- ind:x_atr_pct<=q05",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 2.24,
+      "is": [
+       -0.0016,
+       -0.35,
+       0.019,
+       -0.085
+      ],
+      "hold": [
+       0.0009,
+       1.47,
+       0.01,
+       0.087
+      ],
+      "oos": [
+       0.0039,
+       1.7,
+       0.029,
+       0.138
+      ],
+      "gfc": [
+       0.0012,
+       -0.17,
+       0.027,
+       0.046
+      ]
+     }
+    },
+    "sell": {
+     "n": 2272,
+     "median_pooled_t": -1.6072642008896998,
+     "share_t_ge_2": 0.00528169014084507,
+     "share_t_le_-2": 0.2535211267605634,
+     "best": {
+      "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_big_moves<=q10",
+      "family": "triple",
+      "screen_t": 4.65,
+      "maxt_p": 0.494,
+      "pooled_t": 2.39,
+      "is": [
+       0.0058,
+       3.81,
+       0.012,
+       0.481
+      ],
+      "hold": [
+       -0.0003,
+       1.96,
+       0.007,
+       -0.033
+      ],
+      "oos": [
+       0.0036,
+       1.56,
+       0.011,
+       0.339
+      ],
+      "gfc": [
+       0.0022,
+       0.64,
+       0.011,
+       0.203
+      ]
+     }
+    }
+   },
+   "top_by_pooled_t": [
+    {
+     "rule": "trail1.5 <- candle:hammer@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.57,
+     "is": [
+      -0.0019,
+      0.04,
+      0.009,
+      -0.212
+     ],
+     "hold": [
+      0.0011,
+      2.6,
+      0.008,
+      0.129
+     ],
+     "oos": [
+      0.0026,
+      0.74,
+      0.012,
+      0.21
+     ],
+     "gfc": [
+      0.0006,
+      0.38,
+      0.01,
+      0.063
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.65,
+     "maxt_p": 0.494,
+     "pooled_t": 2.39,
+     "is": [
+      0.0058,
+      3.81,
+      0.012,
+      0.481
+     ],
+     "hold": [
+      -0.0003,
+      1.96,
+      0.007,
+      -0.033
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.65,
+     "maxt_p": 0.494,
+     "pooled_t": 2.39,
+     "is": [
+      0.0058,
+      3.81,
+      0.012,
+      0.481
+     ],
+     "hold": [
+      -0.0003,
+      1.96,
+      0.007,
+      -0.033
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_open_r<=q10 & ind:L_hurst_proxy60>=q90",
+     "family": "pair",
+     "screen_t": 2.85,
+     "maxt_p": 0.546,
+     "pooled_t": 2.34,
+     "is": [
+      0.0014,
+      2.4,
+      0.009,
+      0.158
+     ],
+     "hold": [
+      0.0016,
+      2.52,
+      0.009,
+      0.175
+     ],
+     "oos": [
+      0.0002,
+      0.31,
+      0.009,
+      0.027
+     ],
+     "gfc": [
+      -0.0022,
+      -0.39,
+      0.006,
+      -0.379
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1",
+     "family": "pair",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R)",
+     "family": "pair",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_ema50_reaction>=q90",
+     "family": "triple",
+     "screen_t": 4.62,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.77,
+      0.012,
+      0.488
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_ema50_reaction>=q90",
+     "family": "triple",
+     "screen_t": 4.62,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.77,
+      0.012,
+      0.488
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & time:day5",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_streaks>=q90",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0029,
+      0.79,
+      0.01,
+      0.283
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_flag<=q10",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & time:day5",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_streaks>=q90",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0029,
+      0.79,
+      0.01,
+      0.283
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_flag<=q10",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "trail1 <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.65,
+     "maxt_p": 0.628,
+     "pooled_t": 2.25,
+     "is": [
+      0.0056,
+      3.76,
+      0.012,
+      0.466
+     ],
+     "hold": [
+      -0.0005,
+      1.82,
+      0.007,
+      -0.063
+     ],
+     "oos": [
+      0.0035,
+      1.55,
+      0.011,
+      0.328
+     ],
+     "gfc": [
+      0.002,
+      0.53,
+      0.011,
+      0.185
+     ]
+    }
+   ],
+   "top_is_candidates": [
+    {
+     "rule": "sell <- ind:p_gap_down==1 & ind:t_cci<=q10 & ind:f_points_volume>=q90",
+     "family": "triple",
+     "screen_t": 4.41,
+     "maxt_p": 1.0,
+     "pooled_t": 0.17,
+     "is": [
+      0.0045,
+      4.38,
+      0.01,
+      0.45
+     ],
+     "hold": [
+      -0.0014,
+      -0.94,
+      0.007,
+      -0.214
+     ],
+     "oos": [
+      0.0012,
+      1.71,
+      0.016,
+      0.077
+     ],
+     "gfc": [
+      0.0002,
+      1.1,
+      0.009,
+      0.019
+     ]
+    },
+    {
+     "rule": "sell <- candle:gap_down & ind:t_cci<=q10 & ind:f_points_volume>=q90",
+     "family": "triple",
+     "screen_t": 4.41,
+     "maxt_p": 1.0,
+     "pooled_t": 0.17,
+     "is": [
+      0.0045,
+      4.38,
+      0.01,
+      0.45
+     ],
+     "hold": [
+      -0.0014,
+      -0.94,
+      0.007,
+      -0.214
+     ],
+     "oos": [
+      0.0012,
+      1.71,
+      0.016,
+      0.077
+     ],
+     "gfc": [
+      0.0002,
+      1.1,
+      0.009,
+      0.019
+     ]
+    },
+    {
+     "rule": "sell <- ind:p_gap_down==1 & ind:t_cci<=q10 & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.4,
+     "maxt_p": 1.0,
+     "pooled_t": 0.17,
+     "is": [
+      0.0045,
+      4.37,
+      0.01,
+      0.448
+     ],
+     "hold": [
+      -0.001,
+      -0.73,
+      0.008,
+      -0.132
+     ],
+     "oos": [
+      -0.0003,
+      1.15,
+      0.017,
+      -0.02
+     ],
+     "gfc": [
+      -0.0011,
+      0.25,
+      0.012,
+      -0.099
+     ]
+    },
+    {
+     "rule": "sell <- candle:gap_down & ind:t_cci<=q10 & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.4,
+     "maxt_p": 1.0,
+     "pooled_t": 0.17,
+     "is": [
+      0.0045,
+      4.37,
+      0.01,
+      0.448
+     ],
+     "hold": [
+      -0.001,
+      -0.73,
+      0.008,
+      -0.132
+     ],
+     "oos": [
+      -0.0003,
+      1.15,
+      0.017,
+      -0.02
+     ],
+     "gfc": [
+      -0.0011,
+      0.25,
+      0.012,
+      -0.099
+     ]
+    },
+    {
+     "rule": "sell <- ind:p_gap_down==1 & ind:t_cci<=q10",
+     "family": "pair",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "sell <- candle:gap_down & ind:t_cci<=q10",
+     "family": "pair",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "sell <- ind:p_gap_down==1 & ind:t_cci<=q10 & ind:t_rsi2>=q90",
+     "family": "triple",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "sell <- ind:p_gap_down==1 & ind:t_cci<=q10 & ind:t_reg_channel>=q90",
+     "family": "triple",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "sell <- ind:p_gap_down==1 & ind:t_cci<=q10 & ind:t_flag>=q90",
+     "family": "triple",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "sell <- candle:gap_down & ind:t_cci<=q10 & ind:t_rsi2>=q90",
+     "family": "triple",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "sell <- candle:gap_down & ind:t_cci<=q10 & ind:t_reg_channel>=q90",
+     "family": "triple",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "sell <- candle:gap_down & ind:t_cci<=q10 & ind:t_flag>=q90",
+     "family": "triple",
+     "screen_t": 4.38,
+     "maxt_p": 1.0,
+     "pooled_t": 0.23,
+     "is": [
+      0.0045,
+      4.35,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0012,
+      -0.7,
+      0.008,
+      -0.155
+     ],
+     "oos": [
+      0.0002,
+      1.24,
+      0.018,
+      0.011
+     ],
+     "gfc": [
+      -0.0011,
+      0.23,
+      0.012,
+      -0.105
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:p_gap_down==1 & ind:t_cci<=q10 & ind:f_points_volume>=q90",
+     "family": "triple",
+     "screen_t": 4.43,
+     "maxt_p": 1.0,
+     "pooled_t": 0.04,
+     "is": [
+      0.0044,
+      4.35,
+      0.01,
+      0.436
+     ],
+     "hold": [
+      -0.0016,
+      -1.06,
+      0.007,
+      -0.244
+     ],
+     "oos": [
+      0.001,
+      1.67,
+      0.016,
+      0.062
+     ],
+     "gfc": [
+      0.0011,
+      1.19,
+      0.009,
+      0.108
+     ]
+    },
+    {
+     "rule": "trail1 <- candle:gap_down & ind:t_cci<=q10 & ind:f_points_volume>=q90",
+     "family": "triple",
+     "screen_t": 4.43,
+     "maxt_p": 1.0,
+     "pooled_t": 0.04,
+     "is": [
+      0.0044,
+      4.35,
+      0.01,
+      0.436
+     ],
+     "hold": [
+      -0.0016,
+      -1.06,
+      0.007,
+      -0.244
+     ],
+     "oos": [
+      0.001,
+      1.67,
+      0.016,
+      0.062
+     ],
+     "gfc": [
+      0.0011,
+      1.19,
+      0.009,
+      0.108
+     ]
+    },
+    {
+     "rule": "trail1 <- ind:p_gap_down==1 & ind:t_cci<=q10 & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.42,
+     "maxt_p": 1.0,
+     "pooled_t": 0.04,
+     "is": [
+      0.0043,
+      4.34,
+      0.01,
+      0.434
+     ],
+     "hold": [
+      -0.0011,
+      -0.86,
+      0.008,
+      -0.158
+     ],
+     "oos": [
+      -0.0006,
+      1.12,
+      0.017,
+      -0.034
+     ],
+     "gfc": [
+      -0.0003,
+      0.71,
+      0.012,
+      -0.028
+     ]
+    }
+   ],
+   "top_combos": [
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.65,
+     "maxt_p": 0.494,
+     "pooled_t": 2.39,
+     "is": [
+      0.0058,
+      3.81,
+      0.012,
+      0.481
+     ],
+     "hold": [
+      -0.0003,
+      1.96,
+      0.007,
+      -0.033
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.65,
+     "maxt_p": 0.494,
+     "pooled_t": 2.39,
+     "is": [
+      0.0058,
+      3.81,
+      0.012,
+      0.481
+     ],
+     "hold": [
+      -0.0003,
+      1.96,
+      0.007,
+      -0.033
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_open_r<=q10 & ind:L_hurst_proxy60>=q90",
+     "family": "pair",
+     "screen_t": 2.85,
+     "maxt_p": 0.546,
+     "pooled_t": 2.34,
+     "is": [
+      0.0014,
+      2.4,
+      0.009,
+      0.158
+     ],
+     "hold": [
+      0.0016,
+      2.52,
+      0.009,
+      0.175
+     ],
+     "oos": [
+      0.0002,
+      0.31,
+      0.009,
+      0.027
+     ],
+     "gfc": [
+      -0.0022,
+      -0.39,
+      0.006,
+      -0.379
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1",
+     "family": "pair",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R)",
+     "family": "pair",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_ema50_reaction>=q90",
+     "family": "triple",
+     "screen_t": 4.62,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.77,
+      0.012,
+      0.488
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_ema50_reaction>=q90",
+     "family": "triple",
+     "screen_t": 4.62,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.77,
+      0.012,
+      0.488
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & time:day5",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_streaks>=q90",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0029,
+      0.79,
+      0.01,
+      0.283
+     ]
+    },
+    {
+     "rule": "sell <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_flag<=q10",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & time:day5",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_streaks>=q90",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0029,
+      0.79,
+      0.01,
+      0.283
+     ]
+    },
+    {
+     "rule": "sell <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_flag<=q10",
+     "family": "triple",
+     "screen_t": 4.6,
+     "maxt_p": 0.588,
+     "pooled_t": 2.29,
+     "is": [
+      0.0057,
+      3.78,
+      0.013,
+      0.456
+     ],
+     "hold": [
+      -0.0004,
+      1.86,
+      0.008,
+      -0.036
+     ],
+     "oos": [
+      0.0036,
+      1.56,
+      0.011,
+      0.339
+     ],
+     "gfc": [
+      0.0022,
+      0.64,
+      0.011,
+      0.203
+     ]
+    },
+    {
+     "rule": "trail1 <- state:not_working_day5(<+0.25R) & ind:p_close_bottom10==1 & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.65,
+     "maxt_p": 0.628,
+     "pooled_t": 2.25,
+     "is": [
+      0.0056,
+      3.76,
+      0.012,
+      0.466
+     ],
+     "hold": [
+      -0.0005,
+      1.82,
+      0.007,
+      -0.063
+     ],
+     "oos": [
+      0.0035,
+      1.55,
+      0.011,
+      0.328
+     ],
+     "gfc": [
+      0.002,
+      0.53,
+      0.011,
+      0.185
+     ]
+    },
+    {
+     "rule": "trail1 <- candle:close_bottom10 & state:not_working_day5(<+0.25R) & ind:t_big_moves<=q10",
+     "family": "triple",
+     "screen_t": 4.65,
+     "maxt_p": 0.628,
+     "pooled_t": 2.25,
+     "is": [
+      0.0056,
+      3.76,
+      0.012,
+      0.466
+     ],
+     "hold": [
+      -0.0005,
+      1.82,
+      0.007,
+      -0.063
+     ],
+     "oos": [
+      0.0035,
+      1.55,
+      0.011,
+      0.328
+     ],
+     "gfc": [
+      0.002,
+      0.53,
+      0.011,
+      0.185
+     ]
+    }
+   ],
+   "confirmed_in_both": [
+    {
+     "rule": "trail1.5 <- candle:hammer@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.57,
+     "is": [
+      -0.0019,
+      0.04,
+      0.009,
+      -0.212
+     ],
+     "hold": [
+      0.0011,
+      2.6,
+      0.008,
+      0.129
+     ],
+     "oos": [
+      0.0026,
+      0.74,
+      0.012,
+      0.21
+     ],
+     "gfc": [
+      0.0006,
+      0.38,
+      0.01,
+      0.063
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_open_r<=q10 & ind:L_hurst_proxy60>=q90",
+     "family": "pair",
+     "screen_t": 2.85,
+     "maxt_p": 0.546,
+     "pooled_t": 2.34,
+     "is": [
+      0.0014,
+      2.4,
+      0.009,
+      0.158
+     ],
+     "hold": [
+      0.0016,
+      2.52,
+      0.009,
+      0.175
+     ],
+     "oos": [
+      0.0002,
+      0.31,
+      0.009,
+      0.027
+     ],
+     "gfc": [
+      -0.0022,
+      -0.39,
+      0.006,
+      -0.379
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:x_atr_pct<=q05",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.24,
+     "is": [
+      -0.0016,
+      -0.35,
+      0.019,
+      -0.085
+     ],
+     "hold": [
+      0.0009,
+      1.47,
+      0.01,
+      0.087
+     ],
+     "oos": [
+      0.0039,
+      1.7,
+      0.029,
+      0.138
+     ],
+     "gfc": [
+      0.0012,
+      -0.17,
+      0.027,
+      0.046
+     ]
+    },
+    {
+     "rule": "trail1 <- candle:hammer@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.21,
+     "is": [
+      -0.002,
+      0.01,
+      0.009,
+      -0.224
+     ],
+     "hold": [
+      0.0011,
+      1.93,
+      0.008,
+      0.13
+     ],
+     "oos": [
+      0.0035,
+      1.06,
+      0.012,
+      0.286
+     ],
+     "gfc": [
+      0.0003,
+      0.33,
+      0.01,
+      0.018
+     ]
+    },
+    {
+     "rule": "trail2 <- mtf:bear_engulfing|weekly_down",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 2.02,
+     "is": [
+      0.0005,
+      0.0,
+      0.002,
+      0.199
+     ],
+     "hold": [
+      0.0007,
+      1.97,
+      0.001,
+      0.444
+     ],
+     "oos": [
+      0.0008,
+      1.09,
+      0.004,
+      0.176
+     ],
+     "gfc": [
+      -0.0002,
+      -1.0,
+      0.0,
+      null
+     ]
+    },
+    {
+     "rule": "trail5 <- candle:gap_down_recovered@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.95,
+     "is": [
+      -0.0006,
+      -1.22,
+      0.002,
+      -0.277
+     ],
+     "hold": [
+      0.0007,
+      1.71,
+      0.002,
+      0.372
+     ],
+     "oos": [
+      0.0003,
+      1.02,
+      0.002,
+      null
+     ],
+     "gfc": [
+      0.0003,
+      1.18,
+      0.002,
+      0.15
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:s_dist_stop_atr<=q10 & ind:L_hurst_proxy60>=q90",
+     "family": "pair",
+     "screen_t": 3.22,
+     "maxt_p": 0.88,
+     "pooled_t": 1.95,
+     "is": [
+      0.0014,
+      2.38,
+      0.009,
+      0.171
+     ],
+     "hold": [
+      0.0013,
+      2.07,
+      0.009,
+      0.152
+     ],
+     "oos": [
+      0.0001,
+      0.29,
+      0.008,
+      0.01
+     ],
+     "gfc": [
+      -0.0024,
+      -0.93,
+      0.006,
+      -0.397
+     ]
+    },
+    {
+     "rule": "trail2 <- candle:hammer@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.94,
+     "is": [
+      -0.0005,
+      0.65,
+      0.009,
+      -0.061
+     ],
+     "hold": [
+      0.0008,
+      2.13,
+      0.008,
+      0.087
+     ],
+     "oos": [
+      0.0008,
+      0.27,
+      0.012,
+      0.068
+     ],
+     "gfc": [
+      0.0012,
+      0.08,
+      0.01,
+      0.13
+     ]
+    },
+    {
+     "rule": "sell <- candle:key_reversal_down@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.91,
+     "is": [
+      0.0015,
+      -0.38,
+      0.008,
+      0.217
+     ],
+     "hold": [
+      0.0003,
+      1.69,
+      0.006,
+      0.05
+     ],
+     "oos": [
+      0.0016,
+      0.89,
+      0.006,
+      0.268
+     ],
+     "gfc": [
+      -0.0018,
+      -0.73,
+      0.01,
+      -0.186
+     ]
+    },
+    {
+     "rule": "trail2 <- candle:gap_down_recovered@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.84,
+     "is": [
+      -0.0006,
+      -1.58,
+      0.002,
+      -0.297
+     ],
+     "hold": [
+      0.0007,
+      1.58,
+      0.002,
+      0.384
+     ],
+     "oos": [
+      0.0005,
+      1.0,
+      0.002,
+      null
+     ],
+     "gfc": [
+      0.0002,
+      -0.17,
+      0.002,
+      0.112
+     ]
+    },
+    {
+     "rule": "trail1.5 <- candle:gap_up_faded@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.77,
+     "is": [
+      0.0004,
+      0.4,
+      0.001,
+      null
+     ],
+     "hold": [
+      0.0003,
+      1.53,
+      0.001,
+      0.222
+     ],
+     "oos": [
+      0.0018,
+      0.9,
+      0.003,
+      0.528
+     ],
+     "gfc": [
+      -0.0022,
+      -1.11,
+      0.002,
+      -0.966
+     ]
+    },
+    {
+     "rule": "trail5 <- candle:hammer@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.77,
+     "is": [
+      0.0006,
+      0.92,
+      0.009,
+      0.069
+     ],
+     "hold": [
+      0.0008,
+      1.7,
+      0.008,
+      0.086
+     ],
+     "oos": [
+      0.0001,
+      0.49,
+      0.012,
+      0.006
+     ],
+     "gfc": [
+      0.0007,
+      1.07,
+      0.01,
+      0.071
+     ]
+    },
+    {
+     "rule": "trail1 <- candle:key_reversal_down@lv",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.76,
+     "is": [
+      0.0014,
+      -0.49,
+      0.008,
+      0.205
+     ],
+     "hold": [
+      0.0001,
+      1.52,
+      0.006,
+      0.008
+     ],
+     "oos": [
+      0.0016,
+      0.89,
+      0.006,
+      0.269
+     ],
+     "gfc": [
+      -0.0011,
+      -0.55,
+      0.01,
+      -0.116
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:c_structure=Range / consolidation==1",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 1.74,
+     "is": [
+      -0.0008,
+      -1.42,
+      0.001,
+      -0.582
+     ],
+     "hold": [
+      0.0004,
+      1.28,
+      0.001,
+      0.307
+     ],
+     "oos": [
+      0.0014,
+      1.67,
+      0.003,
+      0.403
+     ],
+     "gfc": [
+      -0.0007,
+      0.3,
+      0.002,
+      -0.302
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:p_gap_down==1 & ind:t_gap_fill>=q90",
+     "family": "pair",
+     "screen_t": 3.18,
+     "maxt_p": 0.966,
+     "pooled_t": 1.67,
+     "is": [
+      0.0027,
+      3.22,
+      0.009,
+      0.286
+     ],
+     "hold": [
+      0.0004,
+      1.89,
+      0.005,
+      0.076
+     ],
+     "oos": [
+      0.0038,
+      0.92,
+      0.02,
+      0.19
+     ],
+     "gfc": [
+      0.0,
+      0.55,
+      0.006,
+      0.003
+     ]
+    }
+   ]
+  },
+  "breakout": {
+   "n_trades": 16411,
+   "n_conditions": 2167,
+   "n_pool": 1100,
+   "n_pairs_screened": 604450,
+   "actions": {
+    "trail1": "tighten the trail to 1 ATR",
+    "trail1.5": "tighten the trail to 1.5 ATR",
+    "trail2": "tighten the trail to 2 ATR",
+    "trail5": "widen the trail to 5 ATR (squeeze: drop the 3R target, trail 3 ATR)",
+    "breakeven": "stop to break-even",
+    "sell": "sell at the next open"
+   },
+   "gate": {
+    "n_rules": 13542,
+    "n_is_candidates": 1275,
+    "bar_t": 3.9491433548338892,
+    "validated": [
+     "trail5 <- candle:close_top10",
+     "trail5 <- candle:gap_up",
+     "trail5 <- ind:s_giveback_r<=q05",
+     "trail5 <- ind:f_return_1d<=q10",
+     "trail5 <- ind:f_volume_ratio>=q90",
+     "trail5 <- ind:f_volume_ratio>=q95",
+     "trail5 <- ind:f_rsi_losing_extended==1",
+     "trail5 <- ind:f_points_volume<=q10",
+     "trail5 <- ind:f_points_volume<=q05",
+     "trail5 <- ind:f_clv>=q90",
+     "trail5 <- ind:f_rsi6_prev>=q90",
+     "trail5 <- ind:d_vwap20>=q90",
+     "trail5 <- ind:d_high20>=q90",
+     "trail5 <- ind:d_high60>=q90",
+     "trail5 <- ind:d_high252>=q95",
+     "trail5 <- ind:d_macd_hist>=q90",
+     "trail5 <- ind:c_rsi_zone=Positive momentum==1",
+     "trail5 <- ind:c_volume_level=Very high participation==1",
+     "trail5 <- ind:c_volume_level=Weak participation==1",
+     "trail5 <- ind:c_day_direction=down==1",
+     "trail5 <- ind:c_bb_position=Between middle and upper band==1",
+     "trail5 <- ind:c_bb_position=Near upper band==1",
+     "trail5 <- ind:c_swing_condition=Improving==1",
+     "trail5 <- ind:x_rsi14>=q90",
+     "trail5 <- ind:x_volume_ratio>=q90",
+     "trail5 <- ind:x_swing_score>=q90",
+     "trail5 <- ind:b_body_atr<=q10",
+     "trail5 <- ind:b_range_atr>=q95",
+     "trail5 <- ind:b_upper_frac<=q10",
+     "trail5 <- ind:b_clv>=q90",
+     "trail5 <- ind:b_ret_atr<=q10",
+     "trail5 <- ind:b_vol_ratio>=q90",
+     "trail5 <- ind:b_vol_ratio>=q95",
+     "trail5 <- ind:p_close_top10==1",
+     "trail5 <- ind:p_gap_up==1",
+     "trail5 <- ind:t_avwap<=q10",
+     "trail5 <- ind:t_avwap<=q05",
+     "trail5 <- ind:t_cmf>=q90",
+     "trail5 <- ind:t_cmf>=q95",
+     "trail5 <- ind:t_gap_fill<=q10",
+     "trail5 <- ind:t_gap_fill<=q05",
+     "trail5 <- ind:L_hma9_dist<=q10",
+     "trail5 <- ind:L_kama10_dist<=q10",
+     "trail5 <- ind:L_zlema10_dist<=q10",
+     "trail5 <- ind:L_rsi14_slope3<=q10",
+     "trail5 <- ind:L_stoch5_k>=q90",
+     "trail5 <- ind:L_stoch5_d>=q90",
+     "trail5 <- ind:L_stoch5_kd<=q10",
+     "trail5 <- ind:L_stoch9_k>=q90",
+     "trail5 <- ind:L_stoch9_d>=q90",
+     "trail5 <- ind:L_stoch14_k>=q90",
+     "trail5 <- ind:L_stoch14_k>=q95",
+     "trail5 <- ind:L_stoch14_d>=q90",
+     "trail5 <- ind:L_stoch21_k>=q95",
+     "trail5 <- ind:L_stochrsi14>=q90",
+     "trail5 <- ind:L_stochrsi14>=q95",
+     "trail5 <- ind:L_willr10>=q90",
+     "trail5 <- ind:L_willr14>=q90",
+     "trail5 <- ind:L_willr14>=q95",
+     "trail5 <- ind:L_willr28>=q90",
+     "trail5 <- ind:L_willr28>=q95",
+     "trail5 <- ind:L_cci10>=q90",
+     "trail5 <- ind:L_roc1<=q10",
+     "trail5 <- ind:L_macd12_26_hist>=q90",
+     "trail5 <- ind:L_macd12_26_hist_chg<=q10",
+     "trail5 <- ind:L_macd5_35_hist_chg>=q90",
+     "trail5 <- ind:L_macd5_35_hist_chg>=q95",
+     "trail5 <- ind:L_macd5_35_hist_chg<=q10",
+     "trail5 <- ind:L_macd5_35_hist_chg<=q05",
+     "trail5 <- ind:L_macd8_17_hist_chg<=q10",
+     "trail5 <- ind:L_macd8_17_hist_chg<=q05",
+     "trail5 <- ind:L_ultosc>=q90",
+     "trail5 <- ind:L_ac>=q90",
+     "trail5 <- ind:L_elder_bear>=q90",
+     "trail5 <- ind:L_pgo14>=q90",
+     "trail5 <- ind:L_linreg20_r2>=q90",
+     "trail5 <- ind:L_supertrend10_3_dist>=q95",
+     "trail5 <- ind:L_supertrend10_2_dist>=q95",
+     "trail5 <- ind:L_supertrend20_3_dist>=q90",
+     "trail5 <- ind:L_supertrend20_3_dist>=q95",
+     "trail5 <- ind:L_psar_dist>=q90",
+     "trail5 <- ind:L_psar_slow_dist>=q90",
+     "trail5 <- ind:L_ichi_tenkan_dist>=q90",
+     "trail5 <- ind:L_donch10_pos>=q90",
+     "trail5 <- ind:L_donch55_pos>=q95",
+     "trail5 <- ind:L_range_atr>=q95",
+     "trail5 <- ind:L_body_atr<=q10",
+     "trail5 <- ind:L_clv>=q90",
+     "trail5 <- ind:L_clv5>=q90",
+     "trail5 <- ind:L_upper_wick_atr<=q10",
+     "trail5 <- ind:L_vol_ratio5>=q90",
+     "trail5 <- ind:L_vol_ratio10>=q90",
+     "trail5 <- ind:L_vol_ratio20>=q90",
+     "trail5 <- ind:L_vol_ratio20>=q95",
+     "trail5 <- ind:L_vol_ratio50>=q90",
+     "trail5 <- ind:L_vol_z20>=q90",
+     "trail5 <- ind:L_vol_z20>=q95",
+     "trail5 <- ind:L_adl_slope10>=q90",
+     "trail5 <- ind:L_adl_slope10>=q95",
+     "trail5 <- ind:L_chaikin_osc>=q90",
+     "trail5 <- ind:L_cmf10>=q90",
+     "trail5 <- ind:L_force2>=q90",
+     "trail5 <- ind:L_force2<=q10",
+     "trail5 <- ind:L_klinger>=q90",
+     "trail5 <- ind:L_dist_high5>=q90",
+     "trail5 <- ind:L_dist_high5>=q95",
+     "trail5 <- ind:L_dist_high10>=q90",
+     "trail5 <- ind:L_dist_high10<=q10",
+     "trail5 <- ind:L_dist_low10>=q90",
+     "trail5 <- ind:L_dist_high20>=q90",
+     "trail5 <- ind:L_dist_high55>=q90",
+     "trail5 <- ind:L_dist_high252>=q95",
+     "trail5 <- ind:L_pivot_dist>=q95",
+     "trail5 <- ind:L_pivot_dist<=q10",
+     "trail5 <- ind:L_s1_dist<=q10",
+     "trail5 <- ind:t_gap_fill<=q10 & ind:t_streaks>=q90",
+     "trail5 <- ind:t_streaks>=q90 & ind:L_r1_dist>=q90",
+     "trail5 <- ind:t_ichimoku>=q90 & ind:L_r1_dist>=q90",
+     "trail5 <- ind:c_momentum=Strong positive==1 & ind:t_gap_fill<=q10",
+     "trail5 <- classic:ext>=3atr_above_ema21 & ind:d_high20>=q90",
+     "trail5 <- ind:t_ichimoku>=q90 & ind:L_pivot_dist>=q90",
+     "trail5 <- ind:c_band_context=Upper-band walk (strong momentum)==1 & ind:L_vol_ratio50>=q90",
+     "trail5 <- ind:f_points_boll==1 & ind:L_vol_ratio50>=q90",
+     "trail5 <- ind:t_ichimoku>=q90 & ind:L_s1_dist>=q90",
+     "trail5 <- ind:L_vol_ratio50>=q90 & ind:L_vol_z20>=q90",
+     "trail5 <- classic:ext>=3atr_above_ema21 & ind:L_dist_high20>=q90",
+     "trail5 <- ind:t_streaks>=q90 & ind:L_s1_dist>=q90",
+     "trail5 <- ind:t_streaks>=q90 & ind:L_stoch14_d>=q90",
+     "trail5 <- ind:t_cmf>=q90 & ind:L_pivot_dist>=q90",
+     "trail5 <- ind:t_avwap>=q90 & ind:L_stoch14_d>=q90",
+     "trail5 <- ind:t_streaks>=q90 & ind:L_force2>=q90",
+     "trail5 <- ind:t_gap_fill<=q10 & ind:t_streaks>=q90 & ind:c_momentum=Strong positive==1"
+    ]
+   },
+   "maxt_null95": 3.4460196047890577,
+   "n_candidates": 1275,
+   "families": {
+    "single": {
+     "n": 13002,
+     "pooled_t_le_-2": 0.4347591937221111,
+     "pooled_t_ge_2": 0.10978612094168333,
+     "is_candidates": 750,
+     "both_confirmations_positive": 1883
+    },
+    "pair": {
+     "n": 360,
+     "pooled_t_le_-2": 0.03333333333333333,
+     "pooled_t_ge_2": 0.17222222222222222,
+     "is_candidates": 345,
+     "both_confirmations_positive": 69
+    },
+    "triple": {
+     "n": 180,
+     "pooled_t_le_-2": 0.012578616352201259,
+     "pooled_t_ge_2": 0.18867924528301888,
+     "is_candidates": 180,
+     "both_confirmations_positive": 39
+    }
+   },
+   "by_action": {
+    "trail1": {
+     "n": 2257,
+     "median_pooled_t": -2.379879244050702,
+     "share_t_ge_2": 0.001774622892635315,
+     "share_t_le_-2": 0.634871339840284,
+     "best": {
+      "rule": "trail1 <- candle:piercing@lv",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 2.55,
+      "is": [
+       0.0013,
+       0.39,
+       0.004,
+       0.346
+      ],
+      "hold": [
+       0.0021,
+       2.8,
+       0.008,
+       0.242
+      ],
+      "oos": [
+       -0.0015,
+       -0.32,
+       0.004,
+       -0.926
+      ],
+      "gfc": [
+       -0.003,
+       -1.63,
+       0.009,
+       -0.329
+      ]
+     }
+    },
+    "trail1.5": {
+     "n": 2257,
+     "median_pooled_t": -2.1060418890601733,
+     "share_t_ge_2": 0.0013321492007104796,
+     "share_t_le_-2": 0.5412966252220248,
+     "best": {
+      "rule": "trail1.5 <- mtf:big_down|weekly_down",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 2.29,
+      "is": [
+       0.0003,
+       1.61,
+       0.001,
+       null
+      ],
+      "hold": [
+       0.0002,
+       1.87,
+       0.001,
+       0.179
+      ],
+      "oos": [
+       0.0005,
+       1.85,
+       0.002,
+       0.286
+      ],
+      "gfc": [
+       -0.0005,
+       -0.45,
+       0.002,
+       -0.199
+      ]
+     }
+    },
+    "trail2": {
+     "n": 2257,
+     "median_pooled_t": -2.108877808287345,
+     "share_t_ge_2": 0.0026642984014209592,
+     "share_t_le_-2": 0.5470692717584369,
+     "best": {
+      "rule": "trail2 <- ind:w_rsi14>=q90 & ind:L_kama10_dist>=q90",
+      "family": "pair",
+      "screen_t": 4.99,
+      "maxt_p": 0.548,
+      "pooled_t": 2.68,
+      "is": [
+       0.0111,
+       2.21,
+       0.031,
+       0.363
+      ],
+      "hold": [
+       0.0033,
+       4.27,
+       0.008,
+       0.502
+      ],
+      "oos": [
+       0.0037,
+       0.85,
+       0.079,
+       0.086
+      ],
+      "gfc": [
+       0.0018,
+       2.92,
+       0.01,
+       0.276
+      ]
+     }
+    },
+    "trail5": {
+     "n": 2257,
+     "median_pooled_t": 2.682362798135828,
+     "share_t_ge_2": 0.6619406291537439,
+     "share_t_le_-2": 0.00044306601683650863,
+     "best": {
+      "rule": "trail5 <- ind:t_avwap>=q90 & ind:L_stoch14_d>=q90",
+      "family": "pair",
+      "screen_t": 4.53,
+      "maxt_p": 0.0,
+      "pooled_t": 5.86,
+      "is": [
+       0.0489,
+       2.5,
+       0.218,
+       0.3
+      ],
+      "hold": [
+       0.0289,
+       4.43,
+       0.232,
+       0.166
+      ],
+      "oos": [
+       0.0905,
+       3.89,
+       0.212,
+       0.521
+      ],
+      "gfc": [
+       0.009,
+       0.72,
+       0.212,
+       0.067
+      ]
+     }
+    },
+    "breakeven": {
+     "n": 2257,
+     "median_pooled_t": -1.3043592971726472,
+     "share_t_ge_2": 0.003552397868561279,
+     "share_t_le_-2": 0.2291296625222025,
+     "best": {
+      "rule": "breakeven <- ind:x_rsi14>=q95",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 3.33,
+      "is": [
+       0.0002,
+       -0.66,
+       0.099,
+       0.002
+      ],
+      "hold": [
+       0.0005,
+       2.63,
+       0.088,
+       0.006
+      ],
+      "oos": [
+       0.0013,
+       2.09,
+       0.108,
+       0.012
+      ],
+      "gfc": [
+       0.0001,
+       0.99,
+       0.089,
+       0.001
+      ]
+     }
+    },
+    "sell": {
+     "n": 2257,
+     "median_pooled_t": -2.1414783443890797,
+     "share_t_ge_2": 0.0017777777777777779,
+     "share_t_le_-2": 0.5626666666666666,
+     "best": {
+      "rule": "sell <- candle:piercing@lv",
+      "family": "single",
+      "screen_t": null,
+      "maxt_p": null,
+      "pooled_t": 3.26,
+      "is": [
+       0.0006,
+       -0.45,
+       0.004,
+       0.185
+      ],
+      "hold": [
+       0.0031,
+       3.19,
+       0.008,
+       0.32
+      ],
+      "oos": [
+       -0.0005,
+       0.68,
+       0.004,
+       -0.545
+      ],
+      "gfc": [
+       -0.0022,
+       -1.09,
+       0.009,
+       -0.28
+      ]
+     }
+    }
+   },
+   "top_by_pooled_t": [
+    {
+     "rule": "trail5 <- ind:t_avwap>=q90 & ind:L_stoch14_d>=q90",
+     "family": "pair",
+     "screen_t": 4.53,
+     "maxt_p": 0.0,
+     "pooled_t": 5.86,
+     "is": [
+      0.0489,
+      2.5,
+      0.218,
+      0.3
+     ],
+     "hold": [
+      0.0289,
+      4.43,
+      0.232,
+      0.166
+     ],
+     "oos": [
+      0.0905,
+      3.89,
+      0.212,
+      0.521
+     ],
+     "gfc": [
+      0.009,
+      0.72,
+      0.212,
+      0.067
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_streaks>=q90 & ind:L_stoch14_d>=q90",
+     "family": "pair",
+     "screen_t": 4.53,
+     "maxt_p": 0.0,
+     "pooled_t": 5.58,
+     "is": [
+      0.0502,
+      2.53,
+      0.233,
+      0.28
+     ],
+     "hold": [
+      0.0266,
+      4.15,
+      0.254,
+      0.138
+     ],
+     "oos": [
+      0.093,
+      3.79,
+      0.221,
+      0.526
+     ],
+     "gfc": [
+      0.0067,
+      0.4,
+      0.231,
+      0.049
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_donch20_pos>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.46,
+     "is": [
+      0.0413,
+      1.45,
+      0.331,
+      0.17
+     ],
+     "hold": [
+      0.0253,
+      4.11,
+      0.342,
+      0.098
+     ],
+     "oos": [
+      0.0835,
+      3.62,
+      0.329,
+      0.335
+     ],
+     "gfc": [
+      0.0101,
+      0.48,
+      0.35,
+      0.048
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_hl_range20_pos>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.46,
+     "is": [
+      0.0413,
+      1.45,
+      0.331,
+      0.17
+     ],
+     "hold": [
+      0.0253,
+      4.11,
+      0.342,
+      0.098
+     ],
+     "oos": [
+      0.0835,
+      3.62,
+      0.329,
+      0.335
+     ],
+     "gfc": [
+      0.0101,
+      0.48,
+      0.35,
+      0.048
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_cmf10>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.44,
+     "is": [
+      0.0338,
+      2.17,
+      0.215,
+      0.21
+     ],
+     "hold": [
+      0.0243,
+      4.09,
+      0.238,
+      0.136
+     ],
+     "oos": [
+      0.0948,
+      3.6,
+      0.188,
+      0.616
+     ],
+     "gfc": [
+      0.0196,
+      1.83,
+      0.267,
+      0.104
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch21_d>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.42,
+     "is": [
+      0.0338,
+      1.59,
+      0.208,
+      0.227
+     ],
+     "hold": [
+      0.0244,
+      4.03,
+      0.234,
+      0.144
+     ],
+     "oos": [
+      0.0823,
+      3.64,
+      0.194,
+      0.465
+     ],
+     "gfc": [
+      0.0094,
+      0.92,
+      0.204,
+      0.064
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch14_d>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.39,
+     "is": [
+      0.0477,
+      2.29,
+      0.274,
+      0.233
+     ],
+     "hold": [
+      0.0285,
+      4.06,
+      0.298,
+      0.127
+     ],
+     "oos": [
+      0.0909,
+      3.58,
+      0.252,
+      0.426
+     ],
+     "gfc": [
+      0.0123,
+      0.83,
+      0.284,
+      0.063
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch21_k>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.38,
+     "is": [
+      0.0399,
+      1.36,
+      0.33,
+      0.166
+     ],
+     "hold": [
+      0.0245,
+      4.02,
+      0.344,
+      0.094
+     ],
+     "oos": [
+      0.0834,
+      3.6,
+      0.327,
+      0.337
+     ],
+     "gfc": [
+      0.0094,
+      0.4,
+      0.349,
+      0.045
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_willr28>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.35,
+     "is": [
+      0.0421,
+      1.67,
+      0.328,
+      0.173
+     ],
+     "hold": [
+      0.0239,
+      4.1,
+      0.342,
+      0.093
+     ],
+     "oos": [
+      0.0823,
+      3.46,
+      0.323,
+      0.339
+     ],
+     "gfc": [
+      0.0075,
+      0.07,
+      0.347,
+      0.039
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch14_k>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.32,
+     "is": [
+      0.0481,
+      1.76,
+      0.338,
+      0.188
+     ],
+     "hold": [
+      0.024,
+      4.05,
+      0.344,
+      0.094
+     ],
+     "oos": [
+      0.0867,
+      3.47,
+      0.34,
+      0.318
+     ],
+     "gfc": [
+      0.0073,
+      0.2,
+      0.359,
+      0.037
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_willr14>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.32,
+     "is": [
+      0.0481,
+      1.76,
+      0.338,
+      0.188
+     ],
+     "hold": [
+      0.024,
+      4.05,
+      0.344,
+      0.094
+     ],
+     "oos": [
+      0.0867,
+      3.47,
+      0.34,
+      0.318
+     ],
+     "gfc": [
+      0.0073,
+      0.2,
+      0.359,
+      0.037
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_avwap>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.29,
+     "is": [
+      0.0573,
+      1.63,
+      0.629,
+      0.115
+     ],
+     "hold": [
+      0.0359,
+      4.14,
+      0.626,
+      0.073
+     ],
+     "oos": [
+      0.1432,
+      3.31,
+      0.642,
+      0.252
+     ],
+     "gfc": [
+      0.0201,
+      1.11,
+      0.623,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_avwap>=q95",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.29,
+     "is": [
+      0.0573,
+      1.63,
+      0.629,
+      0.115
+     ],
+     "hold": [
+      0.0359,
+      4.14,
+      0.626,
+      0.073
+     ],
+     "oos": [
+      0.1432,
+      3.31,
+      0.642,
+      0.252
+     ],
+     "gfc": [
+      0.0201,
+      1.11,
+      0.623,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- classic:ext>=3atr_above_ema21 & ind:d_high20>=q90",
+     "family": "pair",
+     "screen_t": 4.57,
+     "maxt_p": 0.0,
+     "pooled_t": 5.28,
+     "is": [
+      0.0538,
+      2.39,
+      0.213,
+      0.315
+     ],
+     "hold": [
+      0.0206,
+      4.01,
+      0.194,
+      0.137
+     ],
+     "oos": [
+      0.0746,
+      3.45,
+      0.222,
+      0.453
+     ],
+     "gfc": [
+      0.006,
+      0.29,
+      0.183,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- classic:ext>=3atr_above_ema21 & ind:L_dist_high20>=q90",
+     "family": "pair",
+     "screen_t": 4.55,
+     "maxt_p": 0.0,
+     "pooled_t": 5.26,
+     "is": [
+      0.0536,
+      2.35,
+      0.214,
+      0.312
+     ],
+     "hold": [
+      0.0203,
+      3.98,
+      0.194,
+      0.135
+     ],
+     "oos": [
+      0.0746,
+      3.45,
+      0.222,
+      0.453
+     ],
+     "gfc": [
+      0.006,
+      0.29,
+      0.183,
+      0.047
+     ]
+    }
+   ],
+   "top_is_candidates": [
+    {
+     "rule": "trail2 <- ind:v_poc<=q10 & ind:L_days_since_high55<=q10 & ind:t_ema9_reaction<=q10",
+     "family": "triple",
+     "screen_t": 6.04,
+     "maxt_p": 1.0,
+     "pooled_t": -1.89,
+     "is": [
+      0.0097,
+      4.82,
+      0.029,
+      0.365
+     ],
+     "hold": [
+      -0.0056,
+      -2.17,
+      0.02,
+      -0.292
+     ],
+     "oos": [
+      0.0015,
+      1.17,
+      0.019,
+      0.074
+     ],
+     "gfc": [
+      0.0019,
+      -0.43,
+      0.021,
+      0.154
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:v_poc<=q10 & ind:L_days_since_high55<=q10 & ind:f_points_relative_strength>=q90",
+     "family": "triple",
+     "screen_t": 5.96,
+     "maxt_p": 1.0,
+     "pooled_t": -1.72,
+     "is": [
+      0.0096,
+      4.78,
+      0.029,
+      0.358
+     ],
+     "hold": [
+      -0.0056,
+      -2.15,
+      0.02,
+      -0.276
+     ],
+     "oos": [
+      0.0031,
+      1.79,
+      0.02,
+      0.153
+     ],
+     "gfc": [
+      0.0027,
+      -0.39,
+      0.022,
+      0.183
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:v_poc<=q10 & ind:L_days_since_high55<=q10",
+     "family": "pair",
+     "screen_t": 5.26,
+     "maxt_p": 1.0,
+     "pooled_t": -1.78,
+     "is": [
+      0.0091,
+      4.53,
+      0.029,
+      0.327
+     ],
+     "hold": [
+      -0.0058,
+      -2.18,
+      0.023,
+      -0.264
+     ],
+     "oos": [
+      0.0027,
+      1.63,
+      0.021,
+      0.123
+     ],
+     "gfc": [
+      0.0016,
+      -0.69,
+      0.024,
+      0.125
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:v_poc<=q10 & ind:L_days_since_high55<=q10 & ind:c_bb_position=Above upper band==1",
+     "family": "triple",
+     "screen_t": 5.71,
+     "maxt_p": 1.0,
+     "pooled_t": -2.01,
+     "is": [
+      0.0087,
+      4.48,
+      0.023,
+      0.399
+     ],
+     "hold": [
+      -0.0048,
+      -2.21,
+      0.015,
+      -0.365
+     ],
+     "oos": [
+      0.0008,
+      0.89,
+      0.014,
+      0.004
+     ],
+     "gfc": [
+      -0.0001,
+      -0.63,
+      0.014,
+      0.048
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:v_poc<=q10 & ind:L_days_since_high55<=q10 & classic:close_above_upper_band",
+     "family": "triple",
+     "screen_t": 5.71,
+     "maxt_p": 1.0,
+     "pooled_t": -2.01,
+     "is": [
+      0.0087,
+      4.48,
+      0.023,
+      0.399
+     ],
+     "hold": [
+      -0.0048,
+      -2.21,
+      0.015,
+      -0.365
+     ],
+     "oos": [
+      0.0008,
+      0.89,
+      0.014,
+      0.004
+     ],
+     "gfc": [
+      -0.0001,
+      -0.63,
+      0.014,
+      0.048
+     ]
+    },
+    {
+     "rule": "breakeven <- state:day2_open_r<=-0.5 & ind:L_aroon_osc50<=q10",
+     "family": "pair",
+     "screen_t": 5.63,
+     "maxt_p": 1.0,
+     "pooled_t": -1.22,
+     "is": [
+      0.0035,
+      4.44,
+      0.012,
+      0.31
+     ],
+     "hold": [
+      -0.0065,
+      -1.29,
+      0.018,
+      -0.449
+     ],
+     "oos": [
+      0.0023,
+      2.89,
+      0.008,
+      0.33
+     ],
+     "gfc": [
+      0.0018,
+      0.26,
+      0.015,
+      0.142
+     ]
+    },
+    {
+     "rule": "breakeven <- state:day2_open_r<=-0.5 & ind:L_aroon_osc50<=q10 & time:day2",
+     "family": "triple",
+     "screen_t": 5.63,
+     "maxt_p": 1.0,
+     "pooled_t": -1.22,
+     "is": [
+      0.0035,
+      4.44,
+      0.012,
+      0.31
+     ],
+     "hold": [
+      -0.0065,
+      -1.29,
+      0.018,
+      -0.449
+     ],
+     "oos": [
+      0.0023,
+      2.89,
+      0.008,
+      0.33
+     ],
+     "gfc": [
+      0.0018,
+      0.26,
+      0.015,
+      0.142
+     ]
+    },
+    {
+     "rule": "breakeven <- state:day2_open_r<=-0.5 & ind:L_aroon_osc50<=q10 & ind:t_idio<=q10",
+     "family": "triple",
+     "screen_t": 5.63,
+     "maxt_p": 1.0,
+     "pooled_t": -1.22,
+     "is": [
+      0.0035,
+      4.44,
+      0.012,
+      0.31
+     ],
+     "hold": [
+      -0.0065,
+      -1.29,
+      0.018,
+      -0.449
+     ],
+     "oos": [
+      0.0023,
+      2.89,
+      0.008,
+      0.33
+     ],
+     "gfc": [
+      0.0018,
+      0.26,
+      0.015,
+      0.142
+     ]
+    },
+    {
+     "rule": "breakeven <- state:day2_open_r<=-0.5 & ind:L_aroon_osc50<=q10 & ind:t_breakout_ft<=q10",
+     "family": "triple",
+     "screen_t": 5.63,
+     "maxt_p": 1.0,
+     "pooled_t": -1.22,
+     "is": [
+      0.0035,
+      4.44,
+      0.012,
+      0.31
+     ],
+     "hold": [
+      -0.0065,
+      -1.29,
+      0.018,
+      -0.449
+     ],
+     "oos": [
+      0.0023,
+      2.89,
+      0.008,
+      0.33
+     ],
+     "gfc": [
+      0.0018,
+      0.26,
+      0.015,
+      0.142
+     ]
+    },
+    {
+     "rule": "breakeven <- state:day2_open_r<=-0.5 & ind:L_aroon_osc50<=q10 & ind:s_open_r<=q10",
+     "family": "triple",
+     "screen_t": 5.63,
+     "maxt_p": 1.0,
+     "pooled_t": -1.22,
+     "is": [
+      0.0035,
+      4.44,
+      0.012,
+      0.31
+     ],
+     "hold": [
+      -0.0065,
+      -1.29,
+      0.018,
+      -0.449
+     ],
+     "oos": [
+      0.0023,
+      2.89,
+      0.008,
+      0.33
+     ],
+     "gfc": [
+      0.0018,
+      0.26,
+      0.015,
+      0.142
+     ]
+    },
+    {
+     "rule": "breakeven <- state:day2_open_r<=-0.5 & ind:L_aroon_osc50<=q10 & state:day2_open_r<=-0.25",
+     "family": "triple",
+     "screen_t": 5.63,
+     "maxt_p": 1.0,
+     "pooled_t": -1.22,
+     "is": [
+      0.0035,
+      4.44,
+      0.012,
+      0.31
+     ],
+     "hold": [
+      -0.0065,
+      -1.29,
+      0.018,
+      -0.449
+     ],
+     "oos": [
+      0.0023,
+      2.89,
+      0.008,
+      0.33
+     ],
+     "gfc": [
+      0.0018,
+      0.26,
+      0.015,
+      0.142
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:s_ret_since_entry_atr<=q10 & ind:p_tweezer_top==1",
+     "family": "pair",
+     "screen_t": 4.52,
+     "maxt_p": 1.0,
+     "pooled_t": -0.93,
+     "is": [
+      0.0113,
+      4.42,
+      0.049,
+      0.255
+     ],
+     "hold": [
+      -0.0042,
+      -1.11,
+      0.061,
+      -0.073
+     ],
+     "oos": [
+      0.0075,
+      0.66,
+      0.047,
+      0.149
+     ],
+     "gfc": [
+      -0.0056,
+      -1.31,
+      0.054,
+      -0.117
+     ]
+    },
+    {
+     "rule": "breakeven <- candle:tweezer_top & ind:s_ret_since_entry_atr<=q10",
+     "family": "pair",
+     "screen_t": 4.52,
+     "maxt_p": 1.0,
+     "pooled_t": -0.93,
+     "is": [
+      0.0113,
+      4.42,
+      0.049,
+      0.255
+     ],
+     "hold": [
+      -0.0042,
+      -1.11,
+      0.061,
+      -0.073
+     ],
+     "oos": [
+      0.0075,
+      0.66,
+      0.047,
+      0.149
+     ],
+     "gfc": [
+      -0.0056,
+      -1.31,
+      0.054,
+      -0.117
+     ]
+    },
+    {
+     "rule": "trail2 <- ind:L_ema10_slope5>=q90 & ind:L_rsi2<=q10",
+     "family": "pair",
+     "screen_t": 5.02,
+     "maxt_p": 1.0,
+     "pooled_t": -0.17,
+     "is": [
+      0.0057,
+      4.42,
+      0.01,
+      0.651
+     ],
+     "hold": [
+      -0.0,
+      0.68,
+      0.002,
+      -0.131
+     ],
+     "oos": [
+      -0.0025,
+      -0.5,
+      0.013,
+      -0.138
+     ],
+     "gfc": [
+      -0.0062,
+      -2.02,
+      0.005,
+      -1.337
+     ]
+    },
+    {
+     "rule": "breakeven <- ind:f_gap_atr<=q10 & ind:L_mfi28>=q90 & ind:f_points_relative_strength>=q90",
+     "family": "triple",
+     "screen_t": 5.36,
+     "maxt_p": 1.0,
+     "pooled_t": -0.3,
+     "is": [
+      0.0049,
+      4.36,
+      0.029,
+      0.21
+     ],
+     "hold": [
+      0.0007,
+      -0.62,
+      0.02,
+      0.124
+     ],
+     "oos": [
+      0.0023,
+      1.61,
+      0.04,
+      0.058
+     ],
+     "gfc": [
+      0.0015,
+      0.48,
+      0.019,
+      0.093
+     ]
+    }
+   ],
+   "top_combos": [
+    {
+     "rule": "trail5 <- ind:t_avwap>=q90 & ind:L_stoch14_d>=q90",
+     "family": "pair",
+     "screen_t": 4.53,
+     "maxt_p": 0.0,
+     "pooled_t": 5.86,
+     "is": [
+      0.0489,
+      2.5,
+      0.218,
+      0.3
+     ],
+     "hold": [
+      0.0289,
+      4.43,
+      0.232,
+      0.166
+     ],
+     "oos": [
+      0.0905,
+      3.89,
+      0.212,
+      0.521
+     ],
+     "gfc": [
+      0.009,
+      0.72,
+      0.212,
+      0.067
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_streaks>=q90 & ind:L_stoch14_d>=q90",
+     "family": "pair",
+     "screen_t": 4.53,
+     "maxt_p": 0.0,
+     "pooled_t": 5.58,
+     "is": [
+      0.0502,
+      2.53,
+      0.233,
+      0.28
+     ],
+     "hold": [
+      0.0266,
+      4.15,
+      0.254,
+      0.138
+     ],
+     "oos": [
+      0.093,
+      3.79,
+      0.221,
+      0.526
+     ],
+     "gfc": [
+      0.0067,
+      0.4,
+      0.231,
+      0.049
+     ]
+    },
+    {
+     "rule": "trail5 <- classic:ext>=3atr_above_ema21 & ind:d_high20>=q90",
+     "family": "pair",
+     "screen_t": 4.57,
+     "maxt_p": 0.0,
+     "pooled_t": 5.28,
+     "is": [
+      0.0538,
+      2.39,
+      0.213,
+      0.315
+     ],
+     "hold": [
+      0.0206,
+      4.01,
+      0.194,
+      0.137
+     ],
+     "oos": [
+      0.0746,
+      3.45,
+      0.222,
+      0.453
+     ],
+     "gfc": [
+      0.006,
+      0.29,
+      0.183,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- classic:ext>=3atr_above_ema21 & ind:L_dist_high20>=q90",
+     "family": "pair",
+     "screen_t": 4.55,
+     "maxt_p": 0.0,
+     "pooled_t": 5.26,
+     "is": [
+      0.0536,
+      2.35,
+      0.214,
+      0.312
+     ],
+     "hold": [
+      0.0203,
+      3.98,
+      0.194,
+      0.135
+     ],
+     "oos": [
+      0.0746,
+      3.45,
+      0.222,
+      0.453
+     ],
+     "gfc": [
+      0.006,
+      0.29,
+      0.183,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_cmf>=q90 & ind:L_pivot_dist>=q90",
+     "family": "pair",
+     "screen_t": 4.53,
+     "maxt_p": 0.0,
+     "pooled_t": 4.94,
+     "is": [
+      0.0645,
+      1.96,
+      0.28,
+      0.27
+     ],
+     "hold": [
+      0.0306,
+      3.81,
+      0.247,
+      0.156
+     ],
+     "oos": [
+      0.1332,
+      3.16,
+      0.3,
+      0.509
+     ],
+     "gfc": [
+      0.0155,
+      1.21,
+      0.244,
+      0.105
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_ichimoku>=q90 & ind:L_pivot_dist>=q90",
+     "family": "pair",
+     "screen_t": 4.57,
+     "maxt_p": 0.0,
+     "pooled_t": 4.89,
+     "is": [
+      0.0657,
+      2.01,
+      0.289,
+      0.269
+     ],
+     "hold": [
+      0.0303,
+      3.78,
+      0.248,
+      0.158
+     ],
+     "oos": [
+      0.1291,
+      3.11,
+      0.303,
+      0.494
+     ],
+     "gfc": [
+      0.0175,
+      1.41,
+      0.25,
+      0.111
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_vol_ratio50>=q90 & ind:L_vol_z20>=q90",
+     "family": "pair",
+     "screen_t": 4.55,
+     "maxt_p": 0.0,
+     "pooled_t": 4.67,
+     "is": [
+      0.0593,
+      2.81,
+      0.275,
+      0.26
+     ],
+     "hold": [
+      0.0282,
+      3.66,
+      0.255,
+      0.137
+     ],
+     "oos": [
+      0.1144,
+      2.91,
+      0.272,
+      0.499
+     ],
+     "gfc": [
+      0.0192,
+      1.51,
+      0.254,
+      0.113
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:c_band_context=Upper-band walk (strong momentum)==1 & ind:L_vol_ratio50>=q90",
+     "family": "pair",
+     "screen_t": 4.57,
+     "maxt_p": 0.0,
+     "pooled_t": 4.56,
+     "is": [
+      0.061,
+      2.91,
+      0.251,
+      0.288
+     ],
+     "hold": [
+      0.0227,
+      3.22,
+      0.219,
+      0.137
+     ],
+     "oos": [
+      0.1243,
+      3.26,
+      0.251,
+      0.596
+     ],
+     "gfc": [
+      0.0241,
+      1.97,
+      0.228,
+      0.158
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:f_points_boll==1 & ind:L_vol_ratio50>=q90",
+     "family": "pair",
+     "screen_t": 4.57,
+     "maxt_p": 0.0,
+     "pooled_t": 4.56,
+     "is": [
+      0.061,
+      2.91,
+      0.251,
+      0.288
+     ],
+     "hold": [
+      0.0227,
+      3.22,
+      0.219,
+      0.137
+     ],
+     "oos": [
+      0.1243,
+      3.26,
+      0.251,
+      0.596
+     ],
+     "gfc": [
+      0.0241,
+      1.97,
+      0.228,
+      0.158
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_ichimoku>=q90 & ind:L_s1_dist>=q90",
+     "family": "pair",
+     "screen_t": 4.55,
+     "maxt_p": 0.0,
+     "pooled_t": 4.56,
+     "is": [
+      0.0651,
+      2.02,
+      0.295,
+      0.264
+     ],
+     "hold": [
+      0.028,
+      3.19,
+      0.254,
+      0.14
+     ],
+     "oos": [
+      0.1296,
+      3.28,
+      0.313,
+      0.496
+     ],
+     "gfc": [
+      0.0121,
+      0.84,
+      0.256,
+      0.08
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_gap_fill<=q10 & ind:t_streaks>=q90",
+     "family": "pair",
+     "screen_t": 4.78,
+     "maxt_p": 0.0,
+     "pooled_t": 4.4,
+     "is": [
+      0.0668,
+      3.01,
+      0.397,
+      0.186
+     ],
+     "hold": [
+      0.0236,
+      3.21,
+      0.244,
+      0.115
+     ],
+     "oos": [
+      0.1179,
+      3.02,
+      0.434,
+      0.314
+     ],
+     "gfc": [
+      0.0155,
+      1.57,
+      0.296,
+      0.067
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_ichimoku>=q90 & ind:L_r1_dist>=q90",
+     "family": "pair",
+     "screen_t": 4.6,
+     "maxt_p": 0.0,
+     "pooled_t": 4.39,
+     "is": [
+      0.0635,
+      2.14,
+      0.268,
+      0.281
+     ],
+     "hold": [
+      0.0276,
+      3.42,
+      0.215,
+      0.166
+     ],
+     "oos": [
+      0.1147,
+      2.77,
+      0.272,
+      0.441
+     ],
+     "gfc": [
+      0.017,
+      1.2,
+      0.227,
+      0.109
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:c_momentum=Strong positive==1 & ind:t_gap_fill<=q10",
+     "family": "pair",
+     "screen_t": 4.58,
+     "maxt_p": 0.0,
+     "pooled_t": 4.38,
+     "is": [
+      0.064,
+      2.89,
+      0.336,
+      0.211
+     ],
+     "hold": [
+      0.0253,
+      3.33,
+      0.196,
+      0.159
+     ],
+     "oos": [
+      0.1101,
+      2.87,
+      0.371,
+      0.344
+     ],
+     "gfc": [
+      0.015,
+      1.6,
+      0.245,
+      0.076
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_streaks>=q90 & ind:L_s1_dist>=q90",
+     "family": "pair",
+     "screen_t": 4.54,
+     "maxt_p": 0.0,
+     "pooled_t": 4.32,
+     "is": [
+      0.0641,
+      2.22,
+      0.301,
+      0.254
+     ],
+     "hold": [
+      0.024,
+      2.87,
+      0.26,
+      0.12
+     ],
+     "oos": [
+      0.127,
+      3.25,
+      0.33,
+      0.466
+     ],
+     "gfc": [
+      0.0085,
+      0.54,
+      0.26,
+      0.061
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_streaks>=q90 & ind:L_force2>=q90",
+     "family": "pair",
+     "screen_t": 4.52,
+     "maxt_p": 0.0,
+     "pooled_t": 4.28,
+     "is": [
+      0.0635,
+      2.42,
+      0.317,
+      0.24
+     ],
+     "hold": [
+      0.0252,
+      2.92,
+      0.282,
+      0.119
+     ],
+     "oos": [
+      0.1253,
+      3.15,
+      0.348,
+      0.439
+     ],
+     "gfc": [
+      0.0119,
+      0.94,
+      0.277,
+      0.077
+     ]
+    }
+   ],
+   "confirmed_in_both": [
+    {
+     "rule": "trail5 <- ind:t_avwap>=q90 & ind:L_stoch14_d>=q90",
+     "family": "pair",
+     "screen_t": 4.53,
+     "maxt_p": 0.0,
+     "pooled_t": 5.86,
+     "is": [
+      0.0489,
+      2.5,
+      0.218,
+      0.3
+     ],
+     "hold": [
+      0.0289,
+      4.43,
+      0.232,
+      0.166
+     ],
+     "oos": [
+      0.0905,
+      3.89,
+      0.212,
+      0.521
+     ],
+     "gfc": [
+      0.009,
+      0.72,
+      0.212,
+      0.067
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_streaks>=q90 & ind:L_stoch14_d>=q90",
+     "family": "pair",
+     "screen_t": 4.53,
+     "maxt_p": 0.0,
+     "pooled_t": 5.58,
+     "is": [
+      0.0502,
+      2.53,
+      0.233,
+      0.28
+     ],
+     "hold": [
+      0.0266,
+      4.15,
+      0.254,
+      0.138
+     ],
+     "oos": [
+      0.093,
+      3.79,
+      0.221,
+      0.526
+     ],
+     "gfc": [
+      0.0067,
+      0.4,
+      0.231,
+      0.049
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_donch20_pos>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.46,
+     "is": [
+      0.0413,
+      1.45,
+      0.331,
+      0.17
+     ],
+     "hold": [
+      0.0253,
+      4.11,
+      0.342,
+      0.098
+     ],
+     "oos": [
+      0.0835,
+      3.62,
+      0.329,
+      0.335
+     ],
+     "gfc": [
+      0.0101,
+      0.48,
+      0.35,
+      0.048
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_hl_range20_pos>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.46,
+     "is": [
+      0.0413,
+      1.45,
+      0.331,
+      0.17
+     ],
+     "hold": [
+      0.0253,
+      4.11,
+      0.342,
+      0.098
+     ],
+     "oos": [
+      0.0835,
+      3.62,
+      0.329,
+      0.335
+     ],
+     "gfc": [
+      0.0101,
+      0.48,
+      0.35,
+      0.048
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_cmf10>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.44,
+     "is": [
+      0.0338,
+      2.17,
+      0.215,
+      0.21
+     ],
+     "hold": [
+      0.0243,
+      4.09,
+      0.238,
+      0.136
+     ],
+     "oos": [
+      0.0948,
+      3.6,
+      0.188,
+      0.616
+     ],
+     "gfc": [
+      0.0196,
+      1.83,
+      0.267,
+      0.104
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch21_d>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.42,
+     "is": [
+      0.0338,
+      1.59,
+      0.208,
+      0.227
+     ],
+     "hold": [
+      0.0244,
+      4.03,
+      0.234,
+      0.144
+     ],
+     "oos": [
+      0.0823,
+      3.64,
+      0.194,
+      0.465
+     ],
+     "gfc": [
+      0.0094,
+      0.92,
+      0.204,
+      0.064
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch14_d>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.39,
+     "is": [
+      0.0477,
+      2.29,
+      0.274,
+      0.233
+     ],
+     "hold": [
+      0.0285,
+      4.06,
+      0.298,
+      0.127
+     ],
+     "oos": [
+      0.0909,
+      3.58,
+      0.252,
+      0.426
+     ],
+     "gfc": [
+      0.0123,
+      0.83,
+      0.284,
+      0.063
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch21_k>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.38,
+     "is": [
+      0.0399,
+      1.36,
+      0.33,
+      0.166
+     ],
+     "hold": [
+      0.0245,
+      4.02,
+      0.344,
+      0.094
+     ],
+     "oos": [
+      0.0834,
+      3.6,
+      0.327,
+      0.337
+     ],
+     "gfc": [
+      0.0094,
+      0.4,
+      0.349,
+      0.045
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_willr28>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.35,
+     "is": [
+      0.0421,
+      1.67,
+      0.328,
+      0.173
+     ],
+     "hold": [
+      0.0239,
+      4.1,
+      0.342,
+      0.093
+     ],
+     "oos": [
+      0.0823,
+      3.46,
+      0.323,
+      0.339
+     ],
+     "gfc": [
+      0.0075,
+      0.07,
+      0.347,
+      0.039
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_stoch14_k>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.32,
+     "is": [
+      0.0481,
+      1.76,
+      0.338,
+      0.188
+     ],
+     "hold": [
+      0.024,
+      4.05,
+      0.344,
+      0.094
+     ],
+     "oos": [
+      0.0867,
+      3.47,
+      0.34,
+      0.318
+     ],
+     "gfc": [
+      0.0073,
+      0.2,
+      0.359,
+      0.037
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:L_willr14>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": 0.0,
+     "pooled_t": 5.32,
+     "is": [
+      0.0481,
+      1.76,
+      0.338,
+      0.188
+     ],
+     "hold": [
+      0.024,
+      4.05,
+      0.344,
+      0.094
+     ],
+     "oos": [
+      0.0867,
+      3.47,
+      0.34,
+      0.318
+     ],
+     "gfc": [
+      0.0073,
+      0.2,
+      0.359,
+      0.037
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_avwap>=q90",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.29,
+     "is": [
+      0.0573,
+      1.63,
+      0.629,
+      0.115
+     ],
+     "hold": [
+      0.0359,
+      4.14,
+      0.626,
+      0.073
+     ],
+     "oos": [
+      0.1432,
+      3.31,
+      0.642,
+      0.252
+     ],
+     "gfc": [
+      0.0201,
+      1.11,
+      0.623,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- ind:t_avwap>=q95",
+     "family": "single",
+     "screen_t": null,
+     "maxt_p": null,
+     "pooled_t": 5.29,
+     "is": [
+      0.0573,
+      1.63,
+      0.629,
+      0.115
+     ],
+     "hold": [
+      0.0359,
+      4.14,
+      0.626,
+      0.073
+     ],
+     "oos": [
+      0.1432,
+      3.31,
+      0.642,
+      0.252
+     ],
+     "gfc": [
+      0.0201,
+      1.11,
+      0.623,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- classic:ext>=3atr_above_ema21 & ind:d_high20>=q90",
+     "family": "pair",
+     "screen_t": 4.57,
+     "maxt_p": 0.0,
+     "pooled_t": 5.28,
+     "is": [
+      0.0538,
+      2.39,
+      0.213,
+      0.315
+     ],
+     "hold": [
+      0.0206,
+      4.01,
+      0.194,
+      0.137
+     ],
+     "oos": [
+      0.0746,
+      3.45,
+      0.222,
+      0.453
+     ],
+     "gfc": [
+      0.006,
+      0.29,
+      0.183,
+      0.047
+     ]
+    },
+    {
+     "rule": "trail5 <- classic:ext>=3atr_above_ema21 & ind:L_dist_high20>=q90",
+     "family": "pair",
+     "screen_t": 4.55,
+     "maxt_p": 0.0,
+     "pooled_t": 5.26,
+     "is": [
+      0.0536,
+      2.35,
+      0.214,
+      0.312
+     ],
+     "hold": [
+      0.0203,
+      3.98,
+      0.194,
+      0.135
+     ],
+     "oos": [
+      0.0746,
+      3.45,
+      0.222,
+      0.453
+     ],
+     "gfc": [
+      0.006,
+      0.29,
+      0.183,
+      0.047
+     ]
+    }
+   ],
+   "validated_vs_unconditional_widen": {
+    "n_validated": 132,
+    "n_beating_control_in_both": 0,
+    "best": [
+     {
+      "rule": "trail5 <- ind:t_cmf>=q90",
+      "is": [
+       0.0045,
+       1.04
+      ],
+      "hold": [
+       0.0011,
+       0.87
+      ],
+      "oos": [
+       -0.0041,
+       -1.11
+      ],
+      "gfc": [
+       0.001,
+       0.63
+      ],
+      "pooled": [
+       -0.0005,
+       -0.83
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:t_cmf>=q95",
+      "is": [
+       0.0045,
+       1.04
+      ],
+      "hold": [
+       0.0011,
+       0.87
+      ],
+      "oos": [
+       -0.0041,
+       -1.11
+      ],
+      "gfc": [
+       0.001,
+       0.63
+      ],
+      "pooled": [
+       -0.0005,
+       -0.83
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:x_swing_score>=q90",
+      "is": [
+       -0.009,
+       0.89
+      ],
+      "hold": [
+       -0.0003,
+       0.1
+      ],
+      "oos": [
+       -0.0119,
+       -1.74
+      ],
+      "gfc": [
+       -0.003,
+       -0.11
+      ],
+      "pooled": [
+       -0.0038,
+       -1.06
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:L_vol_z20>=q90",
+      "is": [
+       -0.0064,
+       1.51
+      ],
+      "hold": [
+       -0.0007,
+       -0.79
+      ],
+      "oos": [
+       -0.0137,
+       -0.79
+      ],
+      "gfc": [
+       0.0006,
+       0.44
+      ],
+      "pooled": [
+       -0.0046,
+       -1.12
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:t_cmf>=q90 & ind:L_pivot_dist>=q90",
+      "is": [
+       0.0053,
+       1.05
+      ],
+      "hold": [
+       -0.0012,
+       -0.72
+      ],
+      "oos": [
+       -0.0089,
+       -1.22
+      ],
+      "gfc": [
+       -0.0031,
+       0.54
+      ],
+      "pooled": [
+       -0.0035,
+       -1.41
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:L_macd5_35_hist_chg>=q90",
+      "is": [
+       -0.0075,
+       0.92
+      ],
+      "hold": [
+       -0.0035,
+       -1.33
+      ],
+      "oos": [
+       -0.013,
+       -0.82
+      ],
+      "gfc": [
+       -0.0074,
+       -1.12
+      ],
+      "pooled": [
+       -0.0063,
+       -1.56
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:f_points_volume<=q10",
+      "is": [
+       0.0007,
+       1.03
+      ],
+      "hold": [
+       -0.0037,
+       -1.46
+      ],
+      "oos": [
+       -0.0115,
+       -1.25
+      ],
+      "gfc": [
+       0.0022,
+       1.49
+      ],
+      "pooled": [
+       -0.006,
+       -1.67
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:f_points_volume<=q05",
+      "is": [
+       0.0007,
+       1.03
+      ],
+      "hold": [
+       -0.0037,
+       -1.46
+      ],
+      "oos": [
+       -0.0115,
+       -1.25
+      ],
+      "gfc": [
+       0.0022,
+       1.49
+      ],
+      "pooled": [
+       -0.006,
+       -1.67
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:t_ichimoku>=q90 & ind:L_pivot_dist>=q90",
+      "is": [
+       0.0065,
+       1.35
+      ],
+      "hold": [
+       -0.0015,
+       -1.09
+      ],
+      "oos": [
+       -0.013,
+       -1.3
+      ],
+      "gfc": [
+       -0.0011,
+       0.99
+      ],
+      "pooled": [
+       -0.005,
+       -1.68
+      ]
+     },
+     {
+      "rule": "trail5 <- ind:L_force2>=q90",
+      "is": [
+       -0.0033,
+       0.93
+      ],
+      "hold": [
+       -0.0014,
+       -1.46
+      ],
+      "oos": [
+       -0.0102,
+       -0.92
+      ],
+      "gfc": [
+       -0.0027,
+       -0.32
+      ],
+      "pooled": [
+       -0.0041,
+       -1.73
+      ]
+     }
+    ],
+    "widen_grid_t": {
+     "widen4_from_day2": {
+      "gfc": [
+       0.0,
+       0.804
+      ],
+      "hold": [
+       0.0,
+       3.437
+      ],
+      "is": [
+       0.0,
+       1.453
+      ],
+      "oos": [
+       0.001,
+       2.11
+      ]
+     },
+     "widen5_from_day2": {
+      "gfc": [
+       0.0,
+       0.932
+      ],
+      "hold": [
+       0.0,
+       3.814
+      ],
+      "is": [
+       0.001,
+       1.381
+      ],
+      "oos": [
+       0.001,
+       3.306
+      ]
+     },
+     "widen6_from_day2": {
+      "gfc": [
+       0.0,
+       1.133
+      ],
+      "hold": [
+       0.0,
+       3.998
+      ],
+      "is": [
+       0.001,
+       1.094
+      ],
+      "oos": [
+       0.002,
+       3.151
+      ]
+     },
+     "widen8_from_day2": {
+      "gfc": [
+       0.0,
+       1.306
+      ],
+      "hold": [
+       0.0,
+       4.139
+      ],
+      "is": [
+       0.001,
+       1.395
+      ],
+      "oos": [
+       0.002,
+       3.133
+      ]
+     },
+     "widen12_from_day2": {
+      "gfc": [
+       0.0,
+       1.26
+      ],
+      "hold": [
+       0.0,
+       4.342
+      ],
+      "is": [
+       0.001,
+       1.531
+      ],
+      "oos": [
+       0.002,
+       2.791
+      ]
+     }
+    }
+   }
+  }
+ }
+}

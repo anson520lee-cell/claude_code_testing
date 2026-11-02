@@ -14,6 +14,7 @@ Alert kinds (checked on every daily bar after the alert was created, first hit w
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -25,7 +26,7 @@ from src.market.calendar import NEW_YORK
 
 ALERT_KINDS = {"above": "Trades above", "below": "Trades below", "close_above": "Closes above", "close_below": "Closes below"}
 JOURNAL_FIELDS = ("symbol", "direction", "setup", "entry_date", "entry_price", "stop", "target", "shares",
-                  "exit_date", "exit_price", "status", "notes")
+                  "exit_date", "exit_price", "status", "notes", "plan_json")
 
 
 def _rows(conn: sqlite3.Connection, sql: str, args: tuple = ()) -> list[dict[str, Any]]:
@@ -45,6 +46,15 @@ def _clean(data: dict[str, Any]) -> dict[str, Any]:
             out[k] = float(out[k])
         elif k in out:
             out[k] = None
+    if "plan_json" in out:   # exit-rule parameters of the holding (setup's live rule, ATR at the signal, ...)
+        pj = out["plan_json"]
+        if isinstance(pj, dict):
+            out["plan_json"] = json.dumps(pj)
+        elif pj in (None, ""):
+            out["plan_json"] = None
+        else:
+            json.loads(str(pj))   # must be valid JSON
+            out["plan_json"] = str(pj)
     if out.get("exit_price") is not None and "status" not in data:
         out["status"] = "closed"
     return out
@@ -76,6 +86,11 @@ def update_trade(conn: sqlite3.Connection, trade_id: int, data: dict[str, Any]) 
 def delete_trade(conn: sqlite3.Connection, trade_id: int) -> None:
     with conn:
         conn.execute("DELETE FROM trade_journal WHERE id = ?", (trade_id,))
+
+
+def open_trades(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Open journal trades (the Holdings page), oldest entry first."""
+    return _rows(conn, "SELECT * FROM trade_journal WHERE status != 'closed' ORDER BY COALESCE(entry_date, created_at), id")
 
 
 def _last_close(conn: sqlite3.Connection, symbol: str) -> tuple[str, float] | None:
