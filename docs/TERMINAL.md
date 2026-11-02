@@ -519,6 +519,44 @@ permutation over all methods is reported as a second guard.
   changes. Full tables: the Research page / `reports/backtest/<session>/structure_study.json`; compact copy
   `config/structure_study.default.json`.
 
+### 7m. Trendline touches and EMA200/250 retests (`python trendline_study.py --prices prices.pkl`, run by hand, ~2 minutes after the arrays are cached)
+
+Neo's discretionary idea (2026-11-02): buy near a daily / weekly trendline, or on the first / second retest of the
+200/250-day average after a big rally, "it almost always bounces", and try wider stops. The study turns both into
+objective rules (`src/backtest/trendline.py`, driver `src/backtest/trendline_study.py`, 219 stocks of the live universe,
+Yahoo 2003-2026).
+* Trendline: pivot lows (daily +-5 sessions, weekly +-3 weeks, known only after they are confirmed), a rising / flat line
+  through two of the last four pivots (log price, slope >= -5%/yr, no low between them > 0.5 ATR under the line); the
+  anchors are touches 1 and 2, so the first signal is the 3rd point. A touch = low <= line + 0.25 ATR (weekly 0.5) while the
+  line is alive; one signal per episode. 22,623 daily and 13,165 weekly signals.
+* Retest: a close > 30 / 50 / 80% above the EMA200 (or 250) within the last 250 sessions (never the touch day itself), then the
+  N-th touch of the average coming from above. Touch 1 / 2 / 3+ are separate variants.
+* Two entries: (A) the touch day closes no more than 0.5 ATR under the level, buy the next open; (B) a buy limit at the level
+  + 0.1 ATR of the previous session, filled when the day's low gets there, failed touches included (the only entry
+  that tests "buying at the line"); the fill day's high gets no credit.
+* Controls: all stock-days (same-day mean), the same month x drawdown-from-10d-high bucket x side of the EMA200 ("dip"),
+  the same month x drawdown x "had a +30% leg and is above the EMA200" ("leg"), and for limit orders a limit the same distance
+  under the previous close, filled the same way. Exits: stop 2/3/4/6/10 ATR or the structure (level - 0.5 ATR, min 0.75 ATR;
+  the control interpolates between the neighbouring widths) x trail none / 4 / 8 ATR x hold 20 / 40 sessions, 10 bps per
+  side. Unit: R and account% (1% risk, 25% cap). Clusters = entry month.
+* Gate as in 7j: IS 2020-01..2024-06 selects (t >= 1.65, positive), Hold 2010-2019 and OOS 2024-07.. must both be positive,
+  pooled t >= max(2.5, Bonferroni over the IS candidates), plus a max-t sign-flip permutation.
+
+Result: **nothing validates; no live rule changes.** 128 variants x 36 exits = 4,608 tests, 274 IS candidates, bar t 3.56, 0 pass
+(max-t p 0.19; against the "leg" control 152 candidates, 0 pass, p 0.86).
+* Trendlines are no better than random: +1 ATR before -1 ATR within 10 sessions 48-49% (random 49%), 20-day return vs the same-day
+  average +0.06% (3rd daily touch), -0.48% (4th, t -2.2); a limit at the line is stopped out exactly as often as an equally deep
+  random limit (44.7% vs 45.3% at 3 ATR), +0.02R (t 1.2). Weekly lines the same.
+* EMA200 first retest after a +30% leg, buy limit at the average: +1 ATR first 56% (control 47%), +0.17R over equally deep limits at a
+  3 ATR stop (t 3.0, 881 trades), positive in all four periods (+0.35 / +0.15 / +0.22 / +0.06R for 2005-09 / 2010-19 / 2020-24H1 /
+  2024-07..) but only +0.12R (t 1.5) over pullbacks of other stocks in a +30% leg, so mostly "buy the dip of a strong stock", and
+  survivorship bias in today's universe inflates exactly that. Second retest +0.02R, third+ -0.02R. Best pooled t 3.09 < 3.56.
+* Wider stops: the stop-out rate depends on the width only (EMA200 first retest 51% at 2 ATR -> 10% at 6 ATR; the control
+  65% -> 18%), but the edge over the control shrinks from +0.27R to +0.06R and the average R from 0.38 to 0.16. A structure stop
+  under the line is hit 78-84% of the time (the "60% stopped out" feeling) and carries the highest R because the few winners run.
+Lead, NOT adopted: first EMA200 retest with a limit at the average (needs fresh data / a forward test; fails the gate and
+the leg control). Compact copy `config/trendline_study.default.json`, full tables `reports/backtest/<session>/trendline_study.json`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the

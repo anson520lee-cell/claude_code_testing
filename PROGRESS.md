@@ -210,3 +210,10 @@
   "0-2 day window, 2 ATR stop, 1.5 ATR target, 10 days" texts replaced by the strategy lab's exits; the position-size
   example uses `portfolio.risk_per_trade`; the CEO/CFO buy check now looks at the most recent qualifying buy (an
   older, bigger one hid the 5-day freshness check); Research page "Live strategy" card; docs/TERMINAL.md section 6a.
+* Trendline touch and EMA200/250 retest study (2026-11-02, `python trendline_study.py --prices ...`, `src/backtest/trendline.py`):
+  objective daily / weekly pivot-based trendlines (3rd touch on) and the 1st / 2nd / 3rd+ retest of the EMA200 / 250 after a
+  +30 / 50 / 80% leg; entries at the next open after a held touch and as a buy limit at the level; controls: same-day market,
+  equally deep dips, dips of stocks in a +30% leg; stops 2-10 ATR and structure x trails x 20 / 40 sessions (4,608 tests).
+  Nothing validates (best pooled t 3.09 < 3.56, max-t p 0.19). Trendlines ~ random; EMA200 first retest + limit at the line is
+  a lead (+0.17R over equally deep limits, mostly a strong-stock dip effect, survivorship-inflated). Wider stops only cut the
+  stop-out rate (51% -> 10%) and the edge with it. Live logic unchanged. `config/trendline_study.default.json`, docs 7m.
