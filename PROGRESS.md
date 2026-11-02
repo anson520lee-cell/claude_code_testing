@@ -197,6 +197,13 @@
   SAR / Chandelier, per-stock bounce habit; stops, trails, targets, 15 entry filters) vs the live ATR exits, paired,
   2005-2026 incl. a 2010-2019 holdout, Bonferroni + max-t guard. Nothing validates; structure stops are mostly worse than
   ATR. Live logic unchanged. Lead only: breakout with a trail wider than 3 ATR (docs 7j). `config/structure_study.default.json`.
+* Scale-out / stock-specific target study (2026-11-02, `python scale_out_study.py --prices ...`, `src/backtest/scale_out.py`):
+  239 methods (partial take-profits 25-75% at 1-3R, ladders, let-the-rest-run, per-stock run-up quantiles, same-setup
+  history, a regression forecast, crash-leg retracements, tighter trail / profit lock after a gain, time partials) vs
+  the live exits, same gate as 7j. 0 in-sample candidates and all 239 below the live exit in 2010-2019 + 2024-07..
+  Scale-out cuts round trips (crash rebound 26% -> 9%) but costs 0.03-0.10% of the account per trade; the run-up of a
+  stock cannot be forecast (rank correlation ~0 out of sample). Account illustration: live exits 10.5%/yr 2010-2026
+  (2010-2019 -4%) vs SPY 13.9%; every scale-out variant lower. Live logic unchanged. `config/scale_out.default.json`, docs 7k.
 * 2x ETF + tighter stops + scaling-in study (2026-11-01, `python leverage_study.py`, `src/backtest/leverage.py`):
   synthetic daily-reset 2x ETF checked on 28 real 2x single-stock ETFs (real cost ~17%/year). Same trades on the ETF
   -0.06 to -0.09R in sample; nothing passes t >= 2.5 (not even the unleveraged setups with evening-before sizing);

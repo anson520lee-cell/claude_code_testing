@@ -519,6 +519,55 @@ permutation over all methods is reported as a second guard.
   changes. Full tables: the Research page / `reports/backtest/<session>/structure_study.json`; compact copy
   `config/structure_study.default.json`.
 
+### 7k. Partial take-profit (scale-out) and stock-specific targets (`python scale_out_study.py --prices prices.pkl`, run by hand)
+
+Neo's question (2026-11-02): the live exits seem to take the full stop on losers and sell winners only after the
+price has fallen back. Would selling a PROPORTION at a take-profit and letting the rest run, or a take-profit
+tailored to each stock (how far does THIS stock's move usually run), earn more and give back less? The entry stays
+one full entry at the next open (scaling in is rejected, 7h). Same data, periods, unit (account % per trade, 1%
+risk, 25% cap), paired comparison and pass gate as 7j (`src/backtest/scale_out.py`; the gate was written in the
+module docstring before the first run). 239 methods (87 crash rebound, 75 squeeze, 77 breakout) in 10 families:
+
+* one partial at 1 / 1.5 / 2 / 3R selling 25 / 33 / 50 / 75%, rest on the live exit, with or without the stop of the
+  rest moved to the entry; ladders (1R + 2R, 1.5R + 3R, 1R + 2R + 3R); squeeze: sell part at 2R / 3R and let the rest
+  run on a 3-ATR trail instead of the fixed target;
+* stock-specific targets: the 40-70% quantile of the stock's own "run-up" in the previous 3 years (from the next
+  open to the highest high before the setup's ATR stop would have been hit, 20 sessions, in ATR; only windows that
+  ended before the signal), the stock's own past signals of the same setup (shrunk to the universe), a regression
+  forecast (15 features: volatility, the stock's history, crash depth, RSI, distance to the 52-week high, volume,
+  Bollinger width, beta, ADX, market return; fitted on in-sample signals only), and for crash rebound a retracement
+  of the crash leg (50 / 61.8 / 78.6 / 100%, or the stock's own past share); each as a full take-profit or for half;
+  a CONTROL with one fixed ATR distance for every stock (the in-sample median of the same estimate);
+* give-back controls without selling: tighter trail (1.5 / 2 ATR) once +1.5 / 2 / 3R was reached, lock 50% of the
+  open profit after +1R / +2R; time partials (half at the close of day 3 / 5 / 10).
+
+Result (2026-11-02, 6.2k crash rebound / 14.1k squeeze / 16.5k breakout signals, 83k random entries): **nothing
+validates - not one of the 239 methods even qualifies in sample** (0 IS candidates per setup), and **every one of
+them is below the live exit in the 2010-2019 + 2024-07.. confirmation pool** (pooled t from -0.2 to -4.8; family
+means -0.02 to -0.09 account % per trade). Live logic unchanged.
+
+* Give-back is real but it is the price of the winners. With the live exits about half the trades are up +1R at some
+  point and 26% (crash rebound), 20% (squeeze) and 46% (breakout) of those still close at a loss; 36-64% of all trades
+  take the full initial stop. Scale-out does what it promises on that measure (crash rebound, half at 1R: round trips
+  26% -> 9%, win rate 41% -> 50%, spread of results -25%) but it costs -0.03 to -0.10% of the account per trade.
+* Why: once a trade is +2R, holding on the live exit still ends at about +2.5R on average (crash rebound +2.53R,
+  squeeze +2.15R, breakout +2.45R; hold+OOS), so a sale at 2R gives up money on average. The profit is concentrated:
+  the best 10% of trades earn 170-630% of the total net profit (the rest lose in sum), and every take-profit trims
+  exactly those trades.
+* The rebound size cannot be guessed per stock. The rank correlation between a forecast and the realised run-up is
+  about zero out of sample: the stock's own history -0.07 to +0.04, the same setup's history -0.03 to +0.01, the
+  regression +0.12 in sample but 0.00 to +0.09 out of sample (R^2 0.02). The stock-specific targets do exactly as
+  badly as the one-size control (family means -0.071 vs -0.070 crash rebound, -0.084 vs -0.083 breakout): in ATR
+  units a stock's past run-ups say nothing about the next one (ATR already carries the stock's "character").
+* Account illustration (10 positions, cash, 1% risk; medians of 12 orders): the live exits on all three setups earn
+  10.5% a year 2010-2026 (2010-2019 -4.4%, max drawdown -70%; 2020-2024H1 22%; 2024-07.. 55%) vs SPY 13.9% (13.3% /
+  14% / 16%). Every scale-out choice is LOWER (best in-sample partial 7.9%, half at 2R 7.0%, stock-specific 1.7%,
+  model -3.2% a year 2010-2026). Separately per setup 2010-2019: crash rebound 0.6%, squeeze 1.0%, breakout -6.3% a year
+  (random entries with the crash-rebound exit -4.7%). So the gap to buy & hold is not an exit problem: a 20-session
+  swing trade with a stop does not collect the long-term drift these stocks had, and the strong 2020-2026 numbers are
+  mostly that period's market (random entries earn 23% a year 2020+ with the same exit).
+* Compact results ship as `config/scale_out.default.json`; full tables `reports/backtest/<session>/scale_out_study.json`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the
