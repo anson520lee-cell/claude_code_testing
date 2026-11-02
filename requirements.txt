@@ -18,3 +18,5 @@ uvicorn>=0.29,<1
 requests>=2.31
 # FastAPI test client (tests only)
 httpx>=0.27
+# JIT kernels for the swing42 research study (src/backtest/swing42)
+numba>=0.60
