@@ -646,6 +646,60 @@ def test_intraday_refresh_is_display_only(tsettings):
     assert "live" not in client.get(f"/api/chart/{sym}?days=60&session=2026-10-29").json()["quote"]   # history view
 
 
+def test_intraday_empty_fetch_does_not_burn_the_slot(tsettings):
+    """Yahoo often has no bar yet at 9:30-9:35: that must be retried by the next 5-minute run, not wait 30 minutes."""
+    from src.daily import intraday
+    live_day = date(2026, 11, 2)
+    calls = []
+
+    def empty(symbols):
+        calls.append(1)
+        return {}
+
+    def good(symbols):
+        return {sym: _five_minute_bars(live_day, SESSION, 100.0) for sym in symbols}
+
+    first = datetime(2026, 11, 2, 9, 31)
+    assert intraday.refresh(tsettings, now=first, fetch=empty)["status"] == "empty"
+    assert intraday.load_latest(tsettings) is None or not intraday.load_latest(tsettings).get("slot")
+    r = intraday.refresh(tsettings, now=first + timedelta(minutes=5), fetch=empty)        # still asked again
+    assert r["status"] == "empty" and len(calls) == 2
+    r = intraday.refresh(tsettings, now=first + timedelta(minutes=10), fetch=good)
+    assert r["status"] == "ok" and r["slot"] == "09:30"
+    assert intraday.refresh(tsettings, now=first + timedelta(minutes=15), fetch=good)["status"] == "skipped"
+
+
+def test_intraday_partial_fetch_is_retried_and_merged(tsettings):
+    from src.daily import intraday
+    live_day = date(2026, 11, 2)
+    state = {"drop": True}
+
+    def fetch(symbols):
+        keep = symbols[:1] if state["drop"] else symbols
+        return {sym: _five_minute_bars(live_day, SESSION, 100.0) for sym in keep}
+
+    now = datetime(2026, 11, 2, 9, 31)
+    r = intraday.refresh(tsettings, now=now, fetch=fetch)
+    assert r["status"] == "partial" and r["quotes"] == 1
+    got = intraday.load_latest(tsettings)
+    assert got["complete"] is False and not got.get("slot") and len(got["quotes"]) == 1
+    state["drop"] = False
+    r = intraday.refresh(tsettings, now=now + timedelta(minutes=5), fetch=fetch)
+    assert r["status"] == "ok" and intraday.load_latest(tsettings)["complete"] is True
+    assert intraday.refresh(tsettings, now=now + timedelta(minutes=10), fetch=fetch)["status"] == "skipped"
+
+
+def test_intraday_watchlist_covers_leveraged_etfs_and_universe(tsettings):
+    from src.daily import intraday
+    tsettings["leveraged_etfs"] = ["AAA"]
+    tsettings["universe"] = {**tsettings["universe"], "ZZZ": next(iter(tsettings["universe"].values()))}
+    tsettings["intraday"] = {"max_symbols": 300}
+    wl = intraday.watchlist(tsettings)
+    assert "AAA" in wl and "ZZZ" in wl and "SPY" in wl and len(wl) == len(set(wl))
+    tsettings["intraday"] = {"max_symbols": 2}
+    assert len(intraday.watchlist(tsettings)) == 2
+
+
 def test_run_lock_blocks_concurrent_runs(tsettings, tmp_path):
     from src.daily.pipeline import RunInProgressError, run_daily, run_lock
     from src.daily.settings import path
