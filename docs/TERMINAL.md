@@ -523,6 +523,14 @@ permutation over all methods is reported as a second guard.
   changes. Full tables: the Research page / `reports/backtest/<session>/structure_study.json`; compact copy
   `config/structure_study.default.json`.
 
+### 7k. Neo's 42 swing strategies (`python -m src.backtest.swing42.run`, run by hand)
+
+Research only, nothing live changed. Point-in-time S&P 500 (2000-2026) and the focus universe, params chosen 2000-2014,
+judged 2015-2026 against random entries, costs included. Result (2026-11-02): no strategy passes in both universes; only the
+short-term mean-reversion family (RSI(2), Z-score, crash rebound) holds out of sample across nearly all parameters, with small
+per-trade edges; breakout patterns, SMC/ICT, volume-profile, ORB, pairs and sector rotation show no edge. Full report and
+tables in Chinese: [docs/SWING42.md](SWING42.md); raw results in `reports/swing42/`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the
