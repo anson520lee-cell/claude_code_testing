@@ -187,7 +187,8 @@ intraday:
   enabled: true
   every_minutes: 30
   grace_minutes: 25           # a slot missed while the computer slept is still fetched within this window
-  max_symbols: 80             # candidates + open trades + active alerts + the ETFs below (one small batch)
+  max_symbols: 300            # candidates + open trades + alerts + ETFs below + leveraged ETFs + the whole universe (one batch, ~30 s)
+  min_coverage: 0.8           # a slot counts as done only when 80% of the symbols returned a quote, otherwise the next run retries
   extra_symbols: [SPY, QQQ, IWM]
 
 # Disk housekeeping after every daily run (prices, journal, alerts and history are never touched)

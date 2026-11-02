@@ -85,8 +85,12 @@ Exit codes: 0 success, 2 settings error, 3 no market data, 1 unexpected error.
 time zone do not matter) and only downloads when a new half-hour slot has started on a trading day:
 9:30, 10:00, ... 16:00 (13:00 on early-close days). A slot missed while the Mac slept is fetched within
 25 minutes, otherwise skipped. Each slot is one small yfinance batch of 5-minute bars for the latest
-candidates, open journal trades, active price alerts and SPY / QQQ / IWM (at most 80 symbols; ~14
-batches a day), written to `data/intraday/latest.json`. Log: `data/intraday.log`.
+candidates, open journal trades, active price alerts, SPY / QQQ / IWM, the leveraged ETFs and then the whole
+universe (at most 300 symbols, ~30 s; ~14 batches a day), written to `data/intraday/latest.json`. A slot only
+counts as done when at least 80% of the symbols returned a quote (`min_coverage`); Yahoo often has no 5-minute
+bar yet in the first minutes after 9:30, so an empty or partial answer is retried by the next 5-minute run
+instead of waiting for the next half hour. Log: `data/intraday.log`. The stock page re-reads its price panel
+every 3 minutes.
 
 **It changes the displayed prices only.** Candidate cards and the stock page show "Live hh:mm ET" with
 the change against the last stored close; scores, setups, plans, alerts and the price database are not

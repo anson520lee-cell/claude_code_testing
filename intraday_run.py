@@ -51,6 +51,9 @@ def main(argv: list[str] | None = None) -> int:
             conn.close()
     if result["status"] == "skipped":
         print(f"Intraday refresh skipped: {result['reason']}")
+    elif result["status"] in ("empty", "partial"):
+        print(f"{now:%Y-%m-%d %H:%M} ET intraday slot {result['slot']}: only {result['quotes']}/{result['symbols']} "
+              f"quotes - will retry at the next run.")
     else:
         print(f"{now:%Y-%m-%d %H:%M} ET intraday slot {result['slot']}: {result['quotes']}/{result['symbols']} quotes.")
     return 0

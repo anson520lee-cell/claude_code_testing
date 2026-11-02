@@ -833,6 +833,18 @@ async function fillStock(sym, c, deep, p, bucket, big, isCurrent = () => true) {
     if (!isCurrent()) return null;
     renderTickerCharts(d, c, p, bucket, big, 74);
     $(`#${p}-quote`).innerHTML = quoteHTML(d, deep, c, uni);
+    // keep the price panel fresh while the page stays open: the background job refreshes every 30 minutes
+    // (retrying every 5 minutes while Yahoo has no data yet), so re-read the quote every 3 minutes
+    state.liveTimers = state.liveTimers || {};
+    clearInterval(state.liveTimers[p]);
+    state.liveTimers[p] = setInterval(async () => {
+      const box = $(`#${p}-quote`);
+      if (!isCurrent() || !box) { clearInterval(state.liveTimers[p]); return; }
+      try {
+        const n = await api(`/api/chart/${encodeURIComponent(sym)}?days=60&session=${state.session}`);
+        if (isCurrent() && $(`#${p}-quote`)) $(`#${p}-quote`).innerHTML = quoteHTML({ ...d, quote: n.quote }, deep, c, uni);
+      } catch (_) { /* keep the last quote */ }
+    }, 3 * 60 * 1000);
     const vp = d.volume_profile, t = $(`#${p}-vp-txt`);
     if (t) t.textContent = vp ? `Last ${vp.window}d: VA ${num(vp.val)}–${num(vp.vah)} · POC ${num(vp.poc)}` : "";
     const ch = d.crash_history, ce = $(`#${p}-crash`), ct = $(`#${p}-crash-teaser`);
