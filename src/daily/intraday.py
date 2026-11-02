@@ -2,8 +2,8 @@
 
 What it does - and what it deliberately does NOT do:
 
-* It downloads today's 5-minute bars for a short watch list (the latest report's candidates, open
-  journal trades, active price alerts and the index ETFs), condenses them into one quote per symbol
+* It downloads today's 5-minute bars for the watch list (the latest report's candidates, open journal
+  trades, active price alerts, the index and leveraged ETFs, then the rest of the universe), condenses them into one quote per symbol
   (open / high / low / last / volume so far) and writes ``data/intraday/latest.json``.
 * The dashboard shows those quotes as "Live hh:mm ET" next to the stored close.
 * Nothing is written to the price database, and scores, setups, plans and alerts are untouched: the
@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
@@ -36,7 +37,8 @@ DEFAULTS: dict[str, Any] = {
     "enabled": True,
     "every_minutes": 30,
     "grace_minutes": 25,         # a slot missed (Mac asleep) is still fetched up to this long after it started
-    "max_symbols": 80,           # politeness to Yahoo: one small batch per slot, never the whole universe
+    "max_symbols": 300,          # one batch per slot (~30 s for 250 symbols): candidates first, then the whole universe
+    "min_coverage": 0.8,         # a slot counts as fetched only when this share of the symbols returned a quote
     "extra_symbols": ["SPY", "QQQ", "IWM"],
 }
 
@@ -87,7 +89,8 @@ def load_latest(settings: dict) -> dict[str, Any] | None:
 
 
 def watchlist(settings: dict, conn=None) -> list[str]:
-    """Latest report's candidates + open journal trades + active alerts + index ETFs (capped)."""
+    """Latest report's candidates, open journal trades, active alerts, index ETFs, leveraged ETFs, then the
+    rest of the universe (capped; the order decides what is dropped first). Every stock page can show a live price."""
     cfg = intraday_settings(settings)
     out: list[str] = []
 
@@ -114,6 +117,10 @@ def watchlist(settings: dict, conn=None) -> list[str]:
             except Exception:  # noqa: BLE001 - tables appear with the first daily run
                 pass
     for sym in cfg.get("extra_symbols") or []:
+        add(sym)
+    for sym in settings.get("leveraged_etfs") or []:
+        add(sym)
+    for sym in settings.get("universe") or {}:
         add(sym)
     return out[: int(cfg["max_symbols"])]
 
@@ -183,18 +190,24 @@ def refresh(settings: dict, now: datetime | None = None, force: bool = False,
         q = summarize(frame, now.date())
         if q:
             quotes[sym] = q
-    payload = {"session": now.date().isoformat(), "slot": slot.isoformat(), "slot_label": slot.strftime("%H:%M"),
-               "fetched_at": store.utc_now(), "requested": len(symbols), "quotes": quotes,
+    label = slot.strftime("%H:%M")
+    if not quotes:
+        # Yahoo often has no bar yet at 9:30-9:35 (or hiccups): write nothing and do not mark the slot as done,
+        # so the next 5-minute run asks again (instead of showing the previous close for another 30 minutes)
+        return {"status": "empty", "slot": label, "symbols": len(symbols), "quotes": 0}
+    same_session = previous.get("session") == now.date().isoformat()
+    merged = {**(previous.get("quotes") or {}), **quotes} if same_session else quotes
+    complete = len(quotes) >= math.ceil(float(cfg["min_coverage"]) * len(symbols))
+    payload = {"session": now.date().isoformat(),
+               # a partly filled slot keeps the previous slot id, so due_slot() asks again at the next run
+               "slot": slot.isoformat() if complete else (previous.get("slot") if same_session else None),
+               "slot_label": label, "complete": complete,
+               "fetched_at": store.utc_now(), "requested": len(symbols), "quotes": merged,
                "note": "Display only - scores, setups and plans use the after-close daily bar."}
-    if not quotes and previous.get("session") == payload["session"]:
-        # keep the earlier quotes of today, but remember the slot so the job does not retry every 5 minutes
-        payload["quotes"] = previous.get("quotes") or {}
-        payload["stale_since"] = previous.get("slot_label")
     target = latest_file(settings)
     target.parent.mkdir(parents=True, exist_ok=True)
     store.write_atomic(target, json.dumps(store.jsonable(payload)))
-    return {"status": "ok" if quotes else "empty", "slot": payload["slot_label"], "symbols": len(symbols),
-            "quotes": len(quotes)}
+    return {"status": "ok" if complete else "partial", "slot": label, "symbols": len(symbols), "quotes": len(quotes)}
 
 
 def overlay(quote: dict[str, Any], stored_as_of: str, latest: dict[str, Any] | None, symbol: str) -> dict[str, Any] | None:
