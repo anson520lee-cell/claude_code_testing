@@ -218,3 +218,9 @@
   value of 632,467 trade-days, 4,007 daily + 682 hourly exit rules, 372 indicators, IS / 2010-2019 / OOS gate. Nothing
   validates; selling early on folklore signals (overbought, give-back, 1-hour spring) mostly costs money. Live logic
   unchanged. docs/TERMINAL.md 7l; Research page card; `config/holding_study.default.json`.
+
+## 2026-11-02 - indicators x ATR trailing stop (docs 7m)
+- New 300-series indicator library (`src/technical/indicator_library.py`, causal, scale-free) + `src/backtest/trail_combo.py` + `trail_combo_study.py`.
+- 672 indicator columns + candles/classic/state rules x 6 actions (trail 1/1.5/2/5 ATR, break-even, sell); 1.74M pairs screened on 2020-24, triples greedy; 41,202 rules gated.
+- Nothing usable: crash rebound / squeeze 0 pass; breakout's 132 passes are all "widen to 5 ATR" and none beats widening unconditionally. Breakout trail 3 ATR looks too tight (+0.05R / +0.20R per trade 2010-19 / 2024-26, IS t 1.4). Live unchanged pending Neo.
+

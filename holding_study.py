@@ -154,7 +154,9 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def assemble(parts: list[dict], tech: dict[str, dict[int, dict]]) -> dict:
+def assemble(parts: list[dict], tech: dict[str, dict[int, dict]],
+             extra: dict[str, tuple[list[str], np.ndarray]] | None = None) -> dict:
+    """``extra`` = {symbol: (columns, array aligned with the stock's daily index)} added to every trade-day (7m)."""
     trades, tds, unis, firsts, fwds, tgts, unih = [], [], [], [], [], [], []
     off = 0
     for part in parts:
@@ -181,6 +183,9 @@ def assemble(parts: list[dict], tech: dict[str, dict[int, dict]]) -> dict:
                         if r:
                             T[j] = [r.get(k, np.nan) for k in keys]
                     td = pd.concat([td, pd.DataFrame(T, columns=keys)], axis=1)
+            if extra and part["symbol"] in extra:
+                xc, xa = extra[part["symbol"]]
+                td = pd.concat([td, pd.DataFrame(xa[np.asarray(part["td_t"], dtype=np.int64)], columns=xc)], axis=1)
             hrs = part.get("hourly") or {}
             if hrs:
                 td = pd.concat([td, hrs["hd"], hrs["extra"]], axis=1)

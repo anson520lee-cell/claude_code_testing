@@ -577,6 +577,34 @@ sessions in ATR vs all stocks that day), and a day x open-R table (day 1 / 2 / 3
   (-0.07 / -0.13 / -0.55R), and in 2024-26 overbought breakouts had +0.2 to +0.5R MORE left than other days. Full tables: Research page "Exit signals while holding", compact copy
   `config/holding_study.default.json`, full `reports/backtest/<session>/holding_study.json`.
 
+### 7m. Indicators x the ATR trailing stop, single conditions and combinations (`python trail_combo_study.py --prices prices.pkl --cache <holding_study cache>`, run by hand)
+
+Follow-up to 7l (Neo, 2026-11-02): instead of selling on a signal, change the trailing stop when the signal appears,
+and test every indicator and their combinations. Conditions: the 372 columns of 7l plus a new 300-series indicator
+library (`src/technical/indicator_library.py`: SMA / EMA / WMA / Hull / DEMA / TEMA / KAMA / ZLEMA / VWMA distances
+and spreads, RSI 2-28, Stochastic, Stochastic RSI, Williams %R, CCI, ROC 1-250, four MACDs, PPO, TRIX, TSI, Ultimate,
+Awesome / Accelerator, KST, Coppock, DPO, CMO, RVI, Elder power, Fisher, Connors RSI, Laguerre RSI, Schaff, QStick,
+balance of power, ADX / DI 7-28, Aroon, Vortex, Choppiness, efficiency ratio, regression slope / R squared, Supertrend,
+parabolic SAR, Ichimoku, Mass index, ATR%, Bollinger %b / width, Keltner, TTM squeeze, Donchian, historical / Parkinson /
+Garman-Klass volatility, Ulcer, OBV, A/D, Chaikin, CMF, MFI, Force, EOM, VPT, NVI / PVI, rolling VWAP, Klinger, PVO,
+distance to highs / lows, z-scores, skew / kurtosis / autocorrelation, pivots, ... all causal, all scale-free) = 672
+columns, each as in-sample tails (<= q5 / q10, >= q90 / q95) or flags, plus the candle, classic and state rules of 7l
+and five controls (the same action on a fixed day 1 / 2 / 3 / 5 / 10, no indicator). Actions from the next session:
+trail 1 / 1.5 / 2 ATR (tighter), 5 ATR (wider; squeeze: drop the 3R target and trail 3 ATR), stop to break-even, sell.
+Every action is re-simulated once per trade and firing day (`src/backtest/trail_combo.py`), so a rule is just "first
+day the condition is true". Pairs (AND) of every condition firing on 3-80% of trades were searched on 2020-01..2024-06
+only (1.74 million pairs x 6 actions), the best 60 per action kept and extended greedily by a third condition; the
+shortlist and all single rules then go through the 7j gate (2010-2019 and 2024-07.. both positive, pooled t >=
+Bonferroni bar, max-t guard).
+* Result (2026-11-02, 36,579 trades, 41,202 rules fully evaluated): crash rebound 0 and squeeze 0 pass. Tighter trails,
+  break-even stops and selling lose in all three setups whatever the trigger (breakout: 54-63% of the tighter-trail
+  rules have pooled t <= -2, none >= +2). Breakout: 132 rules pass, ALL of them "widen the trail to 5 ATR" - and none
+  of the 132 beats widening unconditionally from day 2 (0 of 132 better in both confirmation periods). The indicator
+  adds nothing; the information is that breakout's 3 ATR trail is too tight: widening on day 2 gains +0.09R (2020-24),
+  +0.05R (2010-19), +0.20R (2024-26), +0.04R (2004-09) per trade (t 1.4 / 3.8 / 3.3 / 0.9; 4 / 6 / 8 / 12 ATR similar).
+  It misses the pre-registered in-sample screen (t 1.4 < 1.65), the same finding as 7j's post-hoc lead, on the same
+  data. Live exits unchanged; switching breakout to a wider trail is Neo's call. Compact copy `config/trail_combo.default.json`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the

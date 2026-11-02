@@ -2289,3 +2289,47 @@ def test_holding_study_shipped_copy():
         assert v["lookup"] and "gate" in v and "day_profile" in v
         some = next(iter(v["lookup"].values()))
         assert "pd" in some and "pt" in some
+
+
+def test_indicator_library_is_causal_and_broad():
+    import warnings
+    from src.technical import indicator_library as il
+    idx = pd.bdate_range("2015-01-01", periods=700)
+    rng = np.random.default_rng(3)
+    c = 50 * np.exp(np.cumsum(rng.normal(0, 0.015, len(idx))))
+    o = c * (1 + rng.normal(0, 0.004, len(idx)))
+    f = pd.DataFrame({"open": o, "high": np.maximum(o, c) * 1.01, "low": np.minimum(o, c) * 0.99, "close": c,
+                      "volume": rng.integers(5e5, 2e6, len(idx)).astype(float)}, index=idx)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        full = il.compute(f)
+        cut = il.compute(f.iloc[:500])
+    assert full.shape[1] >= 300 and set(il.columns()) == set(full.columns)
+    # the value on day 500 must not change when later bars are added (no look-ahead)
+    a, b = full.iloc[499].to_numpy(float), cut.iloc[-1].to_numpy(float)
+    assert np.allclose(a, b, rtol=1e-4, atol=1e-6, equal_nan=True)
+    assert full.iloc[300:].notna().mean().min() > 0.8
+
+
+def test_trail_combo_tables_and_bitmask_first_day():
+    from src.backtest import trail_combo as tc
+    # one breakout trade: entry 100, ATR 2, stop 98, rising to 110 then falling
+    hi = np.array([[101, 104, 108, 110, 109, 107, 104, 103] + [103] * 12], float)
+    lo = hi - 1.5
+    O = hi - 0.5
+    C = hi - 0.8
+    base = {"entry": np.array([100.0]), "stop0": np.array([98.0]), "tgt": np.array([np.inf]), "ok": np.array([True]),
+            "size": np.array([0.25])}
+    a = np.array([2.0])
+    E, live = tc.action_tables(O, hi, lo, C, base, a, "breakout", 0.0)
+    # live: trail 3 ATR = 6 below the high (110 -> stop 104), hit on day 7 which opens below it at 103.5
+    assert live[0] == pytest.approx((103.5 / 100 - 1) * 0.25)
+    # tighten to 1 ATR after day 4 (0-based 3, high 110): stop 108 hit on day 5 (open 108.5, low 107.5) at 108
+    assert E["trail1"][0, 3] == pytest.approx((108 / 100 - 1) * 0.25)
+    # sell after day 4 = next open 108.5
+    assert E["sell"][0, 3] == pytest.approx((108.5 / 100 - 1) * 0.25)
+    # bit masks: condition true on days 3 and 5 of trade 0 and day 2 of trade 1 -> first days 2 and 1 (0-based)
+    sig, k1 = np.array([0, 0, 0, 0, 0, 1, 1]), np.array([1, 2, 3, 4, 5, 1, 2])
+    names, B = tc.bitmasks({"x": np.array([0, 0, 1, 0, 1, 0, 1], bool)}, sig, k1, 2)
+    assert tc.first_day(B[:, 0]).tolist() == [2, 1]
+    assert tc.first_day(np.array([0], np.uint32)).tolist() == [-1]
