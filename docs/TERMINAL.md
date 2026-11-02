@@ -547,7 +547,35 @@ candidates, max-t permutation guard). The 1-hour rules have their own gate: 2024
 confirm. Also reported, not tested: what each pattern does next across ALL stock-days (excess move over 1 / 5 / 10
 sessions in ATR vs all stocks that day), and a day x open-R table (day 1 / 2 / 3 / 5 / 10 of the trade).
 
-RESULTS_PLACEHOLDER
+* Result (2026-11-02, 232 stocks, 36,579 setup trades, 632,467 trade-days, 372 indicators): **nothing validates.**
+  4,007 daily exit rules (crash rebound 1,402, squeeze 1,291, breakout 1,314) and 682 one-hour rules; IS candidates
+  20 / 12 / 52, of which 3 / 0 / 5 stayed positive in both confirmation periods and none reached the bar (t 2.81 / 2.64 /
+  3.10). The combined ridge model on all indicators wins in sample (breakout t 4.9) and loses out of sample (t -2.9):
+  overfitting, not a "future factor". The one-hour rules: 0 of 682 pass.
+* The dominant pattern is the opposite of the folklore: **selling early costs money.** Holding on with the live exit is
+  worth more than selling in 77 of 82 day x open-profit cells (day 1, 2, 3, 5, 10; losing or winning; median +0.11 to
+  +0.17R), so 43% / 22% /
+  46% of the daily rules have a pooled t <= -2 (selling hurt) against 0.1% / 0.1% / 0.8% with t >= +2. Overbought
+  exits are among the worst: breakout, sell when RSI 6 >= 80: -0.13R (2010-19) and -0.55R (2024-26) per trade where it
+  fired, t -4.4; MACD histogram turning down: t -4.5; "no new high for 4 days": t -3.3 (crash rebound -3.5). Give-back
+  rules (after +2R back to +1R etc.) also lose. A 50% partial sale has exactly half of these effects.
+* Folklore vs data across all stock-days (excess move over the next 5 sessions, market removed): of 106 bullish /
+  bearish pattern variants, 0 match their folklore with t >= 2 in two periods; 75 change sign between periods; 16 point
+  the other way in all three (shooting star, hanging man, evening star, tweezer top, gravestone doji: slightly better
+  than average afterwards; hammer in a weekly downtrend: worse, t -2.9 in 2010-19). Effects are a few hundredths of an
+  ATR. The 1-hour "spring" (打針收回) is followed by slightly weaker moves, not a bounce: next session -0.015 ATR
+  (t -3.2, 2025-26), in a daily downtrend -0.021 / -0.028 ATR after 1 / 3 sessions (t -2.9 / -3.4); selling a held
+  position on it cost -0.57R (crash rebound), -0.33R (squeeze), -0.61R (breakout) per trade where it fired, 2025-26.
+* Day 1 / 2 / 3 indicators: per-day ICs with the rest of the trade are small (|IC| <= 0.2) and mostly about the trade
+  itself: in breakouts a bigger day-1 / day-2 gain means less left (IC -0.11 to -0.20), yet holding is still worth
+  more than selling; squeeze trades opened with a higher VIX keep more value (IC +0.07 to +0.14 every day and period).
+* Leads, NOT adopted: (1) crash rebound on overbought days (RSI 6 >= 80, >= 3 ATR above EMA21) has zero or negative value
+  left in all three periods (vs +0.1 to +0.2R on other days), but selling at the first such reading did not beat holding;
+  a tighter trail from that point would need its own pre-registered test. (2) breakout: "doji in a weekly downtrend
+  while the trade is losing" -> sell: t 4.1 (2010-19), 0.6 (2024-26), max-t p 0.02, but negative in the selection period.
+  (3) For breakouts the opposite holds: selling at the first overbought reading lost in all three periods
+  (-0.07 / -0.13 / -0.55R), and in 2024-26 overbought breakouts had +0.2 to +0.5R MORE left than other days. Full tables: Research page "Exit signals while holding", compact copy
+  `config/holding_study.default.json`, full `reports/backtest/<session>/holding_study.json`.
 
 ### 7d. News (automatic)
 

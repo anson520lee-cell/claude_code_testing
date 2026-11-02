@@ -210,3 +210,11 @@
   "0-2 day window, 2 ATR stop, 1.5 ATR target, 10 days" texts replaced by the strategy lab's exits; the position-size
   example uses `portfolio.risk_per_trade`; the CEO/CFO buy check now looks at the most recent qualifying buy (an
   older, bigger one hid the 5-day freshness check); Research page "Live strategy" card; docs/TERMINAL.md section 6a.
+* Holdings tracker + in-trade exit-signal study (2026-11-02): "I bought this" on a candidate saves shares, fill and the
+  exit plan (`trade_journal.plan_json`); the new Holdings page replays the live exit since the entry and lists every
+  signal visible today (daily candles x volume, daily x weekly, the latest 1-hour bars incl. the "spring" pin bar,
+  overbought / oversold, trade state) with its backtest numbers; the intraday job stores completed 60-minute bars of
+  held symbols. `python holding_study.py` (`src/backtest/holding_study.py`, `src/technical/candles.py`): continuation
+  value of 632,467 trade-days, 4,007 daily + 682 hourly exit rules, 372 indicators, IS / 2010-2019 / OOS gate. Nothing
+  validates; selling early on folklore signals (overbought, give-back, 1-hour spring) mostly costs money. Live logic
+  unchanged. docs/TERMINAL.md 7l; Research page card; `config/holding_study.default.json`.

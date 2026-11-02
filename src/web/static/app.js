@@ -1630,8 +1630,8 @@ function holdingStudySection(d) {
     const base = k.split("@")[0], pid = base.split("|")[0], inf = info[pid] || {}, dir = dirOf[inf.folklore];
     const xs = ["hold", "is", "oos"].map((p) => (v[p] || {}).x5), ts = ["hold", "is", "oos"].map((p) => (v[p] || {}).t5);
     let verdict = "—";
-    if (dir && xs.every(isNum)) {
-      const same = xs.every((x) => Math.sign(x) === dir), opp = xs.every((x) => Math.sign(x) === -dir);
+    if (dir && ts.every(isNum)) {   // direction from t (per-day means), so a few crowded days cannot flip it
+      const same = ts.every((x) => Math.sign(x) === dir), opp = ts.every((x) => Math.sign(x) === -dir);
       const strong = ts.filter((t) => isNum(t) && Math.abs(t) >= 2).length >= 2;
       verdict = same && strong ? "Folklore holds" : opp && strong ? "OPPOSITE of folklore" : same ? "Same sign, weak" : opp ? "Opposite sign, weak" : "No consistent edge";
     }
