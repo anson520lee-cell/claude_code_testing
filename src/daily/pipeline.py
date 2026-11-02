@@ -654,7 +654,9 @@ def thesis(c: dict[str, Any]) -> str:
         parts.append(f"Conditional entry on a move through {p['entry']:.2f}.")
     parts.append(f"Plan: reference {p['entry']:.2f}, stop {p['stop']:.2f} ({p['risk_atr']:.1f} ATR, "
                  f"{p['risk_pct'] * 100:.1f}%), " + (f"T1 {p['target1']:.2f} ({p['reward_risk']:.1f}R), "
-                 if p.get("target1") is not None else f"trailing stop {p.get('trail_atr')} ATR (no fixed target), ")
+                 if p.get("target1") is not None else f"no fixed target, trailing stop = highest high − {p['trail_distance']:.2f} ({p.get('trail_atr'):g} ATR), "
+                 f"lifts the stop above {p['trail_start']:.2f}, break-even above {p['breakeven_high']:.2f}, "
+                 if p.get("trail_distance") else f"trailing stop {p.get('trail_atr')} ATR (no fixed target), ")
                  + (f"T2 {p['target2']:.2f}, " if p.get("target2") is not None else "")
                  + f"time stop {p['horizon_days']} sessions.")
     if t.get("rs_percentile") is not None:

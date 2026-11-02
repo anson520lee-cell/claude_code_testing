@@ -217,6 +217,7 @@ function renderTickerCharts(d, c, p = "c", bucket = undefined, big = 420, sub = 
     const pp = c.plan;
     pl(pp.entry, P.neutral, pp.conditional_entry ? "trigger" : "ref", 2); pl(pp.stop, P.down, "stop");
     if (isNum(pp.target1)) pl(pp.target1, P.up, pp.target2 ? "T1" : "target"); if (isNum(pp.target2)) pl(pp.target2, P.up, "T2", 2);
+    else if (isNum(pp.trail_start)) { pl(pp.trail_start, P.up, "trail on", 2); if (isNum(pp.breakeven_high)) pl(pp.breakeven_high, P.up, "stop = entry", 2); }
   }
   const upAt = new Map(d.candles.map((k) => [k.time, k.close >= k.open]));
   const vol = makeChart($(`#${p}-vol`), sub, { ...opt, timeVisible: false });
@@ -269,7 +270,7 @@ function overview() {
       <div class="ev">${c.evidence.map(esc).join(" ")}</div></div>`;
   }).join("");
   const b = r.breadth || {}, v = r.volatility || {}, rt = r.rates || {};
-  const tops = (side) => s.candidates[side].slice(0, 6).map((c) => `<tr class="click" data-sym="${c.symbol}"><td><b>${c.symbol}</b></td><td><span class="spark" data-mini-sm="${esc(c.symbol)}"></span></td><td>${esc(c.setup_name)}</td><td class="n">${c.score.toFixed(0)}</td><td>${tier(c.tier)}</td><td class="n">${num(c.plan.reward_risk, 1)}R</td></tr>`).join("") || `<tr><td class="empty">None</td></tr>`;
+  const tops = (side) => s.candidates[side].slice(0, 6).map((c) => `<tr class="click" data-sym="${c.symbol}"><td><b>${c.symbol}</b></td><td><span class="spark" data-mini-sm="${esc(c.symbol)}"></span></td><td>${esc(c.setup_name)}</td><td class="n">${c.score.toFixed(0)}</td><td>${tier(c.tier)}</td><td class="n">${isNum(c.plan.reward_risk) ? num(c.plan.reward_risk, 1) + "R" : "trail"}</td></tr>`).join("") || `<tr><td class="empty">None</td></tr>`;
   app.innerHTML = `
   <div class="grid g-side">
     <div class="grid">
@@ -424,8 +425,8 @@ function scanTable(side, rows) {
     { key: "tier", label: "Tier", render: (c) => tier(c.tier), sort: (c) => c.score },
     { key: "entry", label: "Entry", n: 1, render: (c) => num(c.plan.entry) + (c.plan.conditional_entry ? ' <span class="chip">cond.</span>' : ""), sort: (c) => c.plan.entry },
     { key: "stop", label: "Stop", n: 1, render: (c) => num(c.plan.stop), sort: (c) => c.plan.stop },
-    { key: "t1", label: "Target", n: 1, render: (c) => (isNum(c.plan.target1) ? num(c.plan.target1) : `trail ${num(c.plan.trail_atr, 1)}`), sort: (c) => c.plan.target1 },
-    { key: "rr", label: "Reward/risk", n: 1, render: (c) => `<span class="${c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${num(c.plan.reward_risk, 1)}</span>`, sort: (c) => c.plan.reward_risk },
+    { key: "t1", label: "Target", n: 1, render: (c) => (isNum(c.plan.target1) ? num(c.plan.target1) : `<span title="No fixed take-profit: the stop follows the highest high − ${num(c.plan.trail_distance)}. It starts lifting once the high passes ${num(c.plan.trail_start)}; break-even above ${num(c.plan.breakeven_high)}">trail −${num(c.plan.trail_distance)}<br><small class="muted">on above ${num(c.plan.trail_start)}</small></span>`), sort: (c) => c.plan.target1 },
+    { key: "rr", label: "Reward/risk", n: 1, render: (c) => (isNum(c.plan.reward_risk) ? `<span class="${c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${num(c.plan.reward_risk, 1)}</span>` : '<span class="muted" title="No fixed take-profit: trailing stop">trail</span>'), sort: (c) => c.plan.reward_risk },
     { key: "risk", label: "Risk %", n: 1, render: (c) => pct(c.plan.risk_pct, 1, false), sort: (c) => c.plan.risk_pct },
     { key: "rs", label: "RS percentile", n: 1, render: (c) => num(c.technical.rs_percentile, 0), sort: (c) => c.technical.rs_percentile },
     { key: "earn", label: "Earnings", render: (c) => { const e = earningsOf(c); return e ? `<span class="${e.sessions_until <= 7 ? "warn" : ""}">${e.date} (${e.sessions_until})</span>` : '<span class="muted">—</span>'; }, sort: (c) => (earningsOf(c) || {}).sessions_until ?? 999 },
@@ -455,7 +456,9 @@ function stockCard(c, i) {
     <div class="sc-chart z1" data-mini="${esc(c.symbol)}"></div>
     <div class="sc-setup z1">${ring(c.score)}<div class="s">${esc(c.setup_name)}<div class="note">${esc(tr(t.trend))} · ${esc(tr(t.swing_structure))}</div></div></div>
     ${c.setup === "crash_rebound" ? `<div class="sc-bias"><b class="up">Counter-trend bounce</b> · signal day: buy before the close or at the next open, not later · ${esc((c.plan.exit_rule || {}).name || "")}</div>` : c.setup === "breakout" ? `<div class="sc-bias"><b class="warn">Unproven</b> · no edge over random entries in the backtests</div>` : c.analyst ? `<div class="sc-bias"><b class="${biasClass(c.analyst.bias)}">${esc(c.analyst.bias)}</b> · confidence ${esc(c.analyst.confidence)} — ${esc(c.analyst.headline.split(": ").slice(1).join(": "))}</div>` : ""}
-    <div class="sc-stats z1"><div><span>Reward/risk</span><b class="${c.setup === "crash_rebound" ? "" : c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${num(c.plan.reward_risk, 1)}</b></div>
+    <div class="sc-stats z1"><div><span>${c.plan.conditional_entry ? "Trigger" : "Entry"}</span><b>${num(c.plan.entry)}</b></div><div><span>Stop</span><b class="down">${num(c.plan.stop)}</b></div>
+      ${isNum(c.plan.target1) ? `<div><span>Target</span><b class="up">${num(c.plan.target1)}</b></div>` : `<div><span>No TP · trail</span><b class="up">−${num(c.plan.trail_distance)}</b></div>`}</div>
+    <div class="sc-stats z1"><div><span>${isNum(c.plan.reward_risk) ? "Reward/risk" : "Trail on above"}</span><b class="${!isNum(c.plan.reward_risk) || c.setup === "crash_rebound" ? "" : c.plan.reward_risk >= 2 ? "up" : c.plan.reward_risk < 1.5 ? "down" : ""}">${isNum(c.plan.reward_risk) ? num(c.plan.reward_risk, 1) : num(c.plan.trail_start)}</b></div>
       <div><span>Risk</span>${pct(c.plan.risk_pct, 1, false)}</div><div><span>Beta</span>${num(t.beta120, 2)}</div>
       <div><span>Earnings</span><b class="${e && e.sessions_until <= 7 ? "warn" : ""}">${e ? e.sessions_until + " days" : "—"}</b></div></div>
     <div class="sc-flags z1">${pens}</div></div></div>`;
@@ -492,7 +495,7 @@ function miniChart(d, plan, small = false) {
   const lows = d.l.filter(isNum), highs = d.h.filter(isNum);
   let lo = Math.min(...lows), hi = Math.max(...highs);
   const span0 = hi - lo;
-  for (const v of [plan.stop, plan.target1, plan.entry]) if (isNum(v) && v > lo - span0 * 0.6 && v < hi + span0 * 0.6) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  for (const v of [plan.stop, plan.target1, plan.trail_start, plan.entry]) if (isNum(v) && v > lo - span0 * 0.6 && v < hi + span0 * 0.6) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
   const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
   const step = (W - R) / n, x = (i) => i * step + step / 2, y = (v) => H - ((v - lo) / (hi - lo)) * H;
   let g = "";
@@ -506,7 +509,7 @@ function miniChart(d, plan, small = false) {
   const level = (v, col, label, dash) => (isNum(v) && v >= lo && v <= hi ? `<line x1="0" x2="${W - R + 2}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="${dash}" stroke-opacity=".9"/><text x="${W - R + 5}" y="${(y(v) + 3.5).toFixed(1)}" fill="${col}" font-size="9.5" font-family="JetBrains Mono, monospace">${label}</text>` : "");
   if (small) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${poly(d.ema21, P.ema21, 1)}${poly(d.ema9, P.ema9, 1)}${g}</svg>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${poly(d.ema50, P.ema50, 1, 0.55)}${poly(d.ema21, P.ema21, 1.3)}${poly(d.ema9, P.ema9, 1.3)}${g}
-    ${level(plan.target1, P.up, "T1", "4 3")}${level(plan.entry, P.neutral, plan.conditional_entry ? "TR" : "IN", "2 3")}${level(plan.stop, P.down, "SL", "4 3")}</svg>`;
+    ${level(plan.target1, P.up, "T1", "4 3")}${isNum(plan.target1) ? "" : level(plan.trail_start, P.up, "TRAIL", "2 4")}${level(plan.entry, P.neutral, plan.conditional_entry ? "TR" : "IN", "2 3")}${level(plan.stop, P.down, "SL", "4 3")}</svg>`;
 }
 
 // ------------------------------------------------------------------ focus view (expanded card)
@@ -721,7 +724,8 @@ function keyHTML(a, c) {
       <div><span>${p.conditional_entry ? "Trigger" : "Ref. entry"}</span><b>${num(p.entry)}</b></div>
       <div><span>Stop</span><b class="down">${num(p.stop)}</b><small>${pct(-Math.abs(p.entry - p.stop) / p.entry, 1)}</small></div>
       ${isNum(p.target1) ? `<div><span>${p.target2 ? "T1" : "Target"}</span><b class="up">${num(p.target1)}</b><small>${pct(Math.abs(p.target1 - p.entry) / p.entry * sg, 1)}</small></div>
-      <div><span>Reward/risk</span><b>${num(p.reward_risk, 1)}R</b></div>` : `<div><span>Exit</span><b class="up">Trail ${num(p.trail_atr, 1)} ATR</b><small>highest high − ${num(p.trail_atr * p.atr)}</small></div>`}
+      <div><span>Reward/risk</span><b>${num(p.reward_risk, 1)}R</b></div>` : `<div><span>Exit (no fixed TP)</span><b class="up">Trail −${num(p.trail_distance)}</b><small>below highest high · on above ${num(p.trail_start)}</small></div>
+      <div><span>Stop = entry once above</span><b class="up">${num(p.breakeven_high)}</b><small>${pct((p.breakeven_high - p.entry) / p.entry, 1)}</small></div>`}
       ${p.exit_rule && p.exit_rule.oos && p.exit_rule.oos.n ? `<div><span>Tested (out of sample)</span><b>${p.exit_rule.oos.avg_r > 0 ? "+" : ""}${num(p.exit_rule.oos.avg_r)}R</b><small>${p.exit_rule.oos.n} trades · win ${pct(p.exit_rule.oos.win_rate, 0, false)}</small></div>` : ""}
       <div><span>Max hold</span><b>${p.horizon_days} days</b></div>
       ${ss && k && isNum(p.atr) ? `<div class="alt"><span>Backtest's pick: ${k} ATR stop + trailing stop</span><b class="down">${num(p.entry - sg * k * p.atr)}</b><small>Out of sample ${num(ss.oos.avg_r)}R</small></div>` : ""}
@@ -743,7 +747,7 @@ function foldsHTML(sym, c, deep, a, extra = "", pre = "") {
   return `<div class="folds">
     ${pre}
     ${fold("Full analyst note", a ? `${a.scorecard.length} dimensions · ${(a.techniques || {}).count || 0} techniques · Scenarios` : "", `<div class="fold-analyst">${a ? analystPanel(a) : '<p class="note">Loading…</p>'}</div>`)}
-    ${c ? fold("Risk plan · Why these levels", `Stop ${num(c.plan.stop)} · ${isNum(c.plan.target1) ? `Target ${num(c.plan.target1)}${c.plan.target2 ? " / " + num(c.plan.target2) : ""}` : `Trailing stop ${num(c.plan.trail_atr, 1)} ATR`}`, planPanel(c)) : ""}
+    ${c ? fold("Risk plan · Why these levels", `Stop ${num(c.plan.stop)} · ${isNum(c.plan.target1) ? `Target ${num(c.plan.target1)}${c.plan.target2 ? " / " + num(c.plan.target2) : ""}` : `Trail −${num(c.plan.trail_distance)} (no fixed TP)`}`, planPanel(c)) : ""}
     ${c ? fold("Score breakdown · Setup history", `${num(c.score, 0)} (penalties ${num(c.penalty_total, 0)})`, candidatePanels(c, deep)) : ""}
     ${deep.earnings_study ? fold("Earnings reactions", es.available ? (es.implied && isNum(es.implied.move_pct) ? `Options implied ±${pct(es.implied.move_pct, 1, false)} vs history ±${pct(es.median_abs_move, 1, false)}` : `Median historical move ±${pct(es.median_abs_move, 1, false)}`) : "No data", earningsPanel(es)) : ""}
     ${deep.options ? fold("Options", o.available ? `IV ${pct(o.atm_iv, 0, false)} · expected move ±${pct(o.expected_move_pct, 1, false)} · put/call ${num(o.pcr_volume, 2)}` : "No options data", optionsPanel(o)) : ""}
@@ -960,10 +964,15 @@ function planPanel(c) {
     <div><span>${p.conditional_entry ? "Trigger (conditional entry)" : "Reference entry"}</span><span class="num">${num(p.entry)}</span></div>
     <div><span>Stop</span><span class="num down">${num(p.stop)} (${num(p.risk_atr, 1)} ATR)</span></div>
     ${isNum(p.target1) ? `<div><span>${p.target2 ? "T1" : "Target"}</span><span class="num up">${num(p.target1)}</span></div>${isNum(p.target2) ? `<div><span>T2</span><span class="num up">${num(p.target2)}</span></div>` : ""}
-    <div><span>Reward/risk</span><span class="num">${num(p.reward_risk, 2)}</span></div>` : `<div><span>Exit</span><span class="num up">Trailing stop: highest high − ${num(p.trail_atr, 1)} ATR</span></div>`}
+    <div><span>Reward/risk</span><span class="num">${num(p.reward_risk, 2)}</span></div>` : `<div><span>Take-profit</span><span class="num">none (trailing)</span></div>
+    <div><span>Trailing stop</span><span class="num up">highest high − ${num(p.trail_distance)} (${num(p.trail_atr, 1)} ATR)</span></div>
+    <div><span>Stop starts rising above</span><span class="num up">${num(p.trail_start)}</span></div>
+    <div><span>Stop reaches entry above</span><span class="num up">${num(p.breakeven_high)}</span></div>`}
     ${p.exit_rule ? `<div><span>Exit rule</span><span class="num">${esc(p.exit_rule.name || "")}</span></div>` : ""}<div><span>Risk / share</span><span class="num">${pct(p.risk_pct, 2, false)}</span></div>
     <div><span>Structural stop</span><span class="num ${p.wide_stop ? "warn" : ""}">${num(p.structural_stop_atr, 1)} ATR${p.wide_stop ? " (capped)" : ""}</span></div>
     <div><span>${p.horizon_days}-day 1σ move (HV20)</span><span class="num">±${num(p.expected_move_hv)}</span></div></div>
+    ${(p.trail_ladder || []).length ? `<table class="ladder"><thead><tr><th>If the high reaches</th><th>gain</th><th>move the stop to</th><th>locks</th></tr></thead><tbody>${p.trail_ladder.map((r) => `<tr><td class="num up">${num(r.high)} <small class="muted">(+${r.r}R)</small></td><td class="num">${pct((r.high - p.entry) / p.entry, 1)}</td><td class="num ${r.stop > p.stop + 1e-9 ? "up" : "down"}">${num(r.stop)}${r.stop > p.stop + 1e-9 ? "" : " <small class='muted'>(unchanged)</small>"}</td><td class="num">${r.locked_r >= 0 ? "+" : ""}${num(r.locked_r, 1)}R</td></tr>`).join("")}</tbody></table>
+    <p class="note">Each close: stop = max(current stop, highest high since entry − ${num(p.trail_distance)}). Sell at the stop; otherwise sell at the close of session ${p.horizon_days}. In between, check the stop after every close.</p>` : ""}
     ${p.entry_rule ? `<p><b>Entry</b>: ${esc(p.entry_rule)}</p>` : ""}${p.evidence ? `<p class="${c.setup === "breakout" ? "warn" : ""}"><b>Evidence</b>: ${esc(p.evidence)}</p>` : ""}
     <p class="note">${(() => {
       const pf = (state.snap.settings || {}).portfolio || {}, acct = pf.account_size || 100000, rk = pf.risk_per_trade ?? 0.005;
@@ -973,6 +982,7 @@ function planPanel(c) {
     <div class="qa">Add alert: ${(() => {
       const L = c.direction === "long", items = [[L ? "below" : "above", p.stop, "Stop hit"]];
       if (isNum(p.target1)) items.push([L ? "above" : "below", p.target1, "Reach target"]);
+      else if (isNum(p.trail_start)) items.push([L ? "above" : "below", p.trail_start, "Raise stop"]);
       if (p.conditional_entry) items.unshift([L ? "above" : "below", p.entry, "Entry trigger"]);
       return items.map(([k, lv, n]) => `<button data-qa="${n}" data-sym="${c.symbol}" data-kind="${k}" data-level="${lv}">${n} ${num(lv)}</button>`).join("");
     })()}</div>
