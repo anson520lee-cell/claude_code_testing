@@ -192,6 +192,11 @@
   pullback, strength, confirming-close adds; shared or own stops) on crash rebound / squeeze / breakout + random
   entries. None beats a single full entry out of sample (best in-sample picks: -0.05R / -0.06R / -0.03R per trade);
   the edge is concentrated at the first open. Plans stay single entry. `config/scale_in.default.json`, docs 7h.
+* Structure-based exits study (2026-11-02, `python structure_study.py --prices ...`, `src/backtest/structure.py`): 80 methods
+  x 3 setups (swing pivots, EMA 50-250 support, volume-profile nodes, Fibonacci, gaps, round numbers, channels, Supertrend /
+  SAR / Chandelier, per-stock bounce habit; stops, trails, targets, 15 entry filters) vs the live ATR exits, paired,
+  2005-2026 incl. a 2010-2019 holdout, Bonferroni + max-t guard. Nothing validates; structure stops are mostly worse than
+  ATR. Live logic unchanged. Lead only: breakout with a trail wider than 3 ATR (docs 7j). `config/structure_study.default.json`.
 * 2x ETF + tighter stops + scaling-in study (2026-11-01, `python leverage_study.py`, `src/backtest/leverage.py`):
   synthetic daily-reset 2x ETF checked on 28 real 2x single-stock ETFs (real cost ~17%/year). Same trades on the ETF
   -0.06 to -0.09R in sample; nothing passes t >= 2.5 (not even the unleveraged setups with evening-before sizing);

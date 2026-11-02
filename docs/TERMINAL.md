@@ -465,6 +465,55 @@ Result (2026-11-01, 2021-11 to 2026-10, in sample to 2025-01):
 * Nothing changes in the live scoring. The 2026-11-01 results ship as `config/leverage.default.json`; the Research
   page shows the newest run.
 
+### 7j. Structure-based stops, targets and filters (`python structure_study.py --prices prices.pkl`, run by hand)
+
+Do exits built from market structure beat the live ATR exits? 80 methods x 3 live setups (crash rebound, squeeze,
+breakout), on 233 stocks with Yahoo daily bars from 2004 (the database only keeps 5 years, so the script takes a pickle of
+`{symbol: price frame}`; see the docstring of `src/backtest/structure.py`).
+* Stops at a structure level (34 + 5 ATR variants for calibration): last swing low / lower of the last two pivots, previous-day low, 5/10/20/55-day lows,
+  EMA 21/50/100/200/250, the nearest MA below price, Bollinger and Keltner lower bands, anchored VWAP from the last swing
+  low and from the 52-week low, volume-profile POC / nearest high-volume node / value-area low (120 and 250 sessions),
+  Fibonacci 38.2 / 50 / 61.8% of the last swing leg, last up-gap bottom, round number, 5% / 8%, Chandelier, Supertrend,
+  multi-touch support zone (>= 3 pivot lows within 0.5 ATR), the stock's own favourite MA (best past bounce rate,
+  computed only from earlier events) and the live structural stop. A level closer than
+  0.5 ATR (or missing) falls back to the live ATR stop; distance is clamped to 0.75-4 ATR.
+* Exit management (23): time stops, break-even, ATR trails 2-5, trails on Donchian 10/20 lows / Chandelier / Supertrend /
+  Keltner / Bollinger / swing low, close below EMA9/21/50 or SMA20, close below entry-anchored or swing-low-anchored
+  VWAP, Parabolic SAR.
+* Take-profit on top of the live exit (18): 20/60/252-day high, swing high, Fibonacci 1.272 / 1.618, high-volume node
+  / POC / vacuum top, Bollinger / Keltner upper band, round number, last down-gap fill, EMA200/250 overhead,
+  measured move, anchored VWAP from the 52-week high, previous-day / 5-day high.
+* Entry filters (15, pass vs fail under the live exit): touch of EMA 50-250, near a multi-touch support zone, above POC,
+  inside the value area, no high-volume node within 3 ATR above, within 15% of the 52-week high, above a rising EMA200,
+  per-stock bounce habit, higher low, Fibonacci 38-62% zone, above anchored VWAP, recent unfilled gap, on round-number
+  support, no swing high within 2 ATR.
+Entry at the first open after the signal (squeeze: the buy-stop), 10 bps slippage per side, 20 sessions, stop beats
+target on a double touch. Every level uses data up to the signal close only (`tests`: levels and bounce records do not
+change when later bars change). Unit: account return per trade with the live sizing (1% risk, 25% position cap). Each
+method is compared PAIRED with the setup's live exit on the same trades, so the entry and the market cancel; the same
+method is also run on random entries (a gain there too means a market property, not a setup property).
+Periods: IS 2020-01..2024-06 (the only data used to choose), Hold 2010-2019 (never used to design anything), OOS
+2024-07.., GFC 2005-2009 (reported, in no test). Gate, fixed before running: IS paired delta > 0 and t >= 1.65, then
+delta > 0 in Hold AND OOS, and the Hold+OOS pooled t >= max(2.5, Bonferroni over the IS candidates); a max-t sign-flip
+permutation over all methods is reported as a second guard.
+
+* Result (2026-11-02): **nothing validates** (IS candidates: crash rebound 3, squeeze 0, breakout 1; none passes the
+  confirmation). The best pooled t is 2.0 (crash rebound, 5% stop; max-t p 0.59), i.e. what chance produces from
+  80 tries. Structure stops are mostly WORSE than ATR: swing-low, EMA200, volume node, support zone, Fibonacci, the live
+  structural stop and the stock's favourite MA all have negative paired deltas in sample and out; only 16% (crash
+  rebound), 31% (squeeze) and 25% (breakout) of the methods are positive in the Hold+OOS pool and the average method
+  costs -0.04 / -0.04 / -0.01 account% per trade. Structure targets cut winners (swing high, POC: negative); close-below-EMA
+  / Chandelier / Supertrend exits are clearly worse (t about -4). None of the 15 entry filters is stable across periods.
+  Likely reason: the setups already trade at structure (breakout of a range, a crash, a squeeze) and these stocks are
+  volatile, so a structure level either sits inside the noise (stopped out, then it rebounds) or is so far away that
+  position size shrinks; the ATR distance adapts to the volatility the structure ignores.
+* Lead, NOT adopted: breakout with a wider ATR trail (4-12 ATR = effectively no trail; the lab's grid stopped at 3) is
+  better in all four periods (Hold t 3.4-4.3, OOS t 2.2-3.4, GFC +, IS t only ~1.4 so it missed the IS screen) and gains
+  two to three times as much on setup trades as on random entries. But breakout is still below random entries in Hold, so
+  it repairs a weak exit more than it proves an edge. Needs a pre-registered test on fresh data before the live exit
+  changes. Full tables: the Research page / `reports/backtest/<session>/structure_study.json`; compact copy
+  `config/structure_study.default.json`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the
