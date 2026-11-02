@@ -605,6 +605,37 @@ Bonferroni bar, max-t guard).
   It misses the pre-registered in-sample screen (t 1.4 < 1.65), the same finding as 7j's post-hoc lead, on the same
   data. Live exits unchanged; switching breakout to a wider trail is Neo's call. Compact copy `config/trail_combo.default.json`.
 
+### 7n. Adaptive ATR stops: wide under water / tight above the entry, and a learned ATR multiple (`python adaptive_stop_study.py collect|grid|learn|final|families|report`, run by hand)
+
+Question (Neo, 2026-11-02): a wide ATR stop is rarely hit, a tight one locks more profit. Combine them - 5-6 ATR while
+the trade is under water, 2-3 ATR once it is back above the entry - or let a model with 500+ variables pick the best
+ATR multiple per trade / per day. Code: `src/backtest/adaptive_stop.py` (numba trade and account simulators, chip
+distribution and earnings features, continuation values), `adaptive_stop_stages.py`, tests `tests/test_adaptive_stop.py`,
+compact results `config/adaptive_stop.default.json`. Data: 225 stocks, Yahoo 2004-2026, 75,909 signals, 627 features.
+* (A) Two-phase grid, 13,524 rules: initial stop 1-6 ATR, phase-1 trail none / 3 / 5, switch on close > entry, high >=
+  entry + 0.5-3 ATR, close >= entry + 1-2 ATR, day 3 / 5 / 10 or never, phase-2 trail 1-6 ATR, optional break-even,
+  squeeze target on / off. Same gate as 7j. Result: crash rebound 0 / 3,381 pass, squeeze 0 / 6,762, breakout 12 /
+  3,381 - all 12 are "1 ATR initial stop, then widen to 4-5 ATR (+ break-even) after +2-3 ATR or day 10", the opposite
+  of the proposal (= the 7j / 7m breakout lead again). Neo's rule per trade (R at 1% risk): crash -0.41R 2024-26 (t
+  -3.5), breakout -0.25R (t -2.1), squeeze -0.05R. Tightening above the entry removes the right tail (crash trades
+  >= 3R: 6.3% -> 0.1%); the tighter the phase-2 trail, the worse, in every setup.
+* Account (10 slots, cash, 12 seeds) with the risk per trade swept 0.25-5% so rules are compared at EQUAL max drawdown:
+  wide fixed stops (3-5 ATR, no trail, position sized to the wide stop) beat the live exits at -30% drawdown in
+  2010-26 (14% vs 8%/yr), 2010-19 (9-10% vs 3%) and 2024-26, not in 2020-24H1 (12-14% vs 13%). Neo's 5 -> 3 ATR is about
+  the same as staying at 5 ATR, 5 -> 2 ATR is the worst. BUT random entries with the same wide stops improve almost as
+  much (2010-26: 9.6% vs 7.4%): the gain is mostly holding longer (~19 vs 8-13 sessions) in today's (survivor) universe,
+  not setup skill. Live at 1% risk is capital-capped (CAGR flat above 0.5% risk, only the drawdown grows). Per-trade R
+  at 1% risk understates wide stops (their realised P&L volatility per R is much smaller), so for stop WIDTH questions
+  the risk-matched account is the fair yardstick.
+* (B) Learned ATR: LightGBM, walk-forward in 2-year folds 2010-2026 (train on trades that ended >= 30 days before the
+  fold), features cut to 60 and the action threshold chosen inside the training years (nested). B1 = one multiple (1-8
+  ATR) per trade at entry; B2 = the trail re-chosen at every close (none / 1.5 / 2 / 3 / 5 / 8 ATR) from continuation
+  values. Model minus the same choices shuffled within the year: ~0 in all 3 setups x 2 models (t -1.7 .. +1.5), also
+  with a fixed-notional return target; hindsight-perfect choice would add +0.7-0.9R per trade, so the room exists but
+  is not predictable. Top features are market regime (gold, dollar, rates, breadth), i.e. era effects.
+* Not testable: 30-minute refresh (no intraday history before ~2024), institutional holdings (no point-in-time
+  history). Live exits unchanged. Chinese report: project files `adaptive-stop/自適應ATR止損研究報告.pdf`.
+
 ### 7d. News (automatic)
 
 `src/catalysts/news.py` fetches free RSS headlines - Yahoo Finance and Nasdaq for **every stock in the

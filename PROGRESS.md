@@ -224,3 +224,9 @@
 - 672 indicator columns + candles/classic/state rules x 6 actions (trail 1/1.5/2/5 ATR, break-even, sell); 1.74M pairs screened on 2020-24, triples greedy; 41,202 rules gated.
 - Nothing usable: crash rebound / squeeze 0 pass; breakout's 132 passes are all "widen to 5 ATR" and none beats widening unconditionally. Breakout trail 3 ATR looks too tight (+0.05R / +0.20R per trade 2010-19 / 2024-26, IS t 1.4). Live unchanged pending Neo.
 
+
+## 2026-11-02 - adaptive ATR stops (docs 7n)
+- `src/backtest/adaptive_stop.py` + `adaptive_stop_study.py` / `adaptive_stop_stages.py`: numba trade + account simulators, chip-distribution and earnings features, 627-column feature set, continuation values for a daily stop choice.
+- (A) 13,524 two-phase rules: "5-6 ATR under water, 2-3 ATR above the entry" loses per trade in all setups; only breakout passes, with "1 ATR then widen to 4-5 ATR".
+- Risk-matched account: wide fixed stops (3-5 ATR, smaller positions) beat the live exits at equal drawdown in 2010-26 / 2010-19 / 2024-26, not 2020-24H1; random entries gain almost as much (holding time x survivor universe).
+- (B) learned ATR (walk-forward GBM, nested selection): no skill over shuffled choices in any setup. Live unchanged.
