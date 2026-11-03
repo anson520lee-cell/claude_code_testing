@@ -2183,3 +2183,122 @@ def test_structure_study_shipped_copy():
     d = json.loads((Path(__file__).resolve().parents[1] / "config" / "structure_study.default.json").read_text())
     assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
     assert all(v["validated"] == [] for v in d["setups"].values())
+
+
+# ---------------------------------------------------------------- scale-out (partial take-profit) study
+def _so_data(rows, bars):
+    sig = pd.DataFrame(rows)
+    sig["date"] = pd.to_datetime(sig["date"])
+    arr = np.array(bars, dtype=float)
+    return {"signals": sig, "O": arr[:, 0], "H": arr[:, 1], "L": arr[:, 2], "C": arr[:, 3], "E": {}}
+
+
+def test_scale_out_simulate_matches_structure_without_partials():
+    from src.backtest import scale_out, structure
+    rng = np.random.default_rng(3)
+    rows, bars = [], []
+    for i in range(120):
+        c = 100 + rng.normal(0, 3, 21).cumsum()
+        o = c + rng.normal(0, 0.5, 21)
+        h, lo = np.maximum(o, c) + rng.uniform(0, 2, 21), np.minimum(o, c) - rng.uniform(0, 2, 21)
+        rows.append({"symbol": f"S{i}", "setup": "squeeze" if i % 3 == 0 else "breakout", "date": "2024-01-02",
+                     "ref": c[0], "atr": 2.0})
+        bars.append([o[1:], h[1:], lo[1:], c[1:]])
+    d = _so_data(rows, bars)
+    ds = dict(d, V=np.ones_like(d["O"]), SER={}, S={}, T={}, F={})
+    ref = d["signals"]["ref"].to_numpy()
+    stop = ref - 1.5 * 2.0
+    a = scale_out.simulate(d, 0.001, stop=stop, trail=3.0)
+    b = structure.simulate(ds, 0.001, stop=stop, trail=3.0)
+    ok = a["ok"]
+    assert np.array_equal(ok, b["ok"].to_numpy()) and np.allclose(a["eq"][ok], b["eq"].to_numpy()[ok])
+    a = scale_out.simulate(d, 0.001, stop=stop, final_tgt=ref + 3 * (ref - stop))
+    b = structure.simulate(ds, 0.001, stop=stop, tgt_r=3.0)
+    assert ok.sum() > 60 and np.allclose(a["eq"][ok], b["eq"].to_numpy()[ok])
+
+
+def test_scale_out_partial_accounting():
+    from src.backtest import scale_out
+    # entry 100 (open), risk 2 (stop 98), ATR 2, 3-ATR trail. Bar 1 reaches 104 = 2R -> half sold at 104 (+1R).
+    o, h = [100, 101, 103, 104, 103], [101, 104, 105, 105, 104]
+    lo, c = [99.5, 100.5, 102, 101.5, 100], [100.5, 103, 104, 102, 101]
+    d = _so_data([{"symbol": "X", "setup": "breakout", "date": "2024-01-02", "ref": 100.0, "atr": 2.0}], [[o, h, lo, c]])
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=3.0, partials=[(np.array([104.0]), 0.5)], hz=5)
+    assert t["r"][0] == pytest.approx(1.0 + 0.5 * (101 - 100) / 2) and t["days"][0] == 5 and t["mfe_r"][0] == pytest.approx(2.5)
+    # stop of the rest moved to the entry after the partial: bar 4 low 100 <= 100.1 -> rest sold at 100.1
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=3.0, partials=[(np.array([104.0]), 0.5)],
+                           be_after_partial=True, hz=5)
+    assert t["r"][0] == pytest.approx(1.0 + 0.5 * 0.1 / 2)
+    # a bar that touches the stop and the take-profit is a stop for the whole position
+    lo2 = [97.5, 100.5, 102, 101.5, 100]
+    h2 = [104.5, 104, 105, 105, 104]
+    d2 = _so_data([{"symbol": "X", "setup": "breakout", "date": "2024-01-02", "ref": 100.0, "atr": 2.0}], [[o, h2, lo2, c]])
+    t = scale_out.simulate(d2, 0.0, stop=np.array([98.0]), trail=3.0, partials=[(np.array([104.0]), 0.5)], hz=5)
+    assert t["r"][0] == pytest.approx(-1.0) and t["kind"][0] == "stop"
+    # time partial: half at the close of day 2 (103), rest at the day-5 close (101)
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=None, time_partials=[(2, 0.5)], hz=5)
+    assert t["r"][0] == pytest.approx(0.5 * 3 / 2 + 0.5 * 1 / 2)
+
+
+def test_scale_out_runup_history_is_causal():
+    from src.backtest import scale_out
+    rng = np.random.default_rng(9)
+    n = 1200
+    base = 100 * np.exp(np.cumsum(rng.normal(0, 0.02, n)))
+    o, h, lo = base * 0.999, base * 1.01, base * 0.99
+    a = np.full(n, 2.0)
+    ru = scale_out.runup_series(o, h, lo, a, 1.5)
+    o2, h2, lo2 = o.copy(), h.copy(), lo.copy()
+    h2[1000:] *= 3.0                                      # change the future only
+    lo2[1000:] *= 0.5
+    ru2 = scale_out.runup_series(o2, h2, lo2, a, 1.5)
+    assert np.allclose(scale_out.hist_quantiles(ru, 1000), scale_out.hist_quantiles(ru2, 1000), equal_nan=True)
+    assert np.isfinite(scale_out.hist_quantiles(ru, 1000)).all()
+    # the run-up stops counting at the stop bar: a stop on the first bar gives 0
+    o3 = np.array([100, 100, 100, 100.0] + [100.0] * 30)
+    h3 = np.array([101, 110, 120, 130.0] + [100.0] * 30)
+    lo3 = np.array([99, 90, 99, 99.0] + [99.0] * 30)
+    r3 = scale_out.runup_series(o3, h3, lo3, np.full(34, 2.0), 1.5)
+    assert r3[0] == 0.0
+
+
+def test_scale_out_shipped_copy():
+    d = json.loads((Path(__file__).resolve().parents[1] / "config" / "scale_out.default.json").read_text())
+    assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
+    assert all(v["validated"] == [] for v in d["setups"].values())
+    assert d["accounts"]["results"]["live"]["hold"]["cagr"] < d["accounts"]["results"]["SPY_buy_hold"]["hold"]["cagr"]
+
+
+def test_scale_out_close_signal_exit_sells_next_open():
+    from src.backtest import scale_out
+    o, h = [100, 101, 103, 104, 103], [101, 104, 105, 105, 104]
+    lo, c = [99.5, 100.5, 102, 101.5, 100], [100.5, 103, 104, 102, 101]
+    d = _so_data([{"symbol": "X", "setup": "breakout", "date": "2024-01-02", "ref": 100.0, "atr": 2.0}], [[o, h, lo, c]])
+    cond = np.array([[False, True, True, False, False]])       # first signal at the close of bar 1 -> sell at bar 2's open (103)
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=None, close_exit=(cond, 1.0, None), hz=5)
+    assert t["r"][0] == pytest.approx(1.5) and t["days"][0] == 3 and t["kind"][0] == "signal"
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=None, close_exit=(cond, 0.5, None), hz=5)
+    assert t["r"][0] == pytest.approx(0.5 * 1.5 + 0.5 * 0.5)
+    # gate: close must be >= entry + 2R (104) -> bar 2 closes at 104 -> sell at bar 3's open (104)
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=None, close_exit=(cond, 1.0, 2.0), hz=5)
+    assert t["r"][0] == pytest.approx(2.0) and t["days"][0] == 4
+
+
+def test_scale_out_indicator_condition_is_causal():
+    from src.backtest import scale_out
+    rng = np.random.default_rng(2)
+    rsi = rng.uniform(40, 90, (50, 23))
+    hist = rng.normal(0, 1, (50, 23))
+    D = {"IND": {"rsi14": rsi, "macd_hist": hist}}
+    D2 = {"IND": {"rsi14": rsi.copy(), "macd_hist": hist.copy()}}
+    D2["IND"]["rsi14"][:, 13:] = 99.0                          # change from forward bar 10 on (column 13)
+    D2["IND"]["macd_hist"][:, 13:] = -5.0
+    for c in ("macd_fade", "macd_d2_turn", "macd_cross_down", "rsi70", "rsi70_fade", "rsi70_d2", "rsi70_turn"):
+        a, b = scale_out.indicator_condition(D, c), scale_out.indicator_condition(D2, c)
+        assert a.shape == (50, 20) and np.array_equal(a[:, :10], b[:, :10]), c
+
+
+def test_indicator_exit_shipped_copy():
+    d = json.loads((Path(__file__).resolve().parents[1] / "config" / "indicator_exit.default.json").read_text())
+    assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
+    assert all(v["validated"] == [] for v in d["setups"].values())
