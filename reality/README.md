@@ -1,6 +1,6 @@
 # reality/ — "can anyone really make 90%/yr?" study (research only, no live rule touched)
 
-Report (Chinese PDF): project files `reality-check/年化90%真偽檢驗報告.pdf`.
+Report (Chinese PDF, charts, HTML source and full numbers) is committed in `reality/report/`.
 
 Run order (caches live in `/tmp/rc`, created by the first two steps):
 
