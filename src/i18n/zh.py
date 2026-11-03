@@ -12,7 +12,7 @@ LABELS: dict[str, str] = {
     "trend": "Trend", "momentum": "Momentum", "relative_strength": "Relative strength", "volume": "Volume",
     "setup_quality": "Setup quality", "reward_risk": "Reward/risk", "liquidity": "Liquidity", "regime_alignment": "Regime alignment",
     "earnings_in_window": "Earnings in window", "extended": "Extended", "overbought_extreme": "RSI extreme",
-    "dilution_filing": "Dilution filing", "insider_exec_buy": "CEO/CFO buy", "financial_distress": "Financial distress", "poor_reward_risk": "Poor reward/risk",
+    "dilution_filing": "Dilution filing", "insider_exec_buy": "CEO/CFO buy", "finra_low_short_volume": "Low short volume", "high_short_volume": "Short volume not low", "financial_distress": "Financial distress", "poor_reward_risk": "Poor reward/risk",
     "wide_stop": "Wide stop", "data_quality": "Data quality", "options_event_premium": "Options event premium",
     "ALL_LONG": "All long setups", "ALL_SHORT": "All short setups",
     "bullish": "Bullish stack", "bearish": "Bearish stack", "mixed": "Mixed",

@@ -32,6 +32,15 @@ from src.market import calendar
 logger = logging.getLogger(__name__)
 
 REGSHO_URL = "https://cdn.finra.org/equity/regsho/daily/CNMSshvol{day:%Y%m%d}.txt"
+REFERENCE_PATH = Path(__file__).resolve().parents[2] / "config" / "finra_reference.txt"
+
+
+def load_reference(path: Path = REFERENCE_PATH) -> list[str]:
+    """Reference symbols for the short-volume percentile (S&P 500 members, Yahoo style: BRK-B)."""
+    try:
+        return [x.strip() for x in path.read_text().splitlines() if x.strip() and not x.startswith("#")]
+    except OSError:
+        return []
 OTC_URL = "https://api.finra.org/data/group/otcMarket/name/weeklySummary"
 
 
@@ -136,6 +145,7 @@ class FinraData:
         self.get = getter or requests.get
         self.post = poster or requests.post
         self._days: dict[date, pd.DataFrame | None] = {}
+        self._ratio5: dict[date, tuple[pd.Series, list[str]]] = {}
 
     def short_volume_day(self, day: date) -> pd.DataFrame | None:
         if day in self._days:
@@ -173,6 +183,52 @@ class FinraData:
         return {"available": True, "latest": rows[0], "avg_ratio": float(np.mean(ratios)) if ratios else None,
                 "days": rows, "source": "FINRA Reg SHO daily short sale volume (consolidated NMS)",
                 "note": "Short-sale VOLUME (mostly market-maker liquidity), not short interest."}
+
+    def ratio5(self, session: date, days: int = 5) -> tuple[pd.Series, list[str]]:
+        """5-session short-sale volume ratio (sum short / sum total) of every symbol in the files, Yahoo-style
+        symbols (BRK.B -> BRK-B), from the last ``days`` published files up to ``session`` (needs >= days - 1 of them
+        per symbol, as in the edge-hunt study). Returns (ratios, file dates used)."""
+        if session in self._ratio5:
+            return self._ratio5[session]
+        frames, used, day = [], [], session
+        for _ in range(days + 5):
+            frame = self.short_volume_day(day)
+            if frame is not None:
+                x = frame[["ShortVolume", "TotalVolume"]].apply(pd.to_numeric, errors="coerce")
+                x.index = x.index.astype(str).str.replace(".", "-", regex=False).str.replace("/", "-", regex=False)
+                frames.append(x)
+                used.append(day.isoformat())
+                if len(frames) == days:
+                    break
+            day = calendar.previous_trading_day(day)
+        ratios = pd.Series(dtype=float)
+        if frames:
+            allx = pd.concat(frames)
+            g = allx.groupby(level=0)
+            n, tot = g["TotalVolume"].count(), g["TotalVolume"].sum()
+            ratios = (g["ShortVolume"].sum() / tot.where(tot > 0))[n >= max(days - 1, 1)].dropna()
+        self._ratio5[session] = (ratios, used)
+        return ratios, used
+
+    def short_volume_rank(self, symbol: str, session: date, reference: list[str] | None = None,
+                          days: int = 5) -> dict[str, Any]:
+        """The symbol's 5-day short-sale volume ratio and its percentile among the reference stocks the same day.
+        Edge-hunt study (2026-11-03): stocks in the bottom third of the S&P 500 had a better next-20-session long
+        outcome (+0.03 to +0.04R over the rest; replicated on S&P 400/600 stocks never used for discovery)."""
+        ratios, used = self.ratio5(session, days)
+        if len(used) < days - 1:
+            return {"available": False, "reason": f"Only {len(used)} FINRA short-volume files in the last {days + 5} sessions."}
+        sym = symbol.replace(".", "-")
+        if sym not in ratios.index:
+            return {"available": False, "reason": f"{symbol} not in the FINRA short-volume files."}
+        ref = ratios.reindex(reference if reference is not None else load_reference()).dropna()
+        if len(ref) < 100:
+            return {"available": False, "reason": f"Only {len(ref)} reference stocks in the FINRA files."}
+        x = float(ratios[sym])
+        pct = float(((ref < x).sum() + 0.5 * (ref == x).sum() + 0.5) / (len(ref) + 1))
+        return {"available": True, "ratio5": x, "pct": pct, "n_reference": int(len(ref)), "files": used,
+                "source": "FINRA Reg SHO daily short sale volume (consolidated NMS), 5 sessions",
+                "note": "Percentile of the 5-day short-sale volume ratio among S&P 500 stocks the same day."}
 
     def off_exchange(self, symbol: str, session: date, consolidated: pd.Series | None) -> dict[str, Any]:
         """Most recent published week of ATS + non-ATS OTC volume (2-4 week delay)."""
@@ -221,6 +277,7 @@ def analyze_positioning(info: dict[str, Any] | None, insider: pd.DataFrame | Non
     out["institutional"] = institutional_summary(institutions)
     if finra is not None:
         out["short_volume"] = finra.short_volume(symbol, as_of)
+        out["short_volume_rank"] = finra.short_volume_rank(symbol, as_of)
         out["off_exchange"] = finra.off_exchange(symbol, as_of, consolidated_volume)
     out["block_trades"] = {"available": False, "reason": "No free, reliable public block-trade feed."}
     lag = None
@@ -253,6 +310,10 @@ def interpret(p: dict[str, Any]) -> list[str]:
                          f"historically a modest edge over the next 20 sessions.")
         if ins["n_sales"]:
             notes.append(f"{ins['n_sales']} insider sales in 90 days (${ins['sale_value'] / 1e6:.1f}M), mostly planned (10b5-1) or compensation-related.")
+    rk = p.get("short_volume_rank") or {}
+    if rk.get("available") and rk["pct"] <= 1 / 3:
+        notes.append(f"5-day short-sale volume ratio {rk['ratio5'] * 100:.0f}% is in the bottom third of the S&P 500 "
+                     f"({rk['pct'] * 100:.0f}th percentile) - historically a small edge for longs (edge-hunt study).")
     sv = p.get("short_volume") or {}
     if sv.get("available") and sv.get("avg_ratio") and sv["latest"].get("ratio"):
         diff = sv["latest"]["ratio"] - sv["avg_ratio"]

@@ -239,6 +239,12 @@ scanner:
     bonus: 10                 # = 150 points/R x +0.07R, the smaller of the 2010-2019 and 2020-2026 edges (insider study)
     min_value: 100000
     max_age_days: 5           # transaction date within 5 calendar days: entering 7+ days after the filing lost the edge
+  finra_low_short_volume:     # FINRA Reg SHO 5-day short-sale volume ratio in the bottom third of the S&P 500 that day
+    bonus: 3                  # = 150 points/R x +0.020R, the smallest period edge (edge-hunt study 2026-11-03: S&P 500
+                              # 2010-17 +0.041R / 2018-26 +0.027R, replicated on S&P 400/600 stocks +0.039R / +0.020R)
+    max_pct: 0.333
+    penalty_above: 0          # > 0 = filter: long candidates outside the bottom third lose these points (account study:
+                              # max drawdown -59% -> -22% on S&P 500, -94% -> -33% on S&P 400/600; see docs/EDGE_HUNT.md)
   setup_horizon:              # time stop per setup (sessions); others use plan_horizon_days
     crash_rebound: 10
 
