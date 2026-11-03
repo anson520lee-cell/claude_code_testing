@@ -193,7 +193,7 @@ def subset(data: dict[str, Any], mask: np.ndarray) -> dict[str, Any]:
     out = {"signals": data["signals"][mask].reset_index(drop=True), "E": {k: v[mask] for k, v in data["E"].items()}}
     for k in "OHLC":
         out[k] = data[k][mask]
-    for k in ("X", "P"):
+    for k in ("X", "P", "IND"):
         if k in data:
             out[k] = {kk: vv[mask] for kk, vv in data[k].items()}
     return out
@@ -204,7 +204,8 @@ def simulate(D: dict[str, Any], slip: float, stop: np.ndarray, trail: float | No
              final_tgt: np.ndarray | None = None, partials: list[tuple[np.ndarray, float]] | None = None,
              be_after_partial: bool = False, tighten: tuple[float, float] | None = None,
              lock: tuple[float, float] | None = None, time_partials: list[tuple[int, float]] | None = None,
-             rest_trail: float | None = None, hz: int = H, paths: bool = False) -> dict[str, np.ndarray]:
+             rest_trail: float | None = None, close_exit: tuple[np.ndarray, float, float | None] | None = None,
+             hz: int = H, paths: bool = False) -> dict[str, np.ndarray]:
     """One exit rule (with optional partial take-profits) on every trade of D.
 
     stop: initial stop price. trail: k-ATR trail from the highest high of the previous bars. final_tgt: price at which
@@ -212,6 +213,8 @@ def simulate(D: dict[str, Any], slip: float, stop: np.ndarray, trail: float | No
     the price (ascending order). be_after_partial: after the first partial, the stop of the rest is the entry.
     tighten (trigger_r, k2): once the high has reached entry + trigger_r x risk, the trail becomes k2 ATR.
     lock (trigger_r, frac): once +trigger_r was reached, the stop is >= entry + frac x (highest high - entry).
+    close_exit (cond, fraction, min_r): cond[:, k] is a signal known at the close of bar k; the FIRST close where it is
+    true (and, if min_r is set, the close is >= entry + min_r x risk) sells that fraction at the next open.
     time_partials: [(day, fraction)] sold at that day's close. rest_trail: once the first partial is taken, the rest
     switches to a rest_trail ATR trail and its final target is dropped (squeeze "let the rest run").
     Same-bar rule: stop first (the whole remainder), then partials in ascending price, then the final target.
@@ -239,9 +242,22 @@ def simulate(D: dict[str, Any], slip: float, stop: np.ndarray, trail: float | No
     locked = np.zeros(n, dtype=bool)
     last_day = np.full(n, hz)
     exit_kind = np.full(n, "time", dtype=object)
+    ce_pending = np.zeros(n, dtype=bool)
+    ce_done = np.zeros(n, dtype=bool)
     path_pnl = np.zeros((n, hz)) if paths else None
     path_rem = np.zeros((n, hz)) if paths else None
     for k in range(hz):
+        if close_exit is not None and k > 0:          # signal at the previous close -> sell at this open
+            go = ce_pending & live
+            sell = np.where(go, np.minimum(close_exit[1], rem), 0.0)
+            pnl = pnl + sell * (O[:, k] * (1 - slip) - entry)
+            rem = rem - sell
+            any_partial |= go
+            fin = go & (rem <= 1e-9)
+            last_day = np.where(fin, k + 1, last_day)
+            exit_kind = np.where(fin, "signal", exit_kind)
+            live &= ~fin
+            ce_pending[:] = False
         st = stop.copy()
         tr_k = np.full(n, np.inf)
         if trail is not None:
@@ -289,6 +305,12 @@ def simulate(D: dict[str, Any], slip: float, stop: np.ndarray, trail: float | No
                 pnl = pnl + sell * (C[:, k] * (1 - slip) - entry)
                 rem = rem - sell
                 any_partial |= sell > 0
+        if close_exit is not None and k < hz - 1:
+            cnd = close_exit[0][:, k] & live & ~ce_done
+            if close_exit[2] is not None:
+                cnd &= C[:, k] >= entry + close_exit[2] * risk
+            ce_pending = cnd
+            ce_done |= cnd
         hi_prev = np.maximum(hi_prev, Hh[:, k])
         if tighten is not None:
             tight |= hi_prev >= entry + tighten[0] * risk
@@ -464,11 +486,64 @@ def run_method(D: dict[str, Any], setup: str, meth: dict[str, Any], slip: float,
         kw["lock"] = meth["lock"]
     elif "time" in meth:
         kw["time_partials"] = meth["time"]
+    elif "ind" in meth:
+        kw["close_exit"] = (indicator_condition(D, meth["ind"]), 1.0 if meth["use"] == "full" else 0.5, meth.get("min_r"))
     return simulate(D, slip, **kw), applied
 
 
 def base(D: dict[str, Any], setup: str, slip: float, paths: bool = False) -> dict[str, np.ndarray]:
     return run_method(D, setup, {"name": "live"}, slip, {}, paths=paths)[0]
+
+
+# ====================================================================== indicator exit signals ("guess the top")
+IND_KEYS = ("rsi14", "macd_hist")
+
+
+def indicator_series(features: dict[str, pd.DataFrame], sig: pd.DataFrame, hz: int = H) -> dict[str, np.ndarray]:
+    """(n, hz + 3) arrays of each indicator at the closes of bars t-2 .. t+hz (column 2 = the signal day), in the
+    order of sig. Every value is the indicator AT that close; indicator_condition only uses columns up to the close it
+    decides at, and the simulator sells at the NEXT open."""
+    out = {k: np.full((len(sig), hz + 3), np.nan) for k in IND_KEYS}
+    for sym, idx in sig.groupby("symbol").indices.items():
+        f = features[sym]
+        pos = f.index.get_indexer(pd.DatetimeIndex(sig["date"].to_numpy()[idx]))
+        cols = pos[:, None] + np.arange(-2, hz + 1)[None, :]
+        for k in IND_KEYS:
+            arr = f[k].to_numpy(dtype=float)
+            out[k][idx] = arr[np.clip(cols, 0, len(arr) - 1)]
+    return out
+
+
+def indicator_condition(D: dict[str, Any], ind: str) -> np.ndarray:
+    """Boolean (n, hz): the condition at the close of forward bar k (column k), using values up to that close."""
+    rsi = D["IND"]["rsi14"][:, 3:]                       # close of forward bar k = column k + 3
+    hist = D["IND"]["macd_hist"]
+    d1 = np.diff(hist, axis=1)                           # d1[:, j] = hist[j+1] - hist[j]
+    d2 = np.diff(d1, axis=1)
+    h_k = hist[:, 3:]
+    d1_k, d1_prev = d1[:, 2:], d1[:, 1:-1]               # d1 ending at the close of bar k, and one bar earlier
+    d2_k, d2_prev = d2[:, 1:], d2[:, :-1]
+    fade = (h_k > 0) & (d1_k < 0) & (d1_prev >= 0)       # histogram positive, starts to shrink
+    accel = (h_k > 0) & (d2_k < 0) & (d2_prev >= 0)      # second difference turns negative
+    out: dict[str, np.ndarray] = {"macd_fade": fade, "macd_d2_turn": accel, "macd_cross_down": (h_k < 0) & (hist[:, 2:-1] >= 0)}
+    for x in (65, 70, 75, 80):
+        out[f"rsi{x}"] = rsi > x
+        out[f"rsi{x}_fade"] = (rsi > x) & (h_k > 0) & (d1_k < 0)
+        out[f"rsi{x}_d2"] = (rsi > x) & (h_k > 0) & (d2_k < 0)
+        out[f"rsi{x}_turn"] = (rsi[:, :] < np.c_[D["IND"]["rsi14"][:, 2], rsi[:, :-1]]) & (np.c_[D["IND"]["rsi14"][:, 2], rsi[:, :-1]] > x)
+    c = out[ind]
+    return np.where(np.isfinite(c), c, False).astype(bool)
+
+
+def indicator_catalog(setup: str) -> list[dict[str, Any]]:
+    out = []
+    conds = ["macd_fade", "macd_d2_turn", "macd_cross_down"] + [f"rsi{x}{s}" for x in (65, 70, 75, 80) for s in ("", "_fade", "_d2", "_turn")]
+    for c in conds:
+        for gate in (None, 1.0):
+            for use in ("full", "half"):
+                out.append({"name": f"{c}{'_if1R' if gate else ''}_{use}", "family": c.split("_")[0] if c.startswith("rsi") else "macd",
+                            "ind": c, "min_r": gate, "use": use})
+    return out
 
 
 # ====================================================================== statistics
@@ -531,7 +606,8 @@ def _period_stats(d_eq: np.ndarray, d_r: np.ndarray, dates: np.ndarray, masks: d
     return out
 
 
-def run(data: dict[str, Any], slip: float, progress: Callable[[str], None] | None = None, n_perm: int = 2000) -> dict[str, Any]:
+def run(data: dict[str, Any], slip: float, progress: Callable[[str], None] | None = None, n_perm: int = 2000,
+        cat_fn: Callable[[str], list[dict[str, Any]]] | None = None) -> dict[str, Any]:
     prepare(data)
     sig = data["signals"]
     res: dict[str, Any] = {"setups": {}, "periods": PERIODS}
@@ -574,7 +650,7 @@ def run(data: dict[str, Any], slip: float, progress: Callable[[str], None] | Non
             "fixed_targets_atr": fixed, "prediction": pred_diag, "methods": {}}
         conf_mask = masks_s["hold"] | masks_s["oos"]
         conf_cols, conf_names = [], []
-        for meth in catalog(setup):
+        for meth in (cat_fn or catalog)(setup):
             ts, app_s = run_method(Ds, setup, meth, slip, fixed)
             tb, app_b = run_method(Db, setup, meth, slip, fixed)
             d_eq = np.where(okm_s, ts["eq"] - bs["eq"], 0.0)

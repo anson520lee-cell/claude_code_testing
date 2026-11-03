@@ -2213,3 +2213,38 @@ def test_scale_out_shipped_copy():
     assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
     assert all(v["validated"] == [] for v in d["setups"].values())
     assert d["accounts"]["results"]["live"]["hold"]["cagr"] < d["accounts"]["results"]["SPY_buy_hold"]["hold"]["cagr"]
+
+
+def test_scale_out_close_signal_exit_sells_next_open():
+    from src.backtest import scale_out
+    o, h = [100, 101, 103, 104, 103], [101, 104, 105, 105, 104]
+    lo, c = [99.5, 100.5, 102, 101.5, 100], [100.5, 103, 104, 102, 101]
+    d = _so_data([{"symbol": "X", "setup": "breakout", "date": "2024-01-02", "ref": 100.0, "atr": 2.0}], [[o, h, lo, c]])
+    cond = np.array([[False, True, True, False, False]])       # first signal at the close of bar 1 -> sell at bar 2's open (103)
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=None, close_exit=(cond, 1.0, None), hz=5)
+    assert t["r"][0] == pytest.approx(1.5) and t["days"][0] == 3 and t["kind"][0] == "signal"
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=None, close_exit=(cond, 0.5, None), hz=5)
+    assert t["r"][0] == pytest.approx(0.5 * 1.5 + 0.5 * 0.5)
+    # gate: close must be >= entry + 2R (104) -> bar 2 closes at 104 -> sell at bar 3's open (104)
+    t = scale_out.simulate(d, 0.0, stop=np.array([98.0]), trail=None, close_exit=(cond, 1.0, 2.0), hz=5)
+    assert t["r"][0] == pytest.approx(2.0) and t["days"][0] == 4
+
+
+def test_scale_out_indicator_condition_is_causal():
+    from src.backtest import scale_out
+    rng = np.random.default_rng(2)
+    rsi = rng.uniform(40, 90, (50, 23))
+    hist = rng.normal(0, 1, (50, 23))
+    D = {"IND": {"rsi14": rsi, "macd_hist": hist}}
+    D2 = {"IND": {"rsi14": rsi.copy(), "macd_hist": hist.copy()}}
+    D2["IND"]["rsi14"][:, 13:] = 99.0                          # change from forward bar 10 on (column 13)
+    D2["IND"]["macd_hist"][:, 13:] = -5.0
+    for c in ("macd_fade", "macd_d2_turn", "macd_cross_down", "rsi70", "rsi70_fade", "rsi70_d2", "rsi70_turn"):
+        a, b = scale_out.indicator_condition(D, c), scale_out.indicator_condition(D2, c)
+        assert a.shape == (50, 20) and np.array_equal(a[:, :10], b[:, :10]), c
+
+
+def test_indicator_exit_shipped_copy():
+    d = json.loads((Path(__file__).resolve().parents[1] / "config" / "indicator_exit.default.json").read_text())
+    assert set(d["setups"]) == {"crash_rebound", "squeeze", "breakout"}
+    assert all(v["validated"] == [] for v in d["setups"].values())

@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cache")
     ap.add_argument("--perm", type=int, default=2000)
     ap.add_argument("--no-accounts", action="store_true")
+    ap.add_argument("--indicator", action="store_true", help="indicator exit signals (RSI / MACD histogram) instead")
     args = ap.parse_args(argv)
     t0 = time.time()
     settings = load_terminal_settings()
@@ -82,7 +83,15 @@ def main(argv: list[str] | None = None) -> int:
     sig = data["signals"]
     print(sig["setup"].value_counts().to_string(), flush=True)
     slip = float(settings["scanner"].get("slippage_bps", 10)) / 10_000
-    res = scale_out.run(data, slip, progress=lambda m: print(m, flush=True), n_perm=args.perm)
+    name = "scale_out_study"
+    if args.indicator:
+        name = "indicator_exit_study"
+        features, _ = load(prices, settings)
+        data["IND"] = scale_out.indicator_series(features, sig)
+        res = scale_out.run(data, slip, progress=lambda m: print(m, flush=True), n_perm=args.perm, cat_fn=scale_out.indicator_catalog)
+        args.no_accounts = True
+    else:
+        res = scale_out.run(data, slip, progress=lambda m: print(m, flush=True), n_perm=args.perm)
     if not args.no_accounts:
         print("account simulation...", flush=True)
         res["accounts"] = accounts(data, slip, prices["SPY"], res)
@@ -92,12 +101,12 @@ def main(argv: list[str] | None = None) -> int:
                 "survivorship_note": "Only stocks in today's universe are tested (survivorship bias); comparisons are paired."})
     out = path(settings, "reports_dir").parent / "backtest" / session.isoformat()
     out.mkdir(parents=True, exist_ok=True)
-    store.write_atomic(out / "scale_out_study.json", json.dumps(store.jsonable(res), ensure_ascii=False, indent=1))
+    store.write_atomic(out / f"{name}.json", json.dumps(store.jsonable(res), ensure_ascii=False, indent=1))
     comp = scale_out.compact(res)
     if "accounts" in res:
         comp["accounts"] = res["accounts"]
-    store.write_atomic(out / "scale_out_study_compact.json", json.dumps(store.jsonable(comp), ensure_ascii=False, indent=1))
-    print(f"Done in {res['elapsed_seconds']} s -> {out}/scale_out_study.json")
+    store.write_atomic(out / f"{name}_compact.json", json.dumps(store.jsonable(comp), ensure_ascii=False, indent=1))
+    print(f"Done in {res['elapsed_seconds']} s -> {out}/{name}.json")
     return 0
 
 

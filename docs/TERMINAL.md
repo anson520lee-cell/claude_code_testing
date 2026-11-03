@@ -567,6 +567,15 @@ means -0.02 to -0.09 account % per trade). Live logic unchanged.
   swing trade with a stop does not collect the long-term drift these stocks had, and the strong 2020-2026 numbers are
   mostly that period's market (random entries earn 23% a year 2020+ with the same exit).
 * Compact results ship as `config/scale_out.default.json`; full tables `reports/backtest/<session>/scale_out_study.json`.
+* Indicator exit signals ("guess the top while in the trade", `python scale_out_study.py --prices prices.pkl --indicator`,
+  2026-11-02): 76 conditions per setup, each checked at every close of the trade and sold at the next open - RSI14 above
+  65 / 70 / 75 / 80, RSI turning down from above that level, MACD histogram positive and starting to shrink (first
+  difference turns negative), its second difference turning negative, histogram crossing below 0, and RSI x MACD combos;
+  each with or without "only when the close is >= +1R", selling all or half. **Nothing validates**: crash rebound and
+  squeeze have no in-sample candidate; breakout has 4 (RSI > 80 when >= +1R, RSI > 80 with a shrinking histogram, all or
+  half; in-sample t 2.0-2.1) and all four LOSE out of sample (-0.04 to -0.09 account % per trade, pooled t -1.9 / -3.0).
+  Pooled hold+OOS positives: crash rebound 24 of 76 (best RSI > 80 full exit, t 1.2), squeeze 0, breakout 0. Compact copy
+  `config/indicator_exit.default.json`.
 
 ### 7d. News (automatic)
 
