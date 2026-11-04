@@ -368,6 +368,18 @@ def apply_enrichment(c: dict[str, Any], enrichment: dict[str, Any], settings: di
         c.setdefault("bonuses", {})["insider_exec_buy"] = float(cfg["bonus"])
         c["supporting"].append(f"{eb['position']} bought ${eb['value'] / 1e6:.2f}M in the open market on {eb['date']} "
                                f"(insider study: +{float(cfg['bonus']):g} points).")
+    rk = pos.get("short_volume_rank") or {}
+    cfg = sc.get("finra_low_short_volume") or {}
+    if long and rk.get("available") and cfg:
+        if rk["pct"] <= float(cfg.get("max_pct", 1 / 3)):
+            if cfg.get("bonus"):
+                c.setdefault("bonuses", {})["finra_low_short_volume"] = float(cfg["bonus"])
+            c["supporting"].append(f"FINRA 5-day short-sale volume ratio {rk['ratio5'] * 100:.0f}%, bottom third of the "
+                                   f"S&P 500 today ({rk['pct'] * 100:.0f}th pct; edge-hunt study: +{float(cfg.get('bonus', 0)):g} points).")
+        elif cfg.get("penalty_above"):
+            c["penalties"]["high_short_volume"] = float(cfg["penalty_above"])
+            c["contradicting"].append(f"FINRA 5-day short-sale volume ratio {rk['ratio5'] * 100:.0f}% is not in the bottom "
+                                      f"third of the S&P 500 ({rk['pct'] * 100:.0f}th pct) - the low-short-volume filter is on.")
     finalize(c, settings)
 
 

@@ -1110,7 +1110,7 @@ def test_crash_rebound_scoring_bonus_and_long_only(tsettings):
 def test_only_enabled_setups_make_candidates():
     from src.scanner.setups import LONG_SETUPS
     enabled = load_terminal_settings()["scanner"]["enabled_setups"]
-    assert set(enabled) == {"crash_rebound", "squeeze", "breakout"} and set(enabled) <= set(LONG_SETUPS)
+    assert set(enabled) == {"crash_rebound", "squeeze"} and set(enabled) <= set(LONG_SETUPS)   # breakout dropped 2026-11-04
     src = (Path(__file__).resolve().parents[1] / "src" / "daily" / "pipeline.py").read_text()
     assert 'sc.get("enabled_setups")' in src and "n in enabled" in src
 
@@ -1979,7 +1979,7 @@ def test_live_strategy_entry_rules_and_evidence(tsettings):
     plan = plan_row(f.iloc[: i + 1], "crash_rebound", tsettings["scanner"], 10)
     assert "next open, not later" in plan["entry_rule"] and "t below 2.5" in plan["evidence"]
     assert set(ENTRY_RULE) == set(EVIDENCE) == {"crash_rebound", "squeeze", "breakout"}
-    assert "Unproven" in EVIDENCE["breakout"] and "Buy-stop" in ENTRY_RULE["squeeze"]
+    assert "Dropped" in EVIDENCE["breakout"] and "Buy-stop" in ENTRY_RULE["squeeze"]
     assert load_terminal_settings()["scanner"]["fresh_only_setups"] == ["crash_rebound"]
     src = (Path(__file__).resolve().parents[1] / "src" / "daily" / "pipeline.py").read_text()
     assert 'sc.get("fresh_only_setups")' in src and '.iloc[-2]' in src

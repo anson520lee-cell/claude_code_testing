@@ -1881,7 +1881,7 @@ function liveStrategy(s) {
       "+0.1 to +0.2R over random, t below 2.5 - positive in both halves, not proven"],
     squeeze: ["Squeeze", "Buy-stop at 20-day high + 0.1 ATR, next session only (no market buy)",
       "+0.14R over random out of sample, −0.02R in sample - not proven"],
-    breakout: ["Breakout", "Next open", "Unproven: no edge at any entry timing (kept by choice)"],
+    breakout: ["Breakout", "Next open", "Lost to random entries in two universes (dropped 2026-11-04)"],
   };
   const list = setups.filter((k) => rows[k]).map((k) => ({ key: k, name: rows[k][0], entry: rows[k][1], exit: (ex[k] || {}).name || "",
     bonus: bonus[k], evidence: rows[k][2] }));
@@ -1891,8 +1891,9 @@ function liveStrategy(s) {
       { key: "evidence", label: "Evidence", wrap: 1, render: (r) => `<span class="${r.key === "breakout" ? "warn" : ""}">${esc(r.evidence)}</span>` }], list)}
     <ul class="list">
       <li><b>Position</b>: one full entry, risk ${num((pf.risk_per_trade ?? 0.005) * 100, 1)}% of the account per trade, shares computed after the close from the stop distance (Portfolio page).</li>
+      <li><b>FINRA short volume</b>: 5-day short-sale volume ratio in the bottom third of the S&P 500 that day = +${(sc.finra_low_short_volume || {}).bonus ?? 3} points${(sc.finra_low_short_volume || {}).penalty_above ? `; outside it −${sc.finra_low_short_volume.penalty_above} points (filter on)` : ""} (edge hunt 2026-11-03, replicated on S&P 400/600).</li>
       <li><b>CEO / CFO / President buy</b>: open-market purchase ≥ $${((ib.min_value || 100000) / 1000).toFixed(0)}k within ${ib.max_age_days || 5} days = +${ib.bonus || 10} points (passes on 2010–2019 and 2020–2026 filings).</li>
-      <li><b>Not used</b> (tested, no edge or rejected): scaling in (206 schemes, single entry wins) · 2x leveraged ETFs (more risk, same Sharpe) · Bullish-only regime filter for momentum / pullback · cross-asset signals (nothing improved the setups) · momentum, pullback and reclaim as live setups · shorting · the 183-indicator model.</li>
+      <li><b>Not used</b> (tested, no edge or rejected): scaling in (206 schemes, single entry wins) · 2x leveraged ETFs (more risk, same Sharpe) · Bullish-only regime filter for momentum / pullback · cross-asset signals (nothing improved the setups) · momentum, pullback and reclaim as live setups · breakout (lost to random entries in two universes, dropped 2026-11-04) · shorting (every short strategy lost money, even the best filtered one) · the 183-indicator model · 40 online swing strategies and their confluence.</li>
       <li><b>Expect</b>: the backtest's 60–70% a year is mostly survivorship and a bull market (random entries made +59%); the real edge is the excess over random entries, a few percentage points a year.</li>
     </ul></div>`;
 }

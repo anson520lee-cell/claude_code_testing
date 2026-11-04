@@ -1,0 +1,24 @@
+{
+ "pick": "short day 1-30, BTC hedge",
+ "dsr_lenient": 0.22519731630604445,
+ "turnover": {
+  "short day 1-14": 0.11331781519290317,
+  "short day 1-14, BTC hedge": 0.1649279442124192,
+  "short day 1-30": 0.1366641014858613,
+  "short day 1-30, BTC hedge": 0.1794599447247973,
+  "short day 1-60": 0.15474954945145364,
+  "short day 1-60, BTC hedge": 0.19159733988051803,
+  "short day 3-14": 0.10605175566665277,
+  "short day 3-14, BTC hedge": 0.16048156571727773,
+  "short day 3-30": 0.132785458373707,
+  "short day 3-30, BTC hedge": 0.17591345655054808,
+  "short day 3-60": 0.1536416042279476,
+  "short day 3-60, BTC hedge": 0.1902311499091821,
+  "short day 7-14": 0.09007797488659551,
+  "short day 7-14, BTC hedge": 0.1431959707301366,
+  "short day 7-30": 0.12652797351143957,
+  "short day 7-30, BTC hedge": 0.17190527094459096,
+  "short day 7-60": 0.15183601045927567,
+  "short day 7-60, BTC hedge": 0.18843385817648095
+ }
+}

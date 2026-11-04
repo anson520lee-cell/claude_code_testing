@@ -221,10 +221,13 @@ What the daily scan does now (long only, never places orders). The Research page
 |---|---|---|---|
 | Crash rebound | **Signal day only** (`scanner.fresh_only_setups`): buy before that close or at the next open, not later | 1.5 ATR stop + 3-ATR trailing stop, max 20 sessions | +0.1 to +0.2R per trade over random entries (+0.08 to +0.17R with live-like sizing), positive in both halves, **t below 2.5: not proven** |
 | Squeeze | Buy-stop at the 20-day high + 0.1 ATR, next session only (a market buy did worse than random) | 2 ATR stop + 3R target, max 20 sessions | +0.14R over random out of sample, −0.02R in sample: not proven |
-| Breakout | Next open | 1 ATR stop + 3-ATR trailing stop, max 20 sessions | **Unproven**: +0.01 to +0.03R over random at every entry timing (bonus 0); kept by the user's choice |
+| ~~Breakout~~ | — | — | **Dropped 2026-11-04**: lost to random entries on point-in-time S&P 500 (t −1.7) and S&P 400/600 (t −3.5) |
 
-* Live setups: `scanner.enabled_setups: [crash_rebound, squeeze, breakout]`. Momentum, pullback and reclaim are still
-  simulated in the backtests but never make a candidate.
+* Live setups: `scanner.enabled_setups: [crash_rebound, squeeze]` (breakout dropped 2026-11-04: it lost to random entries
+  on S&P 500 and S&P 400/600, docs/EDGE_HUNT.md). Momentum, pullback, reclaim and breakout are still simulated in the
+  backtests but never make a candidate.
+* FINRA low short volume (`scanner.finra_low_short_volume`): 5-day short-sale volume ratio in the bottom third of the
+  S&P 500 that day = +3 points; outside it = −30 points (filter on, user 2026-11-04).
 * Score bonus per setup = 150 points × its edge over random entries (−10..+20, 0 inside ±0.05R).
 * CEO / CFO / President open-market buy ≥ $100k within 5 calendar days = +10 points (`scanner.insider_exec_buy`).
 * One full entry; risk per trade `portfolio.risk_per_trade` of the account; shares computed after the close from
@@ -354,7 +357,7 @@ stock) is tested; choices are made on the first 60% of dates and judged on the l
   were worse (-0.04R / -0.05R), so the filter fails the "both halves" rule. The dropped regimes lag random entries
   (random entries do very well after market falls), yet those trades still made money (+0.02R to +0.33R), so dropping
   them would cut profit. Shown on the Research page under "Only in Bullish markets?" (`regime_split` in the lab).
-* Live candidates (user decision 2026-11-01): only crash rebound, squeeze and breakout (`scanner.enabled_setups`).
+* Live candidates: only crash rebound and squeeze (`scanner.enabled_setups`; breakout was dropped on 2026-11-04).
 * The results of the 2026-10-30 run ship as `config/strategy_lab.default.json`, used until this machine's own monthly
   run writes `reports/backtest/<session>/strategy_lab.json`.
 * Not testable: options positioning (no free option-chain history) and fundamentals over time. Survivorship bias

@@ -1,0 +1,16 @@
+{
+ "tier1": {
+  "n_tests": 334,
+  "is_pass": 21,
+  "z_needed": 2.8227138814289368,
+  "oos_pass": 0,
+  "pass": 0
+ },
+ "tier2": {
+  "n_tests": 3608,
+  "is_pass": 271,
+  "z_needed": 3.561313842717355,
+  "oos_pass": 3,
+  "pass": 3
+ }
+}
