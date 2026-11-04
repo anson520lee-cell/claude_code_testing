@@ -25,6 +25,8 @@ import pandas as pd
 from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.spatial.distance import squareform
 
+from src.backtest.optimize.constraints import AllocationBlocked, cap_weights, crypto_risk_cap, crypto_share_of, joint_caps, within_caps
+
 COST = 0.001
 CAP_LEV = 10.0
 FAMILIES = ("crypto trend", "crypto relative value", "volatility selling", "equity long", "equity neutral", "macro")
@@ -132,48 +134,6 @@ def max_div(S: np.ndarray) -> np.ndarray:
     return w / w.sum()
 
 
-def cap_weights(w: np.ndarray, cap: float) -> np.ndarray:
-    if cap >= 1.0 or len(w) * cap < 1.0:
-        return w
-    w = w.copy()
-    for _ in range(50):
-        over = w > cap + 1e-12
-        if not over.any():
-            break
-        extra = (w[over] - cap).sum()
-        w[over] = cap
-        under = ~over & (w > 0)
-        if not under.any():
-            break
-        w[under] += extra * w[under] / w[under].sum()
-    return w
-
-
-def crypto_risk_cap(w: np.ndarray, S: np.ndarray, is_c: np.ndarray, cap: float) -> np.ndarray:
-    """Scale the crypto sleeves down until their share of the book's variance is at most ``cap``."""
-    if cap >= 1.0 or not is_c.any() or is_c.all() or w[~is_c].sum() <= 0:
-        return w                                                        # nothing else to hand the risk to
-
-    def share(k: float) -> float:
-        x = w.copy()
-        x[is_c] *= k
-        v = x @ S @ x
-        return float((x[is_c] * (S @ x)[is_c]).sum() / v) if v > 0 else 0.0
-
-    if share(1.0) <= cap:
-        return w
-    lo, hi = 0.0, 1.0
-    for _ in range(40):
-        mid = 0.5 * (lo + hi)
-        if share(mid) > cap:
-            hi = mid
-        else:
-            lo = mid
-    x = w.copy()
-    x[is_c] *= lo
-    return x / x.sum()
-
-
 def weights(method: str, S: np.ndarray, mu: np.ndarray, fam: np.ndarray) -> np.ndarray:
     sd = np.sqrt(np.maximum(np.diag(S), 1e-16))
     if method == "erc":
@@ -268,6 +228,9 @@ def run_book(pool: Pool, cfg: Config, start: int = 26, keep_weights: bool = Fals
     invested = np.zeros(T, bool)
     drifted = np.zeros(n)
     target = np.zeros(n)
+    allocation_status = np.zeros(T, dtype=np.int8)  # 0=ok/no allocation, 1=infeasible, 2=solver unresolved
+    max_weight = np.zeros(T)
+    risk_sel = np.array([], dtype=int)
     for i in range(start, T):
         retarget = cfg.rebal != "m" or (i - start) % 4 == 0 or not target.any()
         if retarget:
@@ -298,33 +261,46 @@ def run_book(pool: Pool, cfg: Config, start: int = 26, keep_weights: bool = Fals
                 if len(sel):
                     mu = np.nanmean(pool.econ[lo:i][:, sel], axis=0)
                     w = weights(cfg.method, S, np.nan_to_num(mu), pool.fam[sel])
-                    w = cap_weights(w, cfg.cap)
-                    w = crypto_risk_cap(w, S, pool.is_c[sel], cfg.crypto_cap)
-                    target[sel] = w
-                    v = w @ S @ w
-                    crypto_share[i] = float((w[pool.is_c[sel]] * (S @ w)[pool.is_c[sel]]).sum() / v) if v > 0 else 0.0
+                    risk_sel = sel
+                    try:
+                        target[sel] = joint_caps(w, S, pool.is_c[sel], cfg.cap, cfg.crypto_cap)
+                    except AllocationBlocked as exc:
+                        allocation_status[i] = exc.code
+        tw = target.copy()
+        if tw.sum() > 0:
+            tw = tw / tw.sum()
+            if cfg.rebal == "band" and drifted.sum() > 0:
+                dw = drifted / drifted.sum()
+                if np.abs(dw - tw).sum() <= 0.10 and np.all((dw > 0) <= (tw > 0)):
+                    tw = dw
+            elif cfg.rebal == "m" and not retarget and drifted.sum() > 0:
+                tw = drifted / drifted.sum()
+            if len(risk_sel):
+                # Risk controls override monthly/band drift using only prior weeks.
+                if not retarget and cfg.crypto_cap < 1:
+                    history = np.nan_to_num(X[max(0, i - cfg.look):i][:, risk_sel])
+                    S = covariance(history, cfg.cov, cfg.look) if len(risk_sel) > 1 else np.atleast_2d(np.var(history, ddof=1))
+                try:
+                    if not within_caps(tw[risk_sel], S, pool.is_c[risk_sel], cfg.cap, cfg.crypto_cap):
+                        fixed = joint_caps(tw[risk_sel], S, pool.is_c[risk_sel], cfg.cap, cfg.crypto_cap)
+                        tw = np.zeros(n)
+                        tw[risk_sel] = fixed
+                except AllocationBlocked as exc:
+                    allocation_status[i] = exc.code
+                    tw = np.zeros(n)
         row = X[i]
         live = np.isfinite(row)
-        if np.any((target > 0) & ~live):
-            missing = [pool.cols[j] for j in np.flatnonzero((target > 0) & ~live)]
+        if np.any((tw > 0) & ~live):
+            missing = [pool.cols[j] for j in np.flatnonzero((tw > 0) & ~live)]
             raise ValueError(f"Missing return for allocated sleeves at {pool.idx[i]}: {missing}; supply explicit delisting/closure returns")
-        tw = target.copy()
         if tw.sum() <= 0:
             base[i] = 0.0
             turn[i] = np.abs(drifted).sum()
             drifted[:] = 0.0
             continue
-        tw = tw / tw.sum()                                              # allocations are decided using past data only
         invested[i] = True
-        if cfg.rebal == "band" and drifted.sum() > 0:
-            dw = np.where(live, drifted, 0.0)
-            dw = dw / dw.sum() if dw.sum() > 0 else dw
-            if np.abs(dw - tw).sum() <= 0.10 and np.all((dw > 0) <= (tw > 0)):
-                tw = dw
-        elif cfg.rebal == "m" and not retarget and drifted.sum() > 0:
-            dw = np.where(live, drifted, 0.0)
-            if dw.sum() > 0:
-                tw = dw / dw.sum()
+        max_weight[i] = tw.max()
+        crypto_share[i] = crypto_share_of(tw[risk_sel], S, pool.is_c[risk_sel])
         r = np.where(live, row, 0.0)
         b = float(tw @ r)
         base[i] = b
@@ -338,7 +314,7 @@ def run_book(pool: Pool, cfg: Config, start: int = 26, keep_weights: bool = Fals
             held_w[i] = tw
     out_w = {"weights": held_w} if held_w is not None else {}
     return {**out_w, "base": base, "funded": funded, "spread": spread, "unfunded": unfund, "turn": turn, "crypto_share": crypto_share,
-            "invested": invested}
+            "invested": invested, "allocation_status": allocation_status, "max_weight": max_weight}
 
 
 def lever(book: dict[str, np.ndarray], cash: np.ndarray, tv: float, lev_band: float = 0.0, cap: float = CAP_LEV,
@@ -364,7 +340,10 @@ def lever(book: dict[str, np.ndarray], cash: np.ndarray, tv: float, lev_band: fl
             ret[i], lev[i] = 0.0, 0.0
             continue
         if not inv[i] or not np.isfinite(target[i]) or target[i] <= 0:
-            ret[i], lev[i], held = cash[i], 0.0, 0.0                   # nothing to hold yet: the account sits in T-bills
+            # Closing an existing book costs money even when the new allocation is cash.
+            ret[i], lev[i] = max(cash[i] - COST * abs(held), -1.0), 0.0
+            dead = ret[i] <= -1.0
+            held = 0.0
             continue
         L = target[i]
         if lev_band > 0 and held > 0 and abs(held / L - 1) <= lev_band:

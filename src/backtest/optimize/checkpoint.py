@@ -31,7 +31,7 @@ def fingerprint(pool, configurations) -> str:
               "universes": {k: v.tolist() for k, v in pool.universes.items()},
               "configurations": [asdict(c) for c in configurations]}
     h.update(json.dumps(detail, sort_keys=True).encode())
-    for name in ("engine.py", "search.py", "pool.py", "checkpoint.py", "__init__.py"):
+    for name in ("engine.py", "constraints.py", "search.py", "pool.py", "checkpoint.py", "__init__.py"):
         h.update(Path(__file__).with_name(name).read_bytes())
     return h.hexdigest()
 

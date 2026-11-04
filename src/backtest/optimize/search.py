@@ -99,6 +99,10 @@ def _one(cfg: Config) -> tuple[Config, dict, dict]:
         row[f"lev_tv{int(tv * 100)}"] = float(np.nanmean(lev[pool.idx >= "2010-01-01"]))
     row["turn"] = float(np.nanmean(bk["turn"][pool.idx >= "2010-01-01"]))
     row["crypto_share"] = float(np.nanmean(bk["crypto_share"][pool.idx >= "2010-01-01"]))
+    row["allocation_infeasible_weeks"] = int((bk["allocation_status"] == 1).sum())
+    row["allocation_unresolved_weeks"] = int((bk["allocation_status"] == 2).sum())
+    row["max_sleeve_weight"] = float(bk["max_weight"].max())
+    row["max_crypto_share"] = float(np.nanmax(bk["crypto_share"])) if np.isfinite(bk["crypto_share"]).any() else 0.0
     rets["base"] = bk["base"].astype(np.float32)
     return cfg, row, rets
 
