@@ -1,15 +1,16 @@
 # Trading terminal research
 <!-- project: 8c1e3595-439a-4844-8db8-3a3c567643a0 -->
 
-Goal: Reproducible, after-cost, cross-regime 80–90% annualized candidate research; none qualified.
-Code baseline: ae57c9af46f112627cdae716680219759c980b6d; parent 2f015a09a95f7d81e568cd594114dbaa91aa3113. Legacy handoff trading-terminal/main revision 7 is preserved, not a coordinator digest.
-Status: Joint-cap bug OPEN. The 10026-config search is incomplete; the old ~4000 unsaved trials remain lost. No new strategy or trial was produced during this model-switch save.
-Done: Per-trial SQLite checkpoints, fingerprints, bounded batches, missing-return hindsight fix, initial-capital drawdowns, portable paths, resumable collection, public OHLCV snapshot.
-Evidence: Pinned docs/RESEARCH_RESUME_20261104.md records previous 17 research tests + 16 targeted Mac reruns; not Windows revalidation. Current 315 local tracked files exactly match baseline; PREREG and snapshot hashes verified.
-Next: Resume task-6ae0aace40e049c893af83df887074fb; first fix joint caps, explicit infeasibility and rebalance/band/cash regressions. Then restore real original data and continue batches with --workers 2 --max-new 250.
-Blockers: Missing original 30-sleeve data; Library snapshot recovery requires receiver verification. Windows code not synchronized; session inventory responded but downloads/execution remain unverified.
-Data: Public 350-symbol / 361601-row cache, 2021-11-01..2026-11-03, NOT PIT membership or original pool. Archive SHA256 4e1d2291e69fbac080f6e6e0c6f1b4791c92ef91d849bd7d6413ceeb74ad10ca.
-Limits: 2025–26 was already observed; historical reused validation only. Daily MTM drawdown/margin/liquidation qualifications remain unfinished. No live changes, orders, broker, deployments, PR merge, scaling-in or return guarantees.
-Background: Existing recurring task retained; recorded completion has no latest result and proves no strategy progress. RDC reports no active tool sessions; Mac OS process inventory was denied. Check again before compute.
-
-Read TASKS.md and DECISIONS.md only as needed; detailed sources are pinned in the task handoff.
+Goal: After-cost, cross-regime 80-90% annualized candidate research; none qualified.
+Task: task-6ae0aace40e049c893af83df887074fb; original handoff 0f3a79db3158d2e952e331e939f23550f21796e2dab7254979b2443ea1d4922b remains immutable/incomplete.
+Code: ff9aca77ba1d7e109d7ec5f45db00950978c89d9; joint-cap fix cb9ff8ff11f7b005d508fe9f4475b52054f4c421; ETF preregistration cf62d6a30df62c470a56fbe608747f0085acde90.
+Status: Joint-cap repaired and tested. Original 10026-config / 30-sleeve search still blocked by incomplete original inputs; lost ~4000 old trials remain lost. Separate ETF expansion COMPLETE: 1728 saved trials, 0 reach 80% in all four selection subperiods.
+Evidence: 68 targeted Windows tests passed together (16.03s), including original benchmark parity, joint feasibility, monthly/band drift, cash liquidation cost, checkpoint restart, lagged execution and bounded archive retries. Details: docs/RESEARCH_CONTINUATION_20261104.md.
+ETF result: Frozen pre-2025 trial 332: 2008-24 CAGR 18.78%, daily maxDD -39.13%; reused 2025-26 CAGR 34.22%, maxDD -27.98%. Double-cost 2008-24 CAGR 16.64%, maxDD -40.38%. All metrics and protocol in reports/etf_expansion/. No stable-return qualification.
+Data: Frozen 2026-11-04 exclusive collection: 50 Yahoo symbols + 10 Cboe histories + 2 panels, 62 successful manifest entries. Four public x80 intermediate studies rebuilt. Cboe histories are benchmark indexes, not executable option quotes.
+Preserved snapshot: 350 symbols / 361601 daily rows; archive SHA256 4e1d2291e69fbac080f6e6e0c6f1b4791c92ef91d849bd7d6413ceeb74ad10ca and Parquet SHA256 5476d4902a8e5a1dd810e6aa4eedcbb103ff7cb1317e467c8a140e23de43e40f reverified before Mac disconnection. Not PIT or the original pool.
+Next: Continue bounded Binance spot/funding/premium restoration (source catalogue includes delisted pairs; spot catalogue 700 symbols), then original PIT/flow/fundamental/FX/derivative inputs. Only after completeness/audit resume the ORIGINAL search, <=2 workers and <=250 new trials per batch.
+Execution: Windows C:/Users/jordan/trading-research is verified; Mac execution host became unavailable. A two-worker, six-symbol initial spot batch was launched; read its real status before another batch. Keep the live swing-terminal checkout unchanged.
+Blockers: Original 30-sleeve inputs incomplete; archive coverage/partial-month tails must be inspected, never filled with invented zero returns. Full ETF trial-return checkpoint and frozen data are on Windows (public all-trial metrics in Git).
+Limits: 2025-26 is reused historical validation, not untouched. No live changes, orders, broker, deployment, merge, scaling-in, paid data or guarantees. Daily executable margin/option liquidity and future validation remain required.
+Background: Existing recurring task is retained; do not infer completed work from its scheduling metadata. Avoid duplicate processes; no claim that an LLM runs independently of this session.
