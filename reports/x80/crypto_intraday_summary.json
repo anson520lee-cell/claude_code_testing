@@ -1,0 +1,37 @@
+{
+ "picks": {
+  "BTC": {
+   "rule": "day of week: long days with t > 1.5",
+   "is_sharpe": 0.5955672780335911,
+   "oos_sharpe": 0.6753717837259416,
+   "oos_cagr": 0.11992988660220028
+  },
+  "ETH": {
+   "rule": "day of week: long days with t > 1.5",
+   "is_sharpe": 1.0342186390640302,
+   "oos_sharpe": 0.7060344711949275,
+   "oos_cagr": 0.22724683151163627
+  },
+  "SOL": {
+   "rule": "day of week: long days with t > 1.5",
+   "is_sharpe": 1.0124869640047036,
+   "oos_sharpe": 0.3791532132857851,
+   "oos_cagr": 0.07122761473590722
+  }
+ },
+ "dsr_in_sample": {
+  "BTC": {
+   "strict": 3.7496547000692715e-07,
+   "lenient": 0.07349710970837842
+  },
+  "ETH": {
+   "strict": 1.4294076469523187e-05,
+   "lenient": 0.2435796629781486
+  },
+  "SOL": {
+   "strict": 0.00011642301763881147,
+   "lenient": 0.17204584743414625
+  }
+ },
+ "n_trials": 90
+}

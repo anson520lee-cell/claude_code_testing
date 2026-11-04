@@ -1,0 +1,70 @@
+{
+ "is_t": {
+  "rev1|dollar": -0.6280762719138161,
+  "rev1|beta": -1.1537133800054842,
+  "mom7|dollar": -0.5958089699863709,
+  "mom7|beta": -0.5797340260665669,
+  "mom28|dollar": 1.1203091147968283,
+  "mom28|beta": 0.8965552723233562,
+  "mom84skip7|dollar": 0.5688053129373386,
+  "mom84skip7|beta": 0.683328467510839,
+  "vol30|dollar": 0.37917112313010914,
+  "vol30|beta": -0.16116757270314355,
+  "beta90|dollar": -1.131878942458539,
+  "beta90|beta": -2.0587736925202176,
+  "ivol90|dollar": -0.07558372124150263,
+  "ivol90|beta": -0.4807186424111518,
+  "max30|dollar": 0.18440721663987855,
+  "max30|beta": -0.2492225013402735,
+  "fund7|dollar": -3.128005889550695,
+  "fund7|beta": -2.891950959705718,
+  "age|dollar": -0.8144108126957272,
+  "age|beta": -0.941093766848828,
+  "size|dollar": -1.0265061831627786,
+  "size|beta": -1.3689466238663248,
+  "vshock|dollar": -0.3154380521056427,
+  "vshock|beta": -0.19169037973529227,
+  "high90|dollar": 1.7770723336721141,
+  "high90|beta": 2.0904357615667077,
+  "funding 1d, fifths, weekly": 2.934032508473964,
+  "funding 3d, fifths, weekly": 4.430944021004899,
+  "funding 7d, fifths, weekly": 2.5398980293361917,
+  "funding 14d, fifths, weekly": 2.8988577481154256,
+  "funding 28d, fifths, weekly": 2.6353203740423368,
+  "funding 7d, tenths, weekly": 2.807214892551394,
+  "funding 7d, thirds, weekly": 3.115110376811345,
+  "funding 7d, band 20/40, weekly": 2.5037597507492984,
+  "funding 28d, band 20/40, weekly": 1.549115744048658,
+  "funding 7d, fifths, every 2 weeks": 2.8610765367270923,
+  "funding 7d, fifths, every 4 weeks": 1.9802644585499747
+ },
+ "best_oos": "age|dollar",
+ "best_oos_sharpe": 1.235475549288193,
+ "deflated_sharpe": {
+  "age|dollar": {
+   "oos_sharpe": 1.235475549288193,
+   "dsr_strict": 0.04583689359686116,
+   "dsr_lenient": 0.6828885077884845
+  },
+  "funding 3d, fifths, weekly": {
+   "oos_sharpe": 0.5307580523413145,
+   "dsr_strict": 0.00046117223523362005,
+   "dsr_lenient": 0.1381053005062754
+  }
+ },
+ "n_rules": 45,
+ "chosen_funding_design": "funding 3d, fifths, weekly",
+ "turnover": {
+  "funding 1d, fifths, weekly": 2.444980720663805,
+  "funding 3d, fifths, weekly": 2.204967747771313,
+  "funding 7d, fifths, weekly": 2.0023832837983604,
+  "funding 14d, fifths, weekly": 1.4979904539049307,
+  "funding 28d, fifths, weekly": 1.170628307804175,
+  "funding 7d, tenths, weekly": 2.237533003899371,
+  "funding 7d, thirds, weekly": 1.6853153098843634,
+  "funding 7d, band 20/40, weekly": 1.3344579491222173,
+  "funding 28d, band 20/40, weekly": 0.7976634876773471,
+  "funding 7d, fifths, every 2 weeks": 1.1916200559295862,
+  "funding 7d, fifths, every 4 weeks": 0.7131488571692582
+ }
+}

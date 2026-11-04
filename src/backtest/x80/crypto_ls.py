@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from src.backtest.x80.common import cash_daily, load, stats
+from src.backtest.x80.common import cash_daily, funding_daily, load, stats
 from src.backtest.x80.crypto_xs import panel
 
 COST = 0.001
@@ -66,9 +66,7 @@ def main() -> None:
     close, qv = panel(f"{bdir}/spot.parquet")
     close = close[close.index >= "2019-06-01"]
     qv = qv.reindex(close.index)
-    f = pd.read_parquet(f"{bdir}/funding.parquet")
-    f["date"] = pd.to_datetime(f["time"]).dt.floor("D")
-    fund = f.groupby(["date", "symbol"])["rate"].sum().unstack().reindex(close.index)
+    fund = funding_daily(pd.read_parquet(f"{bdir}/funding.parquet")).reindex(close.index)
     r = close.pct_change(fill_method=None).where(close.shift(1).notna() & close.notna())
     age = close.notna().cumsum()
     first = close.apply(lambda s: s.first_valid_index())

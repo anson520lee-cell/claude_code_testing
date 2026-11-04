@@ -66,3 +66,29 @@ def required_sharpe(target: float, rf: float = 0.02, fraction: float = 1.0) -> f
     """Sharpe needed for growth ``target`` at a Kelly fraction (1 = full, 0.5 = half): g = rf + (f - f^2/2) S^2."""
     k = fraction - fraction ** 2 / 2
     return math.sqrt(max(math.log(1 + target) - rf, 0) / k)
+
+
+def deflated_sharpe(sr: float, sr_var: float | None, n_trials: int, n_obs: int, skew: float = 0.0, kurt: float = 3.0) -> float:
+    """Deflated Sharpe ratio (Bailey & Lopez de Prado 2014): the probability that the best of ``n_trials`` rules has a
+    true Sharpe above what the best of that many zero-skill rules would show by luck. ``sr`` and ``sr_var`` (the
+    variance of the Sharpe ratios across the trials) are per period, not annualised; ``kurt`` is raw (normal = 3).
+    ``sr_var=None`` uses the sampling variance of a zero Sharpe, 1 / (n_obs - 1): the lenient version, for when the
+    trials include real effects of both signs that would inflate the cross-trial variance."""
+    from statistics import NormalDist
+
+    nd = NormalDist()
+    g = 0.5772156649                                                       # Euler-Mascheroni
+    sr0 = 0.0
+    if sr_var is None:
+        sr_var = 1.0 / (n_obs - 1)
+    if n_trials > 1:
+        sr0 = math.sqrt(max(sr_var, 0.0)) * ((1 - g) * nd.inv_cdf(1 - 1 / n_trials) + g * nd.inv_cdf(1 - 1 / (n_trials * math.e)))
+    den = 1 - skew * sr + (kurt - 1) / 4 * sr * sr
+    return float(nd.cdf((sr - sr0) * math.sqrt(n_obs - 1) / math.sqrt(max(den, 1e-12))))
+
+
+def funding_daily(f: pd.DataFrame, symbol_col: str = "symbol") -> pd.DataFrame:
+    """Funding per UTC day d = the prints in (00:00 d, 00:00 d+1]: what a position held from one 00:00 close to the next
+    pays or receives. The print stamped 00:00 of day d is settled on the position held through day d-1."""
+    day = (pd.to_datetime(f["time"]) - pd.Timedelta(seconds=1)).dt.floor("D")
+    return f.assign(date=day).groupby(["date", symbol_col])["rate"].sum().unstack().sort_index()

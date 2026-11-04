@@ -16,7 +16,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from src.backtest.x80.common import cash_daily, load, stats
+from src.backtest.x80.common import cash_daily, funding_daily, load, stats
 
 LEG_COST = 0.0015
 PPY = 365
@@ -26,9 +26,7 @@ PERIODS = {"2020-21": ("2020-01-01", "2021-12-31"), "2022-23": ("2022-01-01", "2
 
 
 def daily_inputs(bdir: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    f = pd.read_parquet(f"{bdir}/funding.parquet")
-    f["date"] = pd.to_datetime(f["time"]).dt.floor("D")
-    fund = f.groupby(["date", "symbol"])["rate"].sum().unstack().sort_index()
+    fund = funding_daily(pd.read_parquet(f"{bdir}/funding.parquet"))
     p = pd.read_parquet(f"{bdir}/premium.parquet")
     prem = p.pivot_table(index="date", columns="symbol", values="close").sort_index()
     s = pd.read_parquet(f"{bdir}/spot.parquet", columns=["date", "symbol", "quote_volume"])
