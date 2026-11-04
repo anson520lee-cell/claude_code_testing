@@ -1,0 +1,13 @@
+{
+ "signs": {
+  "vix_rel": 1,
+  "spy_trend": -1,
+  "spy_dd": -1,
+  "rates": 1,
+  "b_hit13": -1,
+  "b_hit26": -1,
+  "b_hit52": -1,
+  "b_vr4": 1,
+  "s_breadth13": -1
+ }
+}
