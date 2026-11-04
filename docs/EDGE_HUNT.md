@@ -32,7 +32,10 @@ S&P 400/600 股票池重做），**沒有找到能讓策略穩定跑贏 SPY 的�
   （`config/finra_reference.txt`）最低三分一時 +3 分（= 150 分/R × 0.020R，四段時間中最小的那段）。
   `penalty_above` 預設 0；設成例如 30 = 過濾（不在最低三分一的長倉扣分）。
 * `src/positioning/positioning.py`：`FinraData.ratio5` / `short_volume_rank`，用終端本來就下載的 FINRA CNMS 每日檔。
-* 沒有改 setup 清單、止損止盈、做空設定。是否去掉突破、是否開過濾，由 Neo 決定。
+* Neo 2026-11-04 選擇「去掉突破並開過濾」：`scanner.enabled_setups: [crash_rebound, squeeze]`，
+  `penalty_above: 30`（不在最低三分一的長倉扣 30 分；沒有 FINRA 數據時不扣）。賬戶模擬（實盤類股票）：
+  S&P 500 年化 7.4%、最大回撤 −19%；S&P 400/600 12.3%、−27%（SPY 13.9%、−34%）。
+* 止損止盈、做空設定沒有改。
 
 ## 測了什麼
 

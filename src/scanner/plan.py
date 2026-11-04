@@ -134,8 +134,8 @@ EVIDENCE = {
                      "t below 2.5: positive in both halves but not proven at the project's 2.5 bar.",
     "squeeze": "Edge over random entries +0.14R out of sample but -0.02R in sample (t below 2.5): only the buy-stop "
                "entry has an edge. Not proven.",
-    "breakout": "Unproven: about +0.01 to +0.03R over random entries at every entry timing (score bonus 0). Kept "
-                "because you asked for it.",
+    "breakout": "Dropped from the live setups 2026-11-04: it lost to random entries on point-in-time S&P 500 "
+                "(t -1.7) and on S&P 400/600 stocks (t -3.5).",
 }
 
 

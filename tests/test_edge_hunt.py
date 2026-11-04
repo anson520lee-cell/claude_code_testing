@@ -111,7 +111,8 @@ def _candidate(st):
 def test_low_short_volume_bonus_and_optional_filter():
     st = copy.deepcopy(load_terminal_settings())
     cfg = st["scanner"]["finra_low_short_volume"]
-    assert cfg["bonus"] == 3 and cfg["max_pct"] == pytest.approx(0.333) and cfg["penalty_above"] == 0
+    assert cfg["bonus"] == 3 and cfg["max_pct"] == pytest.approx(0.333) and cfg["penalty_above"] == 30   # filter on
+    st["scanner"]["finra_low_short_volume"]["penalty_above"] = 0                          # bonus only
     low = {"positioning": {"short_volume_rank": {"available": True, "ratio5": 0.35, "pct": 0.2}}}
     high = {"positioning": {"short_volume_rank": {"available": True, "ratio5": 0.55, "pct": 0.8}}}
     c = _candidate(st)
@@ -126,7 +127,10 @@ def test_low_short_volume_bonus_and_optional_filter():
     c = _candidate(st)
     apply_enrichment(c, high, st)
     assert c["penalties"]["high_short_volume"] == 30 and c["score"] == pytest.approx(max(before - 30, 0))
+    c = _candidate(st)
+    apply_enrichment(c, {"positioning": {"short_volume_rank": {"available": False}}}, st)
+    assert "high_short_volume" not in c["penalties"]                                    # no FINRA data -> no penalty
     short = _candidate(st)
     short["direction"] = "short"
-    apply_enrichment(short, low, st)
-    assert not short.get("bonuses")                                                      # longs only
+    apply_enrichment(short, high, st)
+    assert not short.get("bonuses") and "high_short_volume" not in short["penalties"]    # longs only
