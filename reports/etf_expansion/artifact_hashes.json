@@ -1,0 +1,9 @@
+{
+  "source_directory": "C:\\Users\\jordan\\trading-research\\research_data\\frozen_20261104\\etf_expansion_v1",
+  "hashes": {
+    "checkpoint.sqlite3": "620343ffe79b6245ddc1d78bc3f2ffcaab612c18a643747bae790d8f0c1b4d09",
+    "frozen_winner_daily.parquet": "d1be8ea5fe3b5cbcb14abe9ba9fdbd68b7df0bbfaf93096c3fec9dce96f74979",
+    "collection.json": "321fa78dc43beccca3fce30b6bc6fd312c8197592a2f1f7d661f76d211fce450"
+  },
+  "note": "Full checkpoint/daily artifacts remain on the Windows research host; public summary and all metrics are in Git."
+}

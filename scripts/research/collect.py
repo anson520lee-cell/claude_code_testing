@@ -17,7 +17,7 @@ BASE = ["SPY", "QQQ", "^GSPC", "^NDX", "^IXIC", "^IRX", "^VIX", "^VIX3M", "TLT",
         "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "DOGE-USD", "LTC-USD", "ADA-USD"]
 EXTRA = ["SQQQ", "SPXU", "EFA", "EEM", "IWM", "DBC", "UUP", "VNQ", "HYG", "LQD", "SLV", "USO", "FXE", "FXY",
          "TIP", "EWJ", "DIA", "XLE", "XLK", "XLF"]
-CBOE = ["PUT", "BXM", "BXMD", "BFLY", "CNDR", "CLL", "PPUT", "WPUT"]
+CBOE = ["PUT", "BXM", "BXMD", "BFLY", "CNDR", "CLL", "PPUT", "WPUT", "PUTY", "BXMW"]
 
 
 def atomic_json(path, obj):

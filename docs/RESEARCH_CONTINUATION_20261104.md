@@ -50,3 +50,24 @@ state/code branch codex/research-resume-20261104 at dc1c9d356d50e2ae285d1de64838
   historical validation. Daily MTM, executable margins and liquidation checks are still required.
 - Mac execution environment disconnected during this work; do not depend on its temporary helpers.
   Windows is the verified active research execution host.
+
+## Completed independent ETF expansion
+- Preregistered at cf62d6a30df62c470a56fbe608747f0085acde90 before the real study.
+- All 1728 trials completed in independent etf_expansion_v1. A first 250-trial batch
+  stopped normally, and subsequent batches skipped those saved trials and completed the remainder.
+  The original 10026-configuration study was NOT run with substitute inputs.
+- Zero trials reached 80% CAGR in every one of 2008-12, 2013-17, 2018-21 and 2022-24.
+  Frozen trial 332: 2008-24 CAGR 18.78%, daily maximum drawdown -39.13%;
+  reused 2025-26 CAGR 34.22%, drawdown -27.98%. No qualification for stable 80-90%.
+  Cost stress at twice the one-way cost: 2008-24 CAGR 16.64%, drawdown -40.38%.
+- All metrics, protocol, frozen selection, cost stress and source hashes are in reports/etf_expansion/.
+  The full trial-return SQLite checkpoint and daily Parquet remain on the Windows research host.
+- Collection was supplemented with PUTY and BXMW: 50 Yahoo symbols + 10 Cboe histories +
+  2 combined panels, 62 successful manifest entries. The four public-only x80 module
+  intermediates (crypto_trend, equity_lev, vrp, misc) have been rebuilt in the new data root.
+- 68 targeted tests passed together on Windows (16.03s), including six new public-archive
+  collection checks and eight ETF execution/restart checks.
+- The Binance public S3 listing and an actual historical BTC archive were reachable.
+  A bounded spot-archive batch is active, using two download workers; successful sources
+  and symbol files are hashed and reused, and failed symbols require an explicit bounded retry.
+  Partial-month gaps and delistings are retained as gaps, never silently imputed to zero.
