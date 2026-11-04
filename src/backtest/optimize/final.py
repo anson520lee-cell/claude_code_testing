@@ -21,6 +21,7 @@ import pandas as pd
 from src.backtest.levscore.ladder import bootstrap
 from src.backtest.optimize import HOLDOUT
 from src.backtest.optimize.engine import Config, Pool, lever, run_book
+from src.backtest.optimize.checkpoint import require_complete
 from src.backtest.optimize.search import universes
 
 TVS = (0.3, 0.5, 0.8)
@@ -65,11 +66,12 @@ def perf(r: pd.Series, cash: pd.Series) -> dict:
     yrs = len(r) / 52
     return {"cagr": float(eq.iloc[-1] ** (1 / yrs) - 1) if eq.iloc[-1] > 0 else -1.0, "total": float(eq.iloc[-1] - 1),
             "sharpe": float(ex.mean() / ex.std() * np.sqrt(52)), "vol": float(r.std() * np.sqrt(52)),
-            "max_dd": float((eq / eq.cummax() - 1).min()), "worst_week": float(r.min()), "weeks": len(r)}
+            "max_dd": float((eq / np.maximum.accumulate(np.r_[1.0, eq.to_numpy()])[1:] - 1).min()), "worst_week": float(r.min()), "weeks": len(r)}
 
 
 def main() -> None:
     pool_dir, cash_path, sdir, odir, out = sys.argv[1:6]
+    require_complete(sdir)
     os.makedirs(out, exist_ok=True)
     w = pd.read_parquet(os.path.join(pool_dir, "pool_weekly.parquet"))
     d = pd.read_parquet(os.path.join(pool_dir, "pool_daily.parquet"))

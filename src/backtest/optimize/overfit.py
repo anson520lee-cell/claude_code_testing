@@ -29,6 +29,7 @@ import pandas as pd
 
 from src.backtest.levscore.study import hac_t
 from src.backtest.optimize.engine import BASELINE, Config
+from src.backtest.optimize.checkpoint import require_complete
 from src.backtest.optimize.search import OPTIONS
 from src.backtest.x80.common import deflated_sharpe
 
@@ -50,7 +51,7 @@ def perf(r: pd.Series, cash: pd.Series) -> dict:
     eq = (1 + r).cumprod()
     yrs = len(r) / 52
     return {"sharpe": float(ex.mean() / ex.std() * np.sqrt(52)), "cagr": float(eq.iloc[-1] ** (1 / yrs) - 1) if eq.iloc[-1] > 0 else -1.0,
-            "max_dd": float((eq / eq.cummax() - 1).min()), "weeks": len(r)}
+            "max_dd": float((eq / np.maximum.accumulate(np.r_[1.0, eq.to_numpy()])[1:] - 1).min()), "weeks": len(r)}
 
 
 def walk_forward(R: pd.DataFrame, cash: pd.Series, base_id: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -203,6 +204,7 @@ def dimensions(met: pd.DataFrame, n_struct: int) -> tuple[pd.DataFrame, Config]:
 
 def main() -> None:
     sdir, cash_path, out = sys.argv[1:4]
+    require_complete(sdir)
     os.makedirs(out, exist_ok=True)
     cash = pd.read_parquet(cash_path)["cash"]
     R = pd.read_parquet(os.path.join(sdir, "returns_tv80.parquet")).astype(np.float64)

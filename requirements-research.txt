@@ -1,0 +1,5 @@
+-r requirements.txt
+# Explicit dependencies of the existing strategy-optimization modules.
+scipy>=1.10,<2
+pyarrow>=14,<30
+statsmodels>=0.14,<1

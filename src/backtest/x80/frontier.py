@@ -24,8 +24,9 @@ from src.backtest.x80 import vrp
 from src.backtest.x80.common import cash_daily, load
 from src.backtest.x80.equity_lev import book, total_return
 from src.backtest.x80.misc import cboe
+from src.backtest.research_paths import research_path
 
-OUT = "/home/user/research_data/x80/out"
+OUT = research_path("x80", "out")
 
 
 def weekly_excess(r: pd.Series, cash: pd.Series) -> pd.Series:
@@ -69,7 +70,7 @@ def sleeves(px: dict) -> pd.DataFrame:
     s["multi-asset trend"] = weekly_excess(tsm, cash_daily(px, tsm.index))
     ls = pd.read_parquet(f"{OUT}/ls_neutral_series.parquet")["composite_all|beta"].dropna()
     s["S&P 500 long/short"] = weekly_excess(ls, cash_daily(px, ls.index))
-    put = cboe("/home/user/research_data/x80/raw/cboe/PUT.csv")
+    put = cboe(research_path("x80", "raw", "cboe", "PUT.csv"))
     s["PutWrite"] = weekly_excess(put, cash_daily(px, put.index))
     acct = pd.read_parquet(f"{OUT}/live_mtm.parquet")["seed0"].dropna()      # marked to market daily (live_mtm.py)
     ar = acct.pct_change().dropna()

@@ -32,6 +32,7 @@ from src.backtest.levscore import features as ft
 from src.backtest.levscore import rules as rl
 from src.backtest.x80 import meta
 from src.backtest.x80.common import load
+from src.backtest.research_paths import research_path
 
 IS = ("2010-01-01", "2017-12-31")
 PERIODS = {"2010-17": IS, "2018-26": ("2018-01-01", "2030-01-01"), "2022-26": ("2022-01-01", "2030-01-01")}
@@ -214,7 +215,7 @@ def main() -> None:
     base, fin, W = bk.base_book(w_ex, cash_w)
     trough = bk.intraweek_trough(daily, W, w_ex)
     px = load()
-    ex = pd.read_parquet("/home/user/research_data/x80/raw/prices_extra.parquet")
+    ex = pd.read_parquet(research_path("x80", "raw", "prices_extra.parquet"))
     ex["date"] = pd.to_datetime(ex["date"])
     for s, g in ex.groupby("symbol"):
         px[s] = g.set_index("date").sort_index()[["open", "high", "low", "close", "adj_close", "volume"]]

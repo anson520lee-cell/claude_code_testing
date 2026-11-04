@@ -1,0 +1,17 @@
+{
+  "joint_cap_counterexample": {
+    "asset_cap_requested": 0.25,
+    "crypto_variance_share_requested": 0.35,
+    "output_weights": [
+      0.18655368158911928,
+      0.18655368158911928,
+      0.18655368158911928,
+      0.4403389552326422
+    ],
+    "actual_max_weight": 0.4403389552326422,
+    "actual_crypto_variance_share": 0.3499999999993466,
+    "asset_cap_violated": true,
+    "status": "OPEN: original sequential projections do not jointly enforce both constraints"
+  },
+  "qualification": "No new strategy performance or 80% annual-return claim has been established"
+}

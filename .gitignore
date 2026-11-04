@@ -29,3 +29,7 @@ reports/backtest/
 
 # Generated monthly by the universe builder (the shipped copy is config/universe_auto.default.yaml)
 config/universe_auto.yaml
+
+research_data/
+
+.venv-research/

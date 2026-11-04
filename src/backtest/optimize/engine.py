@@ -305,13 +305,16 @@ def run_book(pool: Pool, cfg: Config, start: int = 26, keep_weights: bool = Fals
                     crypto_share[i] = float((w[pool.is_c[sel]] * (S @ w)[pool.is_c[sel]]).sum() / v) if v > 0 else 0.0
         row = X[i]
         live = np.isfinite(row)
-        tw = np.where(live, target, 0.0)
+        if np.any((target > 0) & ~live):
+            missing = [pool.cols[j] for j in np.flatnonzero((target > 0) & ~live)]
+            raise ValueError(f"Missing return for allocated sleeves at {pool.idx[i]}: {missing}; supply explicit delisting/closure returns")
+        tw = target.copy()
         if tw.sum() <= 0:
             base[i] = 0.0
             turn[i] = np.abs(drifted).sum()
             drifted[:] = 0.0
             continue
-        tw = tw / tw.sum()                                              # a sleeve that stopped reporting hands its weight on
+        tw = tw / tw.sum()                                              # allocations are decided using past data only
         invested[i] = True
         if cfg.rebal == "band" and drifted.sum() > 0:
             dw = np.where(live, drifted, 0.0)
@@ -393,4 +396,4 @@ def stats(r: np.ndarray, cash: np.ndarray, idx: pd.DatetimeIndex, a: str, z: str
     sd = ex.std(ddof=1)
     return {"sharpe": float(ex.mean() / sd * np.sqrt(52)) if sd > 0 else np.nan,
             "cagr": float(eq[-1] ** (1 / yrs) - 1) if eq[-1] > 0 else -1.0,
-            "max_dd": float((eq / np.maximum.accumulate(eq) - 1).min()), "vol": float(x.std(ddof=1) * np.sqrt(52))}
+            "max_dd": float((eq / np.maximum.accumulate(np.r_[1.0, eq])[1:] - 1).min()), "vol": float(x.std(ddof=1) * np.sqrt(52))}

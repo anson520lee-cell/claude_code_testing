@@ -5,8 +5,9 @@ import math
 
 import numpy as np
 import pandas as pd
+from src.backtest.research_paths import research_path
 
-RAW = "/home/user/research_data/x80/raw/prices.parquet"
+RAW = research_path("x80", "raw", "prices.parquet")
 
 
 def load(path: str = RAW) -> dict[str, pd.DataFrame]:

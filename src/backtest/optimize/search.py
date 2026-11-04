@@ -12,6 +12,8 @@ target vol with all costs), books.parquet (unlevered book, crypto risk share) an
 """
 from __future__ import annotations
 
+import argparse
+import json
 import multiprocessing as mp
 import os
 import sys
@@ -22,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from src.backtest.optimize import HOLDOUT
+from src.backtest.optimize.checkpoint import Checkpoint, fingerprint
 from src.backtest.optimize.engine import BASELINE, Config, Pool, lever, run_book, stats
 from src.backtest.optimize.pool import CORE, NEW
 
@@ -101,30 +104,61 @@ def _one(cfg: Config) -> tuple[Config, dict, dict]:
 
 
 def main() -> None:
-    pool_dir, cash_path, out = sys.argv[1:4]
-    n_random = int(sys.argv[4]) if len(sys.argv) > 4 else 4000
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("pool_dir")
+    parser.add_argument("cash_path")
+    parser.add_argument("out")
+    parser.add_argument("n_random", type=int, nargs="?", default=4000)
+    parser.add_argument("--workers", type=int, default=min(4, os.cpu_count() or 1))
+    parser.add_argument("--max-new", type=int, help="Checkpoint at most this many new trials per invocation")
+    args = parser.parse_args()
+    if args.n_random < 0 or args.workers < 1 or (args.max_new is not None and args.max_new < 1):
+        parser.error("n_random must be nonnegative; workers and max-new must be positive")
+    pool_dir, cash_path, out = args.pool_dir, args.cash_path, args.out
     os.makedirs(out, exist_ok=True)
     _init(pool_dir, cash_path)
     idx = _POOL.idx
-    cfgs = configs(n_random, list(_POOL.universes))
-    print(f"{len(cfgs)} configurations; data {idx.min().date()}..{idx.max().date()} (holdout {HOLDOUT} not loaded)", flush=True)
+    cfgs = configs(args.n_random, list(_POOL.universes))
+    sig = fingerprint(_POOL, cfgs)
+    cp = Checkpoint(os.path.join(out, "checkpoint.sqlite3"), sig)
+    ids = {c: f"c{k:05d}" for k, c in enumerate(cfgs)}
+    done = cp.completed()
+    pending = [c for c in cfgs if ids[c] not in done]
+    if args.max_new is not None:
+        pending = pending[:args.max_new]
+    total = len(cfgs)
     t0 = time.time()
-    rows, r80, r30, base = [], {}, {}, {}
-    with mp.Pool(os.cpu_count(), initializer=_init, initargs=(pool_dir, cash_path)) as p:
-        for k, (cfg, row, rets) in enumerate(p.imap(_one, cfgs, chunksize=8)):
-            key = f"c{k:05d}"
-            rows.append({"id": key, **asdict(cfg), **row})
-            r80[key], r30[key], base[key] = rets[0.8], rets[0.3], rets["base"]
-            if (k + 1) % 250 == 0:
-                print(f"{k + 1}/{len(cfgs)}  {time.time() - t0:.0f}s", flush=True)
-    met = pd.DataFrame(rows).set_index("id")
-    met.to_csv(os.path.join(out, "metrics.csv"))
-    met[[f.name for f in fields(Config)]].to_csv(os.path.join(out, "configs.csv"))
-    pd.DataFrame(r80, index=idx).to_parquet(os.path.join(out, "returns_tv80.parquet"))
-    pd.DataFrame(r30, index=idx).to_parquet(os.path.join(out, "returns_tv30.parquet"))
-    pd.DataFrame(base, index=idx).to_parquet(os.path.join(out, "books.parquet"))
-    pd.Series({k: v for k, v in _POOL.universes.items()}).map(lambda a: "; ".join(_POOL.cols[i] for i in a)).to_csv(
-        os.path.join(out, "universes.csv"))
+
+    def progress(published=False):
+        completed = cp.count()
+        state = {"complete": published and completed == total, "completed": completed, "total": total,
+                 "fingerprint": sig, "data_end": str(idx.max()), "holdout_cutoff": HOLDOUT,
+                 "validation_status": "2025-26 was seen in earlier research; not an untouched holdout"}
+        temp = os.path.join(out, "progress.json.tmp")
+        with open(temp, "w", encoding="utf-8") as fh:
+            json.dump(state, fh, indent=2)
+        os.replace(temp, os.path.join(out, "progress.json"))
+        return completed
+
+    print(f"{total} configurations; {cp.count()} already checkpointed; data ends {idx.max().date()}", flush=True)
+    progress()
+    try:
+        if pending:
+            with mp.Pool(args.workers, initializer=_init, initargs=(pool_dir, cash_path)) as workers:
+                for cfg, row, rets in workers.imap_unordered(_one, pending, chunksize=1):
+                    cp.put(ids[cfg], cfg, row, rets)
+                    k = progress()
+                    if k % 25 == 0 or k == total:
+                        print(f"{k}/{total} saved; {time.time() - t0:.0f}s this invocation", flush=True)
+        if cp.count() < total:
+            print(f"Paused with {cp.count()}/{total} saved. Repeat the same command to resume.", flush=True)
+            return
+        met = cp.export(out, idx)
+        pd.Series({k: v for k, v in _POOL.universes.items()}).map(lambda a: "; ".join(_POOL.cols[i] for i in a)).to_csv(
+            os.path.join(out, "universes.csv"))
+        progress(published=True)
+    finally:
+        cp.close()
     best = met.sort_values("sharpe_2010-24_tv80", ascending=False)
     show = ["universe", "select", "method", "cov", "look", "cap", "crypto_cap", "rebal", "lev_band",
             "sharpe_2010-24_tv80", "sharpe_2010-17_tv80", "sharpe_2018-24_tv80", "cagr_2018-24_tv80", "max_dd_2018-24_tv80"]
