@@ -9,6 +9,6 @@
 | T-004 | blocked | same research task | Finish original 10026 trials without recomputing committed trials; original selection checks | T-002, T-003; <=2 workers, <=250 new trials per batch |
 | T-005 | todo | same research task | Daily MTM/margin/liquidation/after-cost qualification, then freeze and forward record | Genuine candidates and appropriate daily execution data |
 | T-006 | done | same research task | Independent 1728-trial ETF study; 0 meet 80% in all four pre-2025 periods; frozen results and cost stress saved | cf62d6a prereg; ff9aca7 reports/etf_expansion/ |
-| T-007 | active | same research task | Bounded crypto archive collector; two workers, per-source/per-symbol hashes and restart; initial spot batch launched | ff9aca7 scripts/research/binance_collect.py; inspect real coverage |
+| T-007 | active | same research task | Old driver stopped for transport migration; binance_v2 metadata preserves 1793 source caches, 26 spot + 4 funding. Audit successor source/process/coverage before continuing | Windows file reads work; command probe timed out; modified collector not verified in Git |
 
 Owner is advisory, not a process lock. No 80–90% return claim has been established.
