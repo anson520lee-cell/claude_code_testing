@@ -69,6 +69,8 @@ document.addEventListener("click", (e) => {
     route();
     return;
   }
+  const sector = e.target.closest("tr[data-sector]");
+  if (sector && !e.target.closest("a")) { location.hash = `#/sector/${encodeURIComponent(sector.dataset.sector)}`; return; }
   const tr = e.target.closest("tr[data-sym]");
   if (tr && !e.target.closest("a")) location.hash = `#/ticker/${tr.dataset.sym}`;
 });
@@ -149,11 +151,12 @@ async function watchRun(quiet) {
 window.addEventListener("hashchange", route);
 function route() {
   if (!state.snap) return;
+  state.viewRevision = (state.viewRevision || 0) + 1;
   closeFocus(true);
   disposeCharts(state.charts);
   const [, view = "overview", arg] = (location.hash || "#/overview").split("/");
-  document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
-  const views = { overview, scanner, universe, catalysts, news, portfolio, research, quality, ticker };
+  document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === (view === "sector" ? "overview" : view)));
+  const views = { overview, scanner, universe, catalysts, news, portfolio, research, quality, ticker, sector: sectorStocks };
   (views[view] || overview)(arg);
   window.scrollTo(0, 0);
 }
@@ -318,15 +321,15 @@ function overview() {
   </div>
   <div class="grid g2" style="margin-top:12px">
     <div class="card"><h2>Sector rotation <small>RS vs SPY: trend (x) vs momentum (y), 10-session tails</small></h2><svg id="rrg" class="rrg"></svg></div>
-    <div class="card"><h2>Sector & industry ETFs</h2>${table("sec", [
+    <div class="card"><h2>Sector & industry ETFs <small>Click a sector to explore its most active stocks →</small></h2>${table("sec", [
       { key: "rank_20d", label: "#", n: 1 },
-      { key: "symbol", label: "ETF", render: (x) => `<b>${x.symbol}</b> <span class="muted">${esc(tr(x.name))}</span>` },
+      { key: "symbol", label: "ETF", render: (x) => `<a href="#/sector/${encodeURIComponent(x.symbol)}"><b>${esc(x.symbol)}</b> <span class="muted">${esc(tr(x.name))}</span> <span aria-hidden="true">↗</span></a>` },
       { key: "ret_5d", label: "5D", n: 1, render: (x) => `<span class="${cls(x.ret_5d)}">${pct(x.ret_5d)}</span>` },
       { key: "ret_20d", label: "20D", n: 1, render: (x) => `<span class="${cls(x.ret_20d)}">${pct(x.ret_20d)}</span>` },
       { key: "rel_20d", label: "Rel 20D", n: 1, render: (x) => `<span class="${cls(x.rel_20d)}">${pct(x.rel_20d)}</span>` },
       { key: "rel_60d", label: "Rel 60D", n: 1, render: (x) => `<span class="${cls(x.rel_60d)}">${pct(x.rel_60d)}</span>` },
       { key: "quadrant", label: "Quadrant", render: (x) => `<span class="${{ Leading: "up", Lagging: "down", Improving: "", Weakening: "warn" }[x.quadrant] || "muted"}">${x.quadrant}</span>` },
-    ], s.sectors, { sortKey: "rank_20d", sortDir: "asc" })}</div>
+    ], s.sectors, { sortKey: "rank_20d", sortDir: "asc", onClick: true, rowAttr: (x) => `data-sector="${esc(x.symbol)}"` })}</div>
   </div>
   ${marketExtras(s)}`;
   const el = $("#regime-chart");
@@ -1078,6 +1081,86 @@ function catalystsPanel(cat) {
     ${table("cev", [{ key: "event_date", label: "Date" }, { key: "event_type", label: "Event", wrap: 1, render: (e) => e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.description || e.event_type)}</a>` : esc(e.description || e.event_type) },
       { key: "sentiment", label: "Typical implication", render: (e) => `<span class="${e.sentiment === "Positive" ? "up" : e.sentiment === "Negative" ? "down" : "muted"}">${e.sentiment}</span>` }, { key: "status", label: "Status" }, { key: "source", label: "Source" }], cat.events || [], { sortKey: "event_date" })}
     <p class="note">${(cat.limitations || []).map(esc).join(" ")}</p></div>`;
+}
+
+// ------------------------------------------------------------------ views: sector / industry stocks
+const sectorStockCache = new Map(), sectorStockRequests = new Map();
+async function sectorStocks(rawSymbol) {
+  const symbol = String(rawSymbol || "").toUpperCase();
+  const sector = (state.snap.sectors || []).find((s) => s.symbol === symbol);
+  const revision = state.viewRevision;
+  if (!sector) {
+    app.innerHTML = '<div class="card empty">Unknown sector. <a href="#/overview">Back to Market</a></div>';
+    return;
+  }
+  const heading = `<div class="wall-head"><div><a href="#/overview">← Back to sectors</a>
+    <div class="eyebrow" style="margin-top:18px">Most active · US-listed stocks</div>
+    <h1 class="display">${esc(symbol)} <em>${esc(tr(sector.name))}</em></h1></div></div>`;
+  app.innerHTML = heading + '<div class="card loading" role="status">Loading sector stocks…</div>';
+  try {
+    let data = sectorStockCache.get(symbol);
+    if (!data || Date.now() - data.loadedAt >= 300000) {
+      if (!sectorStockRequests.has(symbol)) {
+        const request = api(`/api/sector-stocks/${encodeURIComponent(symbol)}`)
+          .then((answer) => {
+            const result = { ...answer, loadedAt: Date.now() };
+            sectorStockCache.set(symbol, result);
+            return result;
+          }).finally(() => sectorStockRequests.delete(symbol));
+        sectorStockRequests.set(symbol, request);
+      }
+      data = await sectorStockRequests.get(symbol);
+    }
+    if (revision !== state.viewRevision) return; // a late response must not replace another view
+    const query = state.sectorQueries?.[symbol] || "";
+    const q = query.trim().toUpperCase();
+    const rows = data.stocks.filter((r) => !q || `${r.symbol} ${r.name}`.toUpperCase().includes(q));
+    const timestamp = (value) => {
+      const date = new Date(value);
+      return value && Number.isFinite(date.getTime())
+        ? date.toLocaleString(undefined, { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }) : "n/a";
+    };
+    const link = (r) => r.chart_available
+      ? `<a href="#/ticker/${encodeURIComponent(r.symbol)}"><b>${esc(r.symbol)}</b></a>`
+      : `<a href="https://finance.yahoo.com/quote/${encodeURIComponent(r.symbol)}/" target="_blank" rel="noopener noreferrer" title="Open stock quote"><b>${esc(r.symbol)}</b> ↗</a>`;
+    app.innerHTML = heading + `<div class="card">
+      <div class="filters"><label>Search stocks <input id="sector-search" type="search" value="${esc(query)}" placeholder="NVDA, AMD…" style="width:180px"></label>
+        <span class="note" role="status">${rows.length} / ${data.stocks.length} stocks · ranked by estimated turnover ↓</span>
+        <button id="sector-refresh" type="button">Refresh quotes</button></div>
+      <p class="note">Latest available market quotes · refreshed ${esc(timestamp(data.fetched_at))}. Independent of the report date selected above.</p>
+      ${data.stale ? '<p class="warn" role="status">Quote refresh failed; showing the last available quotes and their original times.</p>' : ""}
+      ${data.truncated ? '<p class="warn">The source returned a partial stock list; ranking covers the displayed stocks.</p>' : ""}
+      ${table(`sector-${symbol}`, [
+        { key: "rank", label: "#", n: 1 },
+        { key: "symbol", label: "Stock", render: link },
+        { key: "name", label: "Company", wrap: 1 },
+        { key: "price", label: "Price (USD)", n: 1, render: (r) => num(r.price) },
+        { key: "change_pct", label: "1D", n: 1, render: (r) => `<span class="${cls(r.change_pct)}">${pct(r.change_pct)}</span>` },
+        { key: "turnover", label: "Est. turnover (USD)", n: 1, render: (r) => `<b>${money(r.turnover)}</b>` },
+        { key: "volume", label: "Shares traded", n: 1, render: (r) => num(r.volume, 0) },
+        { key: "quoted_at", label: "Quote time", render: (r) => esc(timestamp(r.quoted_at)) },
+      ], rows, { sortKey: "turnover", sortDir: "desc", onClick: true,
+        rowAttr: (r) => r.chart_available ? `data-sym="${esc(r.symbol)}"` : "" })}
+      ${!data.stocks.length ? '<p class="note">No stocks were returned for this sector. Try refreshing the quotes.</p>' : ""}
+      <p class="note">Turnover ≈ latest regular-session price × shares traded (USD), not a volume-only ranking. Yahoo Finance quotes may be delayed. Industry peers, not ETF holdings. Stocks marked ↗ open their quote in a new tab.</p>
+    </div>`;
+    $("#sector-search").oninput = (e) => {
+      state.sectorQueries ||= {};
+      state.sectorQueries[symbol] = e.target.value;
+      const input = e.target, start = input.selectionStart;
+      sectorStocks(symbol).then(() => {
+        if (revision !== state.viewRevision) return;
+        const next = $("#sector-search");
+        if (next) { next.focus(); if (start !== null) next.setSelectionRange(start, start); }
+      });
+    };
+    $("#sector-refresh").onclick = () => { sectorStockCache.delete(symbol); sectorStocks(symbol); };
+  } catch (err) {
+    if (revision !== state.viewRevision) return;
+    app.innerHTML = heading + `<div class="card empty"><p role="alert">Could not load sector stocks: ${esc(err.message)}</p>
+      <button id="sector-retry" type="button">Try again</button> <a href="#/overview">Back to Market</a></div>`;
+    $("#sector-retry").onclick = () => sectorStocks(symbol);
+  }
 }
 
 // ------------------------------------------------------------------ views: universe

@@ -87,6 +87,8 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
     app = FastAPI(title="Swing Research Terminal", version="1.0",
                   description="Quantitative swing-trading RESEARCH terminal. No order execution.")
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    from src.web.sector_stocks import SectorStocks
+    sector_stocks = SectorStocks()
     # optional password login (python serve.py --set-password); a no-op until data/auth.json exists
     from src.web import auth
     auth.install(app, auth_file_for(settings))
@@ -230,6 +232,29 @@ def create_app(settings: dict[str, Any] | None = None, live_reload: bool | None 
         """Latest intraday quotes (every 30 minutes in market hours; display only, no scoring)."""
         from src.daily import intraday
         return intraday.load_latest(cfg()) or {"session": None, "quotes": {}}
+
+    @app.get("/api/sector-stocks/{symbol}")
+    def api_sector_stocks(symbol: str) -> dict[str, Any]:
+        """Latest market-wide equity peers, independent of the high-beta screening filter."""
+        from src.web.sector_stocks import GROUPS
+        symbol = symbol.upper()
+        if symbol not in GROUPS:
+            raise HTTPException(404, "Unknown sector or industry ETF")
+        try:
+            result = sector_stocks.get(symbol)
+        except Exception as exc:
+            logger.warning("Sector stocks unavailable for %s: %s", symbol, exc)
+            raise HTTPException(503, "Sector quotes are temporarily unavailable. Please try again.") from exc
+        available = set()
+        if db_path.exists():
+            conn = connect()
+            try:
+                available = {r[0] for r in conn.execute(
+                    "SELECT ticker FROM price_data GROUP BY ticker HAVING COUNT(*) >= 60")}
+            finally:
+                conn.close()
+        return {**result, "stocks": [{**r, "chart_available": r["symbol"] in available}
+                                      for r in result["stocks"]]}
 
     @app.get("/api/minicharts")
     def api_minicharts(symbols: str, days: int = Query(70, ge=20, le=250), session: str | None = None) -> dict[str, Any]:
