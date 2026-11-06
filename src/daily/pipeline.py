@@ -67,22 +67,15 @@ class RunInProgressError(DailyRunError):
 @contextmanager
 def run_lock(lock_dir: Path):
     """Exclusive, non-blocking file lock so two runs never write the database at the same time.
-    The OS releases it automatically if the process dies. (No-op where fcntl is unavailable.)"""
+    The OS releases it automatically if the process dies (macOS, Linux and Windows)."""
+    from src.daily import locks
+    handle = locks.acquire(lock_dir / ".daily_run.lock")
+    if handle is None:
+        raise RunInProgressError("Another daily run is already in progress.")
     try:
-        import fcntl
-    except ImportError:  # Windows
         yield
-        return
-    lock_dir.mkdir(parents=True, exist_ok=True)
-    with open(lock_dir / ".daily_run.lock", "w") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
-            raise RunInProgressError("Another daily run is already in progress.") from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+    finally:
+        locks.release(handle)
 
 
 LAB_DEFAULT = Path(__file__).resolve().parents[2] / "config" / "strategy_lab.default.json"

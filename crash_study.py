@@ -60,4 +60,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    from src.platform_compat import ensure_utf8
+    ensure_utf8()
     sys.exit(main(sys.argv[1:]))

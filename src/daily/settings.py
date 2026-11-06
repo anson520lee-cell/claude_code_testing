@@ -12,6 +12,7 @@ import yaml
 
 from src.config import ConfigError, resolve_path
 from src.market import calendar
+from src.platform_compat import load_dotenv
 
 DEFAULT_PATH = Path(__file__).resolve().parents[2] / "config" / "terminal.yaml"
 
@@ -24,6 +25,7 @@ def load_terminal_settings(path: str | Path | None = None) -> dict[str, Any]:
         settings = yaml.safe_load(handle) or {}
     settings = copy.deepcopy(settings)
     validate(settings)
+    load_dotenv()
     agent = os.environ.get("SEC_USER_AGENT")
     if agent:
         settings["data"]["sec_user_agent"] = agent

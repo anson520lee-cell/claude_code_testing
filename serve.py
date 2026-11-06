@@ -14,6 +14,7 @@ import ipaddress
 import sys
 
 from src.daily.settings import load_terminal_settings
+from src.platform_compat import ensure_utf8, redirect_output
 from src.web import auth
 from src.web.app import auth_file_for, create_app
 
@@ -32,6 +33,7 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--config", help="terminal settings file (default config/terminal.yaml)")
+    parser.add_argument("--log", metavar="FILE", help="append all output to FILE (used by the Windows launcher)")
     parser.add_argument("--set-password", action="store_true", help="set the login password and exit")
     parser.add_argument("--clear-password", action="store_true", help="remove the login password and exit")
     parser.add_argument("--password-status", action="store_true", help="print whether a password is set and exit")
@@ -50,6 +52,7 @@ def main() -> None:
     if not is_loopback(args.host) and auth.load(auth_file) is None:
         sys.exit(f"Refusing to listen on {args.host} without a password: anyone who can reach this address could "
                  "edit the trade journal and alerts. Run  python serve.py --set-password  first.")
+    redirect_output(args.log)
     import uvicorn
     # live_reload: pick up config/universe changes (monthly rebuild) without a restart
     app = create_app(settings, live_reload=True, config_path=args.config)
@@ -72,4 +75,5 @@ def set_password_interactive(auth_file) -> int:  # noqa: ANN001
 
 
 if __name__ == "__main__":
+    ensure_utf8()
     main()

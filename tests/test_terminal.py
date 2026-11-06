@@ -1584,6 +1584,57 @@ def test_chart_library_is_served_locally(tsettings):
     assert lib.status_code == 200 and "LightweightCharts" in lib.text[:200000]
 
 
+def test_cross_platform_lock_and_dotenv(tmp_path, monkeypatch):
+    import os
+    import sys
+
+    from src import platform_compat as pc
+    from src.daily import locks
+    first = locks.acquire(tmp_path / ".x.lock")
+    assert first is not None
+    import subprocess
+    code = ("import sys; sys.path.insert(0, %r); from src.daily import locks; from pathlib import Path; "
+            "sys.exit(0 if locks.acquire(Path(%r)) is None else 1)") % (str(Path(__file__).resolve().parents[1]),
+                                                                         str(tmp_path / ".x.lock"))
+    assert subprocess.call([sys.executable, "-c", code]) == 0        # held by this process
+    locks.release(first)
+    assert subprocess.call([sys.executable, "-c", code]) == 1        # free again
+    env = tmp_path / ".env"
+    env.write_bytes('﻿SEC_USER_AGENT="Jane Doe jane@example.com"\r\n# comment\r\nexport OTHER_X=\'1\'\r\n'.encode("utf-8"))
+    monkeypatch.delenv("SEC_USER_AGENT", raising=False)
+    monkeypatch.delenv("OTHER_X", raising=False)
+    pc.load_dotenv(env)
+    assert os.environ["SEC_USER_AGENT"] == "Jane Doe jane@example.com" and os.environ["OTHER_X"] == "1"
+    monkeypatch.setenv("SEC_USER_AGENT", "already set")
+    pc.load_dotenv(env)
+    assert os.environ["SEC_USER_AGENT"] == "already set"           # never overrides the environment
+
+
+def test_log_redirect_for_windows_background_task(tmp_path):
+    import subprocess
+    import sys
+    log = tmp_path / "run.log"
+    root = str(Path(__file__).resolve().parents[1])
+    code = (f"import sys; sys.path.insert(0, {root!r}); from src.platform_compat import redirect_output; "
+            f"redirect_output({str(log)!r}); print('héllo'); print('err', file=sys.stderr)")
+    subprocess.check_call([sys.executable, "-c", code])
+    assert log.read_text(encoding="utf-8").splitlines() == ["héllo", "err"]
+
+
+def test_replace_retries_while_file_is_busy(tmp_path, monkeypatch):
+    import os
+
+    from src.daily import store as st
+    real, calls = os.replace, []
+
+    def flaky(a, b):
+        calls.append(1)
+        if len(calls) < 3:
+            raise PermissionError("in use")                       # what Windows does while the file is open
+        real(a, b)
+    monkeypatch.setattr(os, "replace", flaky)
+    st.write_atomic(tmp_path / "data.json", "{}")
+    assert (tmp_path / "data.json").read_text() == "{}" and len(calls) == 3
 def test_exit_rule_replaces_plan_levels(tsettings):
     from src.scanner.plan import plan_row
     f = build_features(bars(400, SESSION, seed=2, breakout_last=True, volume=5e6), bars(400, SESSION, seed=10)["adj_close"], None)

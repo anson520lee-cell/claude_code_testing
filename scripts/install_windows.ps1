@@ -1,0 +1,173 @@
+# One-time setup on Windows 10 / 11. Run it from the project folder in PowerShell:
+#     powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
+# It sets up:
+#   - Python virtual environment + dependencies (.venv)
+#   - optional SEC contact (stored in .env, never committed)
+#   - "Swing Terminal" shortcuts on the Desktop and in the Start menu (one click: start the dashboard,
+#     update data, open the browser) - pin it to the taskbar from the Start menu if you like
+#   - optional: hourly background task that runs the daily analysis once per new US session
+#   - optional: intraday price refresh every 30 minutes in US market hours (display only, no re-scoring)
+#   - optional: first data download now
+# Research only - nothing here places orders. Re-run it after every update (git pull).
+$ErrorActionPreference = "Continue"
+$Repo = Split-Path -Parent $PSScriptRoot
+Set-Location $Repo
+$TaskName = "Swing Terminal hourly update"
+$IntradayTask = "Swing Terminal intraday prices"
+
+function Ask([string]$Question, [string]$Default) {
+    $hint = if ($Default -eq "y") { "Y/n" } else { "y/N" }
+    $answer = Read-Host "$Question [$hint]"
+    if (-not $answer) { $answer = $Default }
+    return ($answer -match "^[Yy]")
+}
+function Fail([string]$Message) {
+    Write-Host ""
+    Write-Host $Message -ForegroundColor Red
+    Read-Host "Press Enter to close"
+    exit 1
+}
+
+function Test-HostTask([string]$Name) {
+    # set up by setup_windows_host.ps1 to run while nobody is signed in: keep it (re-registering would undo that)
+    $t = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
+    return ($t -and "$($t.Principal.LogonType)" -eq "S4U")
+}
+
+Write-Host "== Swing Research Terminal - Windows setup =="
+Write-Host "Folder: $Repo"
+# stop a dashboard left running by an older version so the next click starts the new code
+& "$Repo\scripts\stop_terminal.ps1" | Out-Null
+
+# 1. Python >= 3.10 (the "py" launcher comes with the python.org installer)
+function Find-Python {
+    foreach ($version in @("3.12", "3.13", "3.11", "3.10")) {
+        $exe = & py "-$version" -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $exe) { return "$exe".Trim() }
+    }
+    $exe = & python -c "import sys; print(sys.executable if sys.version_info >= (3, 10) else '')" 2>$null
+    if ($LASTEXITCODE -eq 0 -and "$exe".Trim()) { return "$exe".Trim() }
+    return $null
+}
+$Python = Find-Python
+if (-not $Python) {
+    Fail ("Python 3.10 or newer is required. Install Python 3.12 from https://www.python.org/downloads/windows/ " +
+          "(tick 'Add python.exe to PATH'), or run:  winget install Python.Python.3.12  - then run this script again.")
+}
+Write-Host "Using $Python"
+
+# 2. virtual environment + dependencies
+$VenvPy = "$Repo\.venv\Scripts\python.exe"
+$VenvPyw = "$Repo\.venv\Scripts\pythonw.exe"
+if (-not (Test-Path $VenvPy)) {
+    & $Python -m venv .venv
+    if ($LASTEXITCODE -ne 0) { Fail "Could not create the virtual environment (.venv)." }
+}
+Write-Host ""
+Write-Host "Installing dependencies (pandas, numpy, yfinance, FastAPI ... about 150 MB on the first run)."
+Write-Host "On a slow connection this can take 10 minutes."
+& $VenvPy -m pip install --upgrade pip
+# --upgrade: every update also brings yfinance to its latest release (Yahoo changes break old versions)
+& $VenvPy -m pip install --upgrade -r requirements.txt
+& $VenvPy -c "import pandas, numpy, yfinance, fastapi, uvicorn, matplotlib, yaml, tzdata"
+if ($LASTEXITCODE -ne 0) { Fail "Dependency installation failed - scroll up for the ERROR lines and run this script again." }
+Write-Host "Dependencies installed."
+
+# 3. SEC contact (SEC EDGAR refuses requests without a name + email in the User-Agent)
+$EnvFile = "$Repo\.env"
+if (-not ((Test-Path $EnvFile) -and (Select-String -Path $EnvFile -Pattern "SEC_USER_AGENT" -Quiet))) {
+    Write-Host ""
+    Write-Host "SEC EDGAR asks every client to identify itself (name + email). It is only sent to sec.gov."
+    $ua = Read-Host "Your name and email, e.g. 'Jane Doe jane@example.com' (Enter to skip)"
+    if ($ua) {
+        $ua = $ua.Replace('"', '')
+        [System.IO.File]::AppendAllText($EnvFile, "SEC_USER_AGENT=`"$ua`"`r`n", (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "Saved to .env (not committed to git)."
+    } else {
+        Write-Host "Skipped - fundamentals will fall back to Yahoo; add SEC_USER_AGENT to .env later."
+    }
+}
+
+# 4. shortcuts (Desktop + Start menu)
+$PowerShellExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+$Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Repo\scripts\start_terminal.ps1`""
+$Shell = New-Object -ComObject WScript.Shell
+$StartMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
+foreach ($folder in @([Environment]::GetFolderPath("Desktop"), $StartMenu)) {
+    $link = $Shell.CreateShortcut((Join-Path $folder "Swing Terminal.lnk"))
+    $link.TargetPath = $PowerShellExe
+    $link.Arguments = $Arguments
+    $link.WorkingDirectory = $Repo
+    $link.IconLocation = "$Repo\assets\icon.ico"
+    $link.WindowStyle = 7
+    $link.Description = "Swing research terminal (research only, no trading)"
+    $link.Save()
+}
+Write-Host "Created 'Swing Terminal' on the Desktop and in the Start menu."
+Write-Host "(To pin it to the taskbar: Start menu -> right-click 'Swing Terminal' -> Pin to taskbar.)"
+
+# 5. hourly background task (runs the analysis only when a new session has closed)
+if (Test-HostTask $TaskName) {
+    Write-Host "Background task: kept (always-on host setup)."
+} elseif (Ask "Update data automatically in the background (hourly check, runs once per new US session)?" "y") {
+    try {
+        $action = New-ScheduledTaskAction -Execute $VenvPyw `
+            -Argument "-X utf8 daily_run.py --if-new --log data\daily_run.log" -WorkingDirectory $Repo
+        $trigger = New-ScheduledTaskTrigger -Daily -At "00:07"
+        $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At "00:07" -RepetitionInterval (New-TimeSpan -Hours 1) `
+            -RepetitionDuration (New-TimeSpan -Hours 23 -Minutes 55)).Repetition
+        $options = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+            -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $options `
+            -Description "Swing research terminal: daily analysis once per new US session (research only)" -Force `
+            -ErrorAction Stop | Out-Null
+        Write-Host "Background task installed (log: data\daily_run.log)."
+        Write-Host "Remove it with:  Unregister-ScheduledTask -TaskName '$TaskName' -Confirm:`$false"
+    } catch {
+        Write-Host "Could not create the background task: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "The terminal still works; it updates whenever you open it."
+    }
+}
+
+# 5b. intraday prices every 30 minutes in market hours (9:30, 10:00, ... 16:00 New York). The task wakes
+#     every 5 minutes; intraday_run.py checks New York time itself (daylight saving and the PC's time zone
+#     do not matter) and exits at once outside market hours or when the slot was already fetched.
+if (Test-HostTask $IntradayTask) {
+    Write-Host "Intraday task: kept (always-on host setup)."
+} elseif (Ask "Refresh prices every 30 minutes while the US market is open (display only; signals stay after-close)?" "y") {
+    try {
+        New-Item -ItemType Directory -Force -Path (Join-Path $Repo "data") | Out-Null
+        $action = New-ScheduledTaskAction -Execute $VenvPyw `
+            -Argument "-X utf8 intraday_run.py --log data\intraday.log" -WorkingDirectory $Repo
+        $trigger = New-ScheduledTaskTrigger -Daily -At "00:02"
+        $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At "00:02" -RepetitionInterval (New-TimeSpan -Minutes 5) `
+            -RepetitionDuration (New-TimeSpan -Hours 23 -Minutes 55)).Repetition
+        $options = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+            -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName $IntradayTask -Action $action -Trigger $trigger -Settings $options `
+            -Description "Swing research terminal: intraday prices every 30 minutes in US market hours (display only)" -Force `
+            -ErrorAction Stop | Out-Null
+        Write-Host "Intraday task installed (log: data\intraday.log)."
+        Write-Host "Remove it with:  Unregister-ScheduledTask -TaskName '$IntradayTask' -Confirm:`$false"
+    } catch {
+        Write-Host "Could not create the intraday task: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+# 6. first data download
+if (Ask "Download data and run the first analysis now (2-4 minutes)?" "y") {
+    & $VenvPy -X utf8 daily_run.py
+}
+
+# 7. always-on host: restart its server task with the new code, or offer to set it up
+if (Get-ScheduledTask -TaskName "Swing Terminal server" -ErrorAction SilentlyContinue) {
+    try { Start-ScheduledTask -TaskName "Swing Terminal server" -ErrorAction Stop; Write-Host "Always-on server restarted with the new code." }
+    catch { Write-Host "Restart the PC (or run scripts\setup_windows_host.ps1 again) to start the always-on server." -ForegroundColor Yellow }
+} elseif (Ask "Make this PC the always-on host, reachable from your phone / Mac by a web address (asks for admin rights)?" "n") {
+    & "$Repo\scripts\setup_windows_host.ps1"
+}
+
+Write-Host ""
+Write-Host "Done. Double-click 'Swing Terminal' on the Desktop (or in the Start menu)."
+Write-Host "Stop the dashboard server with:  powershell -ExecutionPolicy Bypass -File scripts\stop_terminal.ps1"
+Read-Host "Press Enter to close"
