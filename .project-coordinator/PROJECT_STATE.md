@@ -1,18 +1,13 @@
-# Trading terminal research
+# Trading research — STOPPED
 <!-- project: 8c1e3595-439a-4844-8db8-3a3c567643a0 -->
 
-Goal: After-cost, cross-regime 80-90% annualized candidate research; none qualified.
-Task: task-6ae0aace40e049c893af83df887074fb; use its current HANDOFFS index revision. Original handoff 0f3a79db3158d2e952e331e939f23550f21796e2dab7254979b2443ea1d4922b is retained as immutable history; its joint-cap/host gaps are stale.
-Code: ff9aca77ba1d7e109d7ec5f45db00950978c89d9; joint-cap fix cb9ff8ff11f7b005d508fe9f4475b52054f4c421; ETF preregistration cf62d6a30df62c470a56fbe608747f0085acde90.
-Status: Joint-cap repaired and tested. Original 10026-config / 30-sleeve search still blocked by incomplete original inputs; lost ~4000 old trials remain lost. Separate ETF expansion COMPLETE: 1728 saved trials, 0 reach 80% in all four selection subperiods.
-Evidence: 68 targeted Windows tests passed together (16.03s), including original benchmark parity, joint feasibility, monthly/band drift, cash liquidation cost, checkpoint restart, lagged execution and bounded archive retries. Details: docs/RESEARCH_CONTINUATION_20261104.md.
-ETF result: Frozen pre-2025 trial 332: 2008-24 CAGR 18.78%, daily maxDD -39.13%; reused 2025-26 CAGR 34.22%, maxDD -27.98%. Double-cost 2008-24 CAGR 16.64%, maxDD -40.38%. All metrics and protocol in reports/etf_expansion/. No stable-return qualification.
-Data: Frozen 2026-11-04 exclusive collection: 50 Yahoo symbols + 10 Cboe histories + 2 panels, 62 successful manifest entries. Four public x80 intermediate studies rebuilt. Cboe histories are benchmark indexes, not executable option quotes.
-Preserved snapshot: 350 symbols / 361601 daily rows; archive SHA256 4e1d2291e69fbac080f6e6e0c6f1b4791c92ef91d849bd7d6413ceeb74ad10ca and Parquet SHA256 5476d4902a8e5a1dd810e6aa4eedcbb103ff7cb1317e467c8a140e23de43e40f reverified before Mac disconnection. Not PIT or the original pool.
-Next: Continue bounded Binance spot/funding/premium restoration (source catalogue includes delisted pairs; spot catalogue 700 symbols), then original PIT/flow/fundamental/FX/derivative inputs. Only after completeness/audit resume the ORIGINAL search, <=2 workers and <=250 new trials per batch.
-Execution: Windows research files are readable, but current Git/process command probe timed out. Old binance driver records stopped for transport upgrade; binance_v2 migration records 1793 cached sources, 26 spot + 4 funding inherited. Actual successor processes/source bytes need audit before resuming. Mac is accessible again but its research code is stale; system Git awaits Xcode license. Keep live swing-terminal unchanged.
-Blockers: Original 30-sleeve inputs incomplete; archive coverage/partial-month tails must be inspected, never filled with invented zero returns. Full ETF trial-return checkpoint and frozen data are on Windows (public all-trial metrics in Git).
-Limits: 2025-26 is reused historical validation, not untouched. No live changes, orders, broker, deployment, merge, scaling-in, paid data or guarantees. Daily executable margin/option liquidity and future validation remain required.
-Background: Existing recurring task is retained; do not infer completed work from its scheduling metadata. Avoid duplicate processes; no claim that an LLM runs independently of this session.
-
-Switch verification: Windows ETF progress directly confirms 1728/1728 complete; no tests or trials rerun in this chat. Mac price archive SHA256 matches the preserved snapshot. Transport source commit, full Windows data portability and actual detached-job status remain unverified. Capital range, max drawdown and leverage/shorting constraints were requested but remain unanswered.
+User explicitly stopped research; model switch saves context only. No restart without a new explicit instruction.
+Goal: reproducible after-cost80–90% annualized candidates; none qualified.
+Task: task-6ae0aace40e049c893af83df887074fb; current version in HANDOFFS.json.
+Completed3375 configurations (579+1074+1722); separate earlierETF1728 preserved. Eight growth validation audits not counted as new configs. All2025–26 validation reused; no new forward observations.
+Latest run research-20261105T072232Z checkpoint6:4932 artifacts verified; no known active research workers at final probe. Report SHA256 a3c9a77f1883c8952b276f2d86d23f2f83b015011384960a38da4e4f0dc641df; checkpoint SHA256 d100ddca56ca5c7042420862f219ac32ec1e36d16696468acd84e153d16f871f.
+Latest19-contract frozen validation CAGR/DD: relative7.79%/-9.17%; momentum/carry-31.12%/-67.64%; reversal16.47%/-18.91%. No stable80% result.
+Funding278 recorded symbols;19-contract partial benchmark includes announced exits. Full data, code and ledgers remain Windows-local. Cloud copies through checkpoint5 only. Original10026/30sleeve/PIT and Mac archive gaps remain; no substitution.
+Preserve older joint-cap repair andETF1728; details in prior pinned state and docs/RESEARCH_CONTINUATION_20261104.md.
+Daily accounting boundary caveat and cross19 resume proof are in handoff. Checkpoint6 exclusion metadata needs a future append-only clarification (ordinary end-of-study exclusions are also labeled announced exits); no return recalculation implied. Checkpoint7 not created.
+No orders, broker access, live modifications, paid services or guarantee. This save only publishes compact public research status, not raw artifacts or account data.

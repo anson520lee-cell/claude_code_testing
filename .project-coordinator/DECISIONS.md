@@ -12,3 +12,6 @@
 - D-008: Windows is the active verified host after Mac disconnection. Raw frozen data/full trial-return checkpoint stay on Windows; preserve and disclose this portability gap. Source downloads use two workers, finite retries, hashes and explicit partial-month/delisting gaps. No invented zero returns or bypasses.
 
 - D-009 (updates D-008 execution availability): On this switch, Windows file access and ETF 1728/1728 checkpoint were directly verified; command/process inspection timed out. Mac is accessible but code is stale and system Git awaits Xcode license. Old collector is stopped for transport migration; audit binance_v2 and actual processes before resuming, preserve both source versions and caches. No new trials/tests performed in this chat; do not infer a running job from earlier scheduling/state text.
+
+- D-010 (supersedes execution status in D-009): Windows source/process access recovered;3375 additional configurations completed, originalETF1728 preserved. Final checkpoint6 has no active research workers. User STOP remains authoritative across model switches.
+- D-011: New19-contract daily models widen funding bounds to next opening marks and liquidate at next opening. Older daily outputs retained with approximation caveat. Partial19 universe is not originalPIT pool. Preserve cross19 v1 committed row via v2 resume proof; no rerun.
